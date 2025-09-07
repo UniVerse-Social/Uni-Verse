@@ -1,0 +1,11 @@
+node_modules/
+build/
+dist/
+.DS_Store
+.vscode/
+
+# env files
+.env
+client/.env
+server/.env
+*.env.local

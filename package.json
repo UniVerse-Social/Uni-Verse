@@ -1,0 +1,23 @@
+{
+  "name": "fullerton-connect",
+  "version": "1.0.0",
+  "description": "Social app for CSUF students",
+  "main": "index.js",
+  "scripts": {
+    "install-server": "cd server && npm install",
+    "install-client": "cd client && npm install",
+    "install": "npm run install-server && npm run install-client",
+    "start-server": "cd server && node server.js",
+    "start-client": "cd client && npm start",
+    "dev": "concurrently \"npm run start-server\" \"npm run start-client\"",
+    "seed": "node seed.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^8.2.2",
+    "react-easy-crop": "^5.5.0"
+  }
+}
+
