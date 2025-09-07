@@ -1,0 +1,8 @@
+<svg width="200" height="50" viewBox="0 0 215 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .title { font: bold 28px 'Arial', sans-serif; fill: #00274C; }
+    .connect { font: bold 28px 'Arial', sans-serif; fill: #F58025; }
+  </style>
+  <text x="5" y="35" class="title">Fullerton</text>
+  <text x="110" y="35" class="connect" fill="#F58025">Connect</text>
+</svg>
