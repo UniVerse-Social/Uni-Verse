@@ -30,7 +30,7 @@ fullerton-connect/
 - A MongoDB connection string (Atlas or local)
 
 ## Environment variables
-Create these files (do **not** commit real secrets):
+Create these files (do **not** commit real secrets to this repository):
 
 `server/.env`
 ```
@@ -43,8 +43,6 @@ PORT=4000
 ```
 REACT_APP_API_URL=http://localhost:4000
 ```
-
-> Tip: You can add `server/.env.example` and `client/.env.example` to the repo for teammates to copy.
 
 ## Setup & run (development)
 
