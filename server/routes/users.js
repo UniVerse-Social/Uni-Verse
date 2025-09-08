@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 
-// ---------- GET USER BY USERNAME (unchanged) ----------
+// ---------- GET USER BY USERNAME ----------
 router.get("/profile/:username", async (req, res) => {
   try {
     const user = await User.findOne({ username: req.params.username });
@@ -15,7 +15,7 @@ router.get("/profile/:username", async (req, res) => {
   }
 });
 
-// ---------- UPDATE USER (unchanged) ----------
+// ---------- UPDATE USER ----------
 router.put("/:id", async (req, res) => {
   if (req.body.userId === req.params.id) {
     if (req.body.password) {
@@ -42,7 +42,7 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// ---------- FOLLOW / UNFOLLOW (toggle; unchanged signature) ----------
+// ---------- FOLLOW / UNFOLLOW ----------
 router.put("/:id/follow", async (req, res) => {
   if (req.body.userId !== req.params.id) {
     try {
