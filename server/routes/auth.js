@@ -5,7 +5,6 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// ... (check-availability and signup-data routes are fine, no changes needed)
 router.post('/check-availability', async (req, res) => {
     try {
         const { email, username } = req.body;
@@ -22,9 +21,7 @@ const commonHobbies = ["Reading", "Traveling", "Movies", "Fishing", "Crafts", "T
 router.get('/signup-data', (req, res) => {
     res.status(200).json({ departments: csufDepartments, hobbies: commonHobbies });
 });
-// ...
 
-// SIGNUP (No changes needed, but including for completeness)
 router.post('/signup', async (req, res) => {
     try {
         const salt = await bcrypt.genSalt(10);
@@ -43,14 +40,10 @@ router.post('/signup', async (req, res) => {
     }
 });
 
-
-// --- THIS IS THE MAJOR FIX ---
-// LOGIN (Updated to handle username or email)
 router.post('/login', async (req, res) => {
     try {
         const { loginIdentifier, password: bodyPassword } = req.body;
 
-        // Intelligently find user by EITHER email OR username
         const user = await User.findOne({
             $or: [{ email: loginIdentifier }, { username: loginIdentifier }]
         });
