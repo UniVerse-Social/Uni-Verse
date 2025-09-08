@@ -4,7 +4,7 @@ import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import axios from 'axios';
-import { AuthContext } from '../App'; // Assuming App.js has an AuthContext
+import { AuthContext } from '../App';
 
 const LoginContainer = styled.div`
     display: flex;
@@ -82,7 +82,6 @@ const Login = () => {
         <LoginContainer>
             <LoginForm onSubmit={handleSubmit}>
                 <h2>Login to Fullerton Connect</h2>
-                {/* --- THIS IS THE FIX --- */}
                 <Input
                     type="text" // Changed from "email" to "text"
                     placeholder="Email or Username"
