@@ -15,7 +15,6 @@ const CreatePost = ({ onPostCreated }) => {
         e.preventDefault();
         if (!textContent.trim()) return;
 
-        // Simplified: The backend now handles the profile picture logic
         const newPost = {
             userId: user._id,
             username: user.username,
@@ -25,8 +24,6 @@ const CreatePost = ({ onPostCreated }) => {
         try {
             const res = await axios.post("http://localhost:5000/api/posts", newPost);
             
-            // The response from the server doesn't have the aggregated picture,
-            // so we add it manually to the new post for instant UI update.
             const postWithPic = { ...res.data, profilePicture: user.profilePicture };
             onPostCreated(postWithPic);
             setTextContent('');
