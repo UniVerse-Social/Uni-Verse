@@ -9,23 +9,6 @@ import ImageCropModal from '../components/ImageCropModal';
 import { FaCamera } from 'react-icons/fa';
 import { FiSettings, FiLogOut, FiTrash2, FiX } from 'react-icons/fi';
 
-/**
- * Profile page
- * - Matches your original structure and context usage.
- * - Adds a Settings gear to the right of "Edit Bio" with:
- *   - Log out (moved here)
- *   - Delete account (double confirmation)
- * - Keeps banner/profile picture crop & upload
- * - Keeps follow/unfollow toggle and posts feed
- *
- * API endpoints used (same style as your app):
- *  - GET    /api/users/profile/:username
- *  - GET    /api/posts/profile/:username
- *  - PUT    /api/users/:id/follow        (body: { userId })
- *  - PUT    /api/users/:id               (profile/banner updates; body includes userId)
- *  - DELETE /api/users/:id               (body: { userId })  <-- added for account deletion
- */
-
 // --------------------------- Styled Components ---------------------------
 
 const Page = styled.div`
