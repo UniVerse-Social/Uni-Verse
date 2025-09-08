@@ -16,9 +16,6 @@ const PORT = process.env.PORT || 5000;
 
 // --- MIDDLEWARE SETUP ---
 app.use(cors());
-// --- THIS IS THE DEFINITIVE FIX ---
-// Increase the payload size limit for JSON and URL-encoded bodies.
-// The base64 image string is sent in the JSON body.
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/api/messages', require('./routes/messages'));
