@@ -40,7 +40,7 @@ const styles = `
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; padding: 10px 14px; border-radius: 999px; }
 `;
 
-// Utility to get current user id from localStorage (adjust if you store differently)
+// Utility to get current user id from localStorage
 function getCurrentUserId() {
   try {
     const u = localStorage.getItem('user') || localStorage.getItem('currentUser');
@@ -59,7 +59,6 @@ async function api(path, { method = 'GET', body } = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
-  // Guard: if the dev server gave us HTML, content-type won't be JSON
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
     const text = await res.text();
