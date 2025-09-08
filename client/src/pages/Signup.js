@@ -7,7 +7,7 @@ import axios from 'axios';
 import { debounce } from 'lodash';
 import { AuthContext } from '../App';
 
-// Styled components (no changes)
+// Styled components
 const SignupContainer = styled.div` display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background-color: var(--background-grey); padding: 20px; `;
 const SignupForm = styled.form` background: var(--container-white); padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 400px; `;
 const Input = styled.input` padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 16px; `;
@@ -48,8 +48,6 @@ const Signup = () => {
         fetchSignupData();
     }, []);
 
-    // --- THIS IS THE FIX: Replaced useCallback with useMemo ---
-    // This creates the debounced function only once and removes the ESLint warning.
     const checkAvailability = useMemo(
         () =>
             debounce(async (field, value) => {
@@ -68,7 +66,7 @@ const Signup = () => {
                     setIsChecking(false);
                 }
             }, 500),
-        [] // The empty dependency array ensures this is created only on the initial render.
+        [] 
     );
 
     const handleChange = (e) => {
@@ -92,16 +90,16 @@ const Signup = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            // 1. Create the account
+            // Create the account
             await axios.post('http://localhost:5000/api/auth/signup', formData);
 
-            // 2. Automatically log the user in
+            // Automatically log the user in
             const loginRes = await axios.post('http://localhost:5000/api/auth/login', {
                 loginIdentifier: formData.email,
                 password: formData.password
             });
 
-            // 3. Save user data globally and navigate to home
+            // Save user data globally and navigate to home
             login(loginRes.data);
             navigate('/');
 
