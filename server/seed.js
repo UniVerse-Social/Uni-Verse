@@ -1,7 +1,7 @@
 // server/seed.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const faker = require('faker'); // v5.x (you already installed)
+const faker = require('faker');
 const User = require('./models/User');
 const Post = require('./models/Post');
 
@@ -23,7 +23,6 @@ const AVATAR = seed => `https://api.dicebear.com/6.x/thumbs/svg?seed=${encodeURI
   await mongoose.connect(MONGO_URI, {});
   console.log('Connected to Mongo');
 
-  // wipe ONLY old bots (keep real users)
   const oldBots = await User.find({ email: /@bot\.example\.com$/ }).select('_id');
   const botIds = oldBots.map(b => b._id);
   if (botIds.length) {
@@ -79,10 +78,10 @@ const AVATAR = seed => `https://api.dicebear.com/6.x/thumbs/svg?seed=${encodeURI
     for (let i = 0; i < n; i++) {
       postDocs.push(new Post({
         userId: b._id,
-        username: b.username,                 // <-- required by your schema
-        profilePicture: b.profilePicture || '',// optional but nice for feed
+        username: b.username,
+        profilePicture: b.profilePicture || '',
         desc: faker.hacker.phrase(),
-        img: '',                               // or a placeholder image URL
+        img: '',
         likes: [],
         comments: []
       }));
