@@ -34,14 +34,8 @@ Create these files (do **not** commit real secrets to this repository):
 
 `server/.env`
 ```
-MONGODB_URI=mongodb+srv://<user>:<pass>@cluster/dbname
-JWT_SECRET=change-me
-PORT=4000
-```
-
-`client/.env`
-```
-REACT_APP_API_URL=http://localhost:4000
+JWT_SECRET=change-me(any string of numbers and letters ex. dh342di3jrjc3jrf)
+GENERATE_SOURCEMAP=false
 ```
 
 ## Setup & run (development)
