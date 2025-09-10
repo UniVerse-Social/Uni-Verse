@@ -49,6 +49,11 @@ cd ../client && npm install
 Start the API:
 ```bash
 cd server
+
+sudo systemctl start mongod
+sudo systemctl enable mongod
+sudo systemctl status mongod
+
 npm start          # or: node server.js
 ```
 
