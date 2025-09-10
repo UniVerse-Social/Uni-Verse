@@ -36,6 +36,8 @@ Create these files (do **not** commit real secrets to this repository):
 ```
 JWT_SECRET=change-me(any string of numbers and letters ex. dh342di3jrjc3jrf)
 GENERATE_SOURCEMAP=false
+ADMIN_API_KEY=change-me(any string of numers and letters ex. eincu4huvruf34ur8)
+MONGO_URI=mongodb://127.0.0.1:27017/fullerton-connect
 ```
 
 ## Setup & run (development)
