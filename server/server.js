@@ -19,6 +19,13 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/api/messages', require('./routes/messages'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/comments', require('./routes/comments'));
+app.use('/api/clubs', require('./routes/clubs'));
+app.use('/api/club-posts', require('./routes/clubPosts'));
+app.use('/api/club-comments', require('./routes/clubComments'));
+app.use('/api/listings', require('./routes/listings'));
+app.use('/api/ads', require('./routes/ads'));
 
 // --- DATABASE CONNECTION ---
 const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017/fullertonconnect';

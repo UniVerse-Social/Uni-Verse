@@ -178,7 +178,7 @@ const TitanTap = () => {
       }
       try {
         setLoading(true);
-        const data = await api(`/api/users/suggestions/${userId}`);
+        const data = await api(`/api/users/titantap/${userId}`);
         setDeck(Array.isArray(data) ? data : []);
       } catch (e) {
         setError(e.message);

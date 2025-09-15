@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
 import CreatePost from '../components/CreatePost';
 import Post from '../components/Post';
+import AdCard from '../components/AdCard';
+import { API_BASE_URL } from '../config';
 import { FaEnvelope } from 'react-icons/fa';
 
 const HomeContainer = styled.div`
@@ -55,13 +57,14 @@ const Badge = styled.span`
 
 const Home = () => {
   const [posts, setPosts] = useState([]);
+  const [ads, setAds] = useState([]);
   const [unread, setUnread] = useState(0);
   const { user } = useContext(AuthContext);
 
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/posts/timeline/${user._id}`);
+        const res = await axios.get(`${API_BASE_URL}/api/posts/timeline/${user._id}`);
         setPosts(res.data);
       } catch (err) {
         console.error(err);
@@ -69,6 +72,16 @@ const Home = () => {
     };
     fetchPosts();
   }, [user._id]);
+
+  useEffect(() => {
+    const loadAds = async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/ads`);
+        setAds(res.data || []);
+      } catch {}
+    };
+    loadAds();
+  }, []);
 
   useEffect(() => {
     const fetchUnread = async () => {
@@ -96,9 +109,16 @@ const Home = () => {
         </DMButton>
 
         <CreatePost onPostCreated={handlePostCreated} />
-        {posts.map((p) => (
-          <Post key={p._id} post={p} />
-        ))}
+        {posts.map((p, idx) => {
+          const adIndex = Math.floor(idx / 10) % (ads.length || 1);
+          const shouldShowAd = (idx !== 0) && ((idx + 1) % 10 === 0) && ads.length > 0;
+          return (
+            <React.Fragment key={p._id}>
+              <Post post={p} />
+              {shouldShowAd && <AdCard ad={ads[adIndex]} />}
+            </React.Fragment>
+          );
+        })}
       </Feed>
     </HomeContainer>
   );

@@ -65,6 +65,30 @@ router.put("/:id/follow", async (req, res) => {
   }
 });
 
+// Followers list
+router.get("/:id/followers", async (req, res) => {
+  try {
+    const u = await User.findById(req.params.id).select("followers").lean();
+    if (!u) return res.status(404).json("User not found");
+    const people = await User.find({ _id: { $in: u.followers || [] } })
+      .select("_id username profilePicture department")
+      .lean();
+    res.json(people);
+  } catch (e) { res.status(500).json({ message: "Failed to load followers" }); }
+});
+
+// Following list
+router.get("/:id/following", async (req, res) => {
+  try {
+    const u = await User.findById(req.params.id).select("following").lean();
+    if (!u) return res.status(404).json("User not found");
+    const people = await User.find({ _id: { $in: u.following || [] } })
+      .select("_id username profilePicture department")
+      .lean();
+    res.json(people);
+  } catch (e) { res.status(500).json({ message: "Failed to load following" }); }
+});
+
 // ---------- USER SEARCH ----------
 /**
  * GET /api/users/search?q=...&userId=...
@@ -152,6 +176,76 @@ router.get("/suggestions/:userId", async (req, res) => {
   } catch (err) {
     console.error("Suggestions error:", err);
     res.status(500).json(err);
+  }
+});
+
+// Ordered suggestions for TitanTap (followers → mutuals → dept → clubs → hobbies → random)
+router.get("/titantap/:userId", async (req, res) => {
+  try {
+    const meId = new mongoose.Types.ObjectId(req.params.userId);
+
+    // ensure User is imported at top: const User = require("../models/User");
+    const me = await User.findById(meId)
+      .select("department hobbies clubs followers following")
+      .lean();
+    if (!me) return res.status(404).json("User not found");
+
+    // coalesce to arrays to avoid $in/$setIntersection errors
+    const meFollowing = Array.isArray(me.following) ? me.following : [];
+    const meClubs = Array.isArray(me.clubs) ? me.clubs : [];
+    const meHobbies = Array.isArray(me.hobbies) ? me.hobbies : [];
+
+    const pipeline = [
+      { $match: { _id: { $ne: meId } } },
+
+      // Make sure array fields exist on each user doc
+      {
+        $addFields: {
+          followersSafe: { $ifNull: ["$followers", []] },
+          hobbiesSafe: { $ifNull: ["$hobbies", []] },
+          clubsSafe: { $ifNull: ["$clubs", []] }
+        }
+      },
+
+      // Scoring signals
+      {
+        $addFields: {
+          isFollower: { $in: [meId, "$followersSafe"] },                   // they follow me
+          iFollow: { $in: ["$_id", meFollowing] },                         // I already follow them
+          isMutual: {
+            $and: [
+              { $in: [meId, "$followersSafe"] },
+              { $in: ["$_id", meFollowing] }
+            ]
+          },
+          deptMatch: { $cond: [{ $eq: ["$department", me.department || null] }, 1, 0] },
+          sharedClubsCount: { $size: { $setIntersection: ["$clubsSafe", meClubs] } },
+          sharedHobbiesCount: { $size: { $setIntersection: ["$hobbiesSafe", meHobbies] } },
+          rand: { $rand: {} }
+        }
+      },
+
+      // Order: followers (not yet followed back) → mutuals → dept → clubs → hobbies → random
+      {
+        $sort: {
+          isFollower: -1,   // followers first…
+          iFollow: 1,       // …that I don't follow back
+          isMutual: -1,
+          deptMatch: -1,
+          sharedClubsCount: -1,
+          sharedHobbiesCount: -1,
+          rand: 1
+        }
+      },
+      { $project: { password: 0, email: 0 } },
+      { $limit: Math.min(parseInt(req.query.limit) || 50, 100) }
+    ];
+
+    const users = await User.aggregate(pipeline);
+    res.json(users);
+  } catch (e) {
+    console.error("TitanTap error:", e);
+    res.status(500).json({ message: e.message || "Failed to load TitanTap suggestions" });
   }
 });
 

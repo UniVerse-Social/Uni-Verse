@@ -1,5 +1,4 @@
 // client/src/App.js
-
 import React, { createContext, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -10,6 +9,8 @@ import Login from './pages/Login';
 import TitanTap from './pages/TitanTap';
 import './App.css';
 import DMPage from './pages/DMs';
+const Clubs = React.lazy(() => import('./pages/Clubs'));
+const Marketplace = React.lazy(() => import('./pages/Marketplace'));
 
 export const AuthContext = createContext(null);
 
@@ -43,6 +44,8 @@ function App() {
                             <Route path="/" element={<Home />} />
                             <Route path="/profile/:username" element={<Profile />} />
                             <Route path="/titantap" element={<TitanTap />} />
+                            <Route path="/clubs" element={<React.Suspense><Clubs /></React.Suspense>} />
+                            <Route path="/marketplace" element={<React.Suspense><Marketplace /></React.Suspense>} />
                             <Route path="*" element={<Navigate to="/" />} />
                             <Route path="/dms" element={<DMPage />} />
                         </Routes>

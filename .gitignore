@@ -1,11 +1,24 @@
+# Dependencies
 node_modules/
-build/
-dist/
-.DS_Store
-.vscode/
 
-# env files
+# Build output
+client/build/
+server/dist/
+dist/
+*.log
+
+# Env / secrets
 .env
-client/.env
-server/.env
-*.env.local
+.env.*.local
+
+# Editor/OS
+.vscode/
+.DS_Store
+
+# Testing
+coverage/
+
+# Misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

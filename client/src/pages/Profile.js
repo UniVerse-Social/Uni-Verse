@@ -8,6 +8,7 @@ import EditProfileModal from '../components/EditProfileModal';
 import ImageCropModal from '../components/ImageCropModal';
 import { FaCamera } from 'react-icons/fa';
 import { FiSettings, FiLogOut, FiTrash2, FiX } from 'react-icons/fi';
+import FollowersModal from '../components/FollowersModal';
 
 // --------------------------- Styled Components ---------------------------
 
@@ -292,6 +293,9 @@ const Profile = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
+  const [showFollowers, setShowFollowers] = useState(false);
+  const [showFollowing, setShowFollowing] = useState(false);
+
   // Fetch profile and posts
   const fetchUserAndPosts = useCallback(async () => {
     try {
@@ -573,17 +577,23 @@ const Profile = () => {
             <InfoAndActions>
               <Info>
                 <Username>{userOnPage.username}</Username>
-                <Stats>
-                  <span>
-                    <strong>{posts.length}</strong> posts
-                  </span>
-                  <span>
-                    <strong>{userOnPage.followers?.length || 0}</strong> followers
-                  </span>
-                  <span>
-                    <strong>{userOnPage.following?.length || 0}</strong> following
-                  </span>
-                </Stats>
+              <Stats>
+                <span><strong>{posts.length}</strong> posts</span>
+
+                <button
+                  style={{ all: 'unset', cursor: 'pointer', color: '#65676b' }}
+                  onClick={() => setShowFollowers(true)}
+                >
+                  <strong>{userOnPage.followers?.length || 0}</strong> followers
+                </button>
+
+                <button
+                  style={{ all: 'unset', cursor: 'pointer', color: '#65676b' }}
+                  onClick={() => setShowFollowing(true)}
+                >
+                  <strong>{userOnPage.following?.length || 0}</strong> following
+                </button>
+              </Stats>
                 <Bio>
                   {userOnPage.bio || `Welcome to ${userOnPage.username}'s page!`}
                 </Bio>
@@ -643,6 +653,24 @@ const Profile = () => {
               />
             ))}
           </PostsGrid>
+          {showFollowers && (
+            <FollowersModal
+              userId={userOnPage._id}
+              me={currentUser}
+              type="followers"
+              myFollowing={currentUser?.following || []}
+              onClose={() => setShowFollowers(false)}
+            />
+          )}
+          {showFollowing && (
+            <FollowersModal
+              userId={userOnPage._id}
+              me={currentUser}
+              type="following"
+              myFollowing={currentUser?.following || []}
+              onClose={() => setShowFollowing(false)}
+            />
+          )}
         </Content>
       </Page>
     </>

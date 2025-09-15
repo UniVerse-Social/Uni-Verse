@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
-import { FaHome, FaSearch, FaUser } from 'react-icons/fa';
+import { FaHome, FaSearch, FaUser, FaUsers, FaStore } from 'react-icons/fa';
 import { AuthContext } from '../App';
 
 const NavWrapper = styled.nav`
@@ -61,6 +61,8 @@ const Navbar = () => {
                 <NavLinks>
                     <StyledNavLink to="/"><FaHome /></StyledNavLink>
                     <StyledNavLink to="/titantap"><FaSearch /></StyledNavLink>
+                    <StyledNavLink to="/clubs"><FaUsers /></StyledNavLink>
+                    <StyledNavLink to="/marketplace"><FaStore /></StyledNavLink>
                     <StyledNavLink to={`/profile/${user.username}`}><FaUser /></StyledNavLink>
                     {/* DM icon removed from navbar */}
                 </NavLinks>

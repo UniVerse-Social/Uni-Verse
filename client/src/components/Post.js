@@ -5,6 +5,7 @@ import { FaHeart, FaRegHeart, FaCommentAlt, FaEllipsisH } from 'react-icons/fa';
 import axios from 'axios';
 import { AuthContext } from '../App';
 import EditPostModal from './EditPostModal';
+import CommentDrawer from './CommentDrawer';
 
 const PostContainer = styled.div` 
     background: #fff; 
@@ -52,6 +53,8 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
     const [isLiked, setIsLiked] = useState(currentUser ? post.likes.includes(currentUser._id) : false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+    const [commentCount, setCommentCount] = useState(post.commentsCount || 0);
 
     // This check determines if the current user owns the post.
     const isOwner = currentUser && (currentUser._id === post.userId || currentUser.username === post.username);
@@ -121,9 +124,16 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
                     <Action onClick={likeHandler}>
                         {isLiked ? <FaHeart color="red" /> : <FaRegHeart />} {likeCount}
                     </Action>
-                    <Action><FaCommentAlt /> 0</Action>
+                    <Action onClick={() => setIsCommentsOpen(true)}><FaCommentAlt /> {commentCount}</Action>
                 </PostActions>
             </PostContainer>
+            {isCommentsOpen && (
+              <CommentDrawer
+                post={post}
+                onClose={() => setIsCommentsOpen(false)}
+                onCountChange={(n) => setCommentCount(n)}
+              />
+            )}
         </>
     );
 };

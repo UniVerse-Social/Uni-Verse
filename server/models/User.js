@@ -10,6 +10,7 @@ const UserSchema = new mongoose.Schema({
   bio:        { type: String, default: "" },
   department: { type: String, required: true },
   hobbies:    [{ type: String }],
+  clubs:      [{ type: mongoose.Schema.Types.ObjectId, ref: 'Club' }],
   followers:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   following:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   isVerified: { type: Boolean, default: false },
