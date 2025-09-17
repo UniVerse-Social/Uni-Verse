@@ -42,7 +42,11 @@ MONGO_URI=mongodb://127.0.0.1:27017/fullerton-connect
 
 ## Setup & run (development)
 
+
 ```bash
+# Everytime you want to be up-to-date with GitHub directory
+# You must use: 'git pull origin main' in your command line
+# as well as use: 'npm install' before launching anything. 
 # from the repo root
 cd server && npm install
 cd ../client && npm install
