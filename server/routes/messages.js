@@ -3,13 +3,48 @@ const mongoose = require('mongoose');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
+const { maskText, enforceNotBanned } = require('../middleware/moderation');
 
-// Get unread total for a user
+// (rest of your guards unchanged)
+async function ensureDmParticipant(req, res, next) {
+  try {
+    const actorId =
+      req.body?.userId ||
+      req.query?.userId ||
+      req.headers['x-user-id'];
+
+    if (!actorId) return res.status(401).json({ message: 'Missing user id' });
+
+    if (req.params?.userId && !req.params.conversationId) {
+      if (String(req.params.userId) !== String(actorId)) {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+      return next();
+    }
+
+    if (req.params?.conversationId) {
+      const conv = await Conversation.findById(req.params.conversationId)
+        .select('participants')
+        .lean();
+      if (!conv) return res.status(404).json({ message: 'Conversation not found' });
+      const ok = (conv.participants || []).map(String).includes(String(actorId));
+      if (!ok) return res.status(403).json({ message: 'Forbidden' });
+      return next();
+    }
+
+    next();
+  } catch (e) {
+    console.error('ensureDmParticipant error', e);
+    res.status(500).json({ message: 'DM guard failed' });
+  }
+}
+
+// Unread count (unchanged)
 router.get('/unread/:userId', async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.params.userId);
     const convs = await Conversation.find({ participants: userId }).select('_id');
-    const convIds = convs.map(c => c._id);
+    const convIds = convs.map((c) => c._id);
     if (convIds.length === 0) return res.json({ count: 0 });
 
     const count = await Message.countDocuments({
@@ -25,8 +60,8 @@ router.get('/unread/:userId', async (req, res) => {
   }
 });
 
-// Get conversations for a user (with last message + unread per conversation)
-router.get('/conversations/:userId', async (req, res) => {
+// List conversations (unchanged logic)
+router.get('/conversations/:userId', ensureDmParticipant, async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.params.userId);
     const convs = await Conversation.aggregate([
@@ -44,22 +79,17 @@ router.get('/conversations/:userId', async (req, res) => {
         }
       },
       { $unwind: { path: '$last', preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          lastMessageAt: { $ifNull: ['$last.createdAt', '$updatedAt'] }
-        }
-      },
+      { $addFields: { lastMessageAt: { $ifNull: ['$last.createdAt', '$updatedAt'] } } },
       { $sort: { lastMessageAt: -1 } }
     ]);
 
-    // compute title/avatar + unread for each
     const result = [];
     for (const c of convs) {
       let title = c.name;
       let avatar = c.avatar || null;
 
       if (!c.isGroup) {
-        const otherId = c.participants.find(id => id.toString() !== userId.toString());
+        const otherId = c.participants.find((id) => id.toString() !== userId.toString());
         const other = await User.findById(otherId).select('username profilePicture').lean();
         title = other?.username || 'Direct Message';
         avatar = other?.profilePicture || null;
@@ -88,15 +118,16 @@ router.get('/conversations/:userId', async (req, res) => {
   }
 });
 
-// Create conversation (DM if 1 participant; group if >=2)
+// Create conversation (unchanged)
 router.post('/conversation', async (req, res) => {
   try {
     const { creatorId, participants, name } = req.body;
-    const ids = [...new Set([creatorId, ...(participants || [])])].map(id => new mongoose.Types.ObjectId(id));
+    const ids = [...new Set([creatorId, ...(participants || [])])].map(
+      (id) => new mongoose.Types.ObjectId(id)
+    );
     const isGroup = ids.length > 2;
 
     if (!isGroup && ids.length === 2) {
-      // reuse existing DM
       const existing = await Conversation.findOne({
         isGroup: false,
         participants: { $all: ids, $size: 2 }
@@ -107,7 +138,7 @@ router.post('/conversation', async (req, res) => {
     const conv = await Conversation.create({
       participants: ids,
       isGroup,
-      name: isGroup ? (name || 'Group chat') : null
+      name: isGroup ? name || 'Group chat' : null
     });
 
     res.json(conv);
@@ -117,8 +148,8 @@ router.post('/conversation', async (req, res) => {
   }
 });
 
-// Get messages for conversation
-router.get('/:conversationId', async (req, res) => {
+// Get messages (unchanged)
+router.get('/:conversationId', ensureDmParticipant, async (req, res) => {
   try {
     const msgs = await Message.find({ conversationId: req.params.conversationId })
       .sort({ createdAt: 1 })
@@ -130,14 +161,15 @@ router.get('/:conversationId', async (req, res) => {
   }
 });
 
-// Send message
-router.post('/:conversationId', async (req, res) => {
+// Send message (text masked; attachments allowed; banned users blocked)
+router.post('/:conversationId', enforceNotBanned, async (req, res) => {
   try {
-    const { senderId, body } = req.body;
+    const { senderId, body, attachments } = req.body;
     const msg = await Message.create({
       conversationId: req.params.conversationId,
       senderId,
-      body,
+      body: maskText(body || ''),
+      attachments: Array.isArray(attachments) ? attachments.slice(0, 10) : [],
       readBy: [senderId]
     });
     await Conversation.findByIdAndUpdate(req.params.conversationId, { lastMessageAt: msg.createdAt });
@@ -148,7 +180,7 @@ router.post('/:conversationId', async (req, res) => {
   }
 });
 
-// Mark conversation as read by user
+// Mark read (unchanged)
 router.put('/:conversationId/read', async (req, res) => {
   try {
     const { userId } = req.body;

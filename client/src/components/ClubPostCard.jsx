@@ -6,8 +6,15 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
 import ClubCommentDrawer from './ClubCommentDrawer';
+import UserLink from './UserLink';
 
-const Card = styled.div`background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.1); padding:12px; margin-bottom:12px;`;
+const Card = styled.div`
+  background: var(--container-white);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  /* ... */
+`;
 const Head = styled.div`display:flex; align-items:center; gap:10px;`;
 const Av = styled.div`width:36px; height:36px; border-radius:50%; background:#f2f2f2; overflow:hidden; display:grid; place-items:center; font-weight:700;`;
 const Name = styled.div`font-weight:700;`;
@@ -34,11 +41,15 @@ export default function ClubPostCard({ post, refresh }){
   };
 
   return (
-    <Card>
+    <Card className="surface">
       <Head>
         <Av>{post.author?.profilePicture ? <img src={post.author.profilePicture} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (post.author?.username || '?')[0]?.toUpperCase()}</Av>
         <div>
-          <Name>{post.author?.username || 'user'}</Name>
+          <Name>
+            <UserLink username={post.author?.username || 'user'}>
+              {post.author?.username || 'user'}
+            </UserLink>
+          </Name>
           <div style={{fontSize:12, color:'#666'}}>{channelLabel}</div>
         </div>
         <Time>{new Date(post.createdAt).toLocaleString()}</Time>

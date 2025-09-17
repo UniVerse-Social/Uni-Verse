@@ -36,14 +36,15 @@ const Input = styled.input`
 
 const Button = styled.button`
     padding: 12px;
-    background-color: var(--primary-blue);
-    color: white;
+    background-color: var(--border-color);
+    color: black;
     border: none;
     border-radius: 4px;
     font-size: 16px;
     font-weight: bold;
     cursor: pointer;
     &:hover {
+        background-color: orange;
         opacity: 0.9;
     }
 `;
@@ -65,17 +66,21 @@ const Login = () => {
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            const res = await axios.post('http://localhost:5000/api/auth/login', {
-                loginIdentifier,
-                password
-            });
-            login(res.data); // Use the login function from context
-            navigate('/'); // Navigate to home on success
-        } catch (err) {
-            alert('Login failed. Please check your username/email and password.');
-        }
+    e.preventDefault();
+    try {
+        const raw = (loginIdentifier || '').trim();
+        const normalized = raw.includes('@') ? raw.toLowerCase() : raw;
+
+        const res = await axios.post('http://localhost:5000/api/auth/login', {
+        loginIdentifier: normalized,
+        password
+        });
+        login(res.data);
+        navigate('/');
+    } catch (err) {
+        const msg = err?.response?.data?.message || 'Login failed. Please check your username/email and password.';
+        alert(msg);
+    }
     };
 
     return (

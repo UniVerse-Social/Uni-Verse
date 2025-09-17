@@ -4,6 +4,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
 import { FaHeart, FaRegHeart } from 'react-icons/fa';
+import UserLink from './UserLink';
 
 const Backdrop = styled.div`position:fixed; inset:0; background:rgba(0,0,0,.25); z-index:1500;`;
 const Drawer = styled.div`position:fixed; top:0; right:0; height:100vh; width:min(420px,92vw); background:#fff; z-index:1501; box-shadow:-2px 0 12px rgba(0,0,0,.2); display:flex; flex-direction:column;`;
@@ -71,7 +72,10 @@ function CommentRow({ c, me, onLike, onReply }){
   const liked = (c.likes||[]).map(String).includes(String(me._id));
   return (
     <Row>
-      <Meta>{c.username || 'user'} · {new Date(c.createdAt).toLocaleString()}</Meta>
+      <Meta>
+        <UserLink username={c.username || 'user'}>{c.username || 'user'}</UserLink>
+        {' · '}{new Date(c.createdAt).toLocaleString()}
+      </Meta>
       <Body>{c.body}</Body>
       <Actions>
         <span onClick={onLike} style={{cursor:'pointer'}}>{liked ? <FaHeart/> : <FaRegHeart/>} {(c.likes||[]).length||0}</span>

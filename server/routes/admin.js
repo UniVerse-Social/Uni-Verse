@@ -1,63 +1,60 @@
 // server/routes/admin.js
 const router = require('express').Router();
+const requireAdmin = require('../middleware/requireAdmin');
 const User = require('../models/User');
+const Post = require('../models/Post');
+const Listing = require('../models/Listing');
+const Club = require('../models/Club');
+const ClubPost = require('../models/ClubPost');
 
-// Simple header key; add this to your .env
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
-
-// small helper for case-insensitive username
-const esc = (s='') => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const byUsernameCI = (u) => ({ username: { $regex: `^${esc(u)}$`, $options: 'i' } });
-
-router.use((req, res, next) => {
-  if (!ADMIN_API_KEY) return res.status(500).json({ message: 'ADMIN_API_KEY not set' });
-  const key = req.header('x-admin-key');
-  if (key !== ADMIN_API_KEY) return res.status(401).json({ message: 'Unauthorized' });
-  next();
+// --- Stats (no private content) ---
+router.get('/stats', requireAdmin, async (_req, res) => {
+  const [users, posts, clubs, listings] = await Promise.all([
+    User.countDocuments(),
+    Post.countDocuments(),
+    Club.countDocuments(),
+    Listing.countDocuments(),
+  ]);
+  res.json({ users, posts, clubs, listings });
 });
 
-// Reset a user’s password (hashing handled by your User model pre('findOneAndUpdate'))
-router.post('/users/reset-password', async (req, res) => {
-  try {
-    const { username, email, id, newPassword } = req.body || {};
-    if (!newPassword || !(username || email || id)) {
-      return res.status(400).json({ message: 'Provide username or email or id, and newPassword' });
-    }
-    const query = id
-      ? { _id: id }
-      : email
-        ? { email: String(email).toLowerCase().trim() }
-        : byUsernameCI(String(username).trim());
-
-    const user = await User.findOneAndUpdate(query, { password: String(newPassword) }, { new: true });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json({ ok: true, user: { _id: user._id, username: user.username, email: user.email } });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: 'Server error' });
-  }
+// --- User directory (redacts secrets; no DMs) ---
+router.get('/users', requireAdmin, async (_req, res) => {
+  const people = await User.find({})
+    .select('_id username email isAdmin department createdAt profilePicture')
+    .sort({ createdAt: -1 })
+    .lean();
+  res.json(people);
 });
 
-// Delete a user
-router.delete('/users', async (req, res) => {
-  try {
-    const { username, email, id } = req.body || {};
-    if (!(username || email || id)) {
-      return res.status(400).json({ message: 'Provide username or email or id' });
-    }
-    const query = id
-      ? { _id: id }
-      : email
-        ? { email: String(email).toLowerCase().trim() }
-        : byUsernameCI(String(username).trim());
+// Promote / demote
+router.post('/promote', requireAdmin, async (req, res) => {
+  const { targetId, makeAdmin } = req.body || {};
+  const u = await User.findById(targetId);
+  if (!u) return res.status(404).json({ message: 'User not found' });
+  u.isAdmin = !!makeAdmin;
+  await u.save();
+  res.json({ ok: true, _id: u._id, isAdmin: u.isAdmin });
+});
 
-    const result = await User.deleteOne(query);
-    if (result.deletedCount === 0) return res.status(404).json({ message: 'User not found' });
-    res.json({ ok: true, deletedCount: result.deletedCount });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: 'Server error' });
-  }
+// Remove content (posts, club posts, listings). No DM endpoints here.
+router.delete('/post/:id', requireAdmin, async (req, res) => {
+  await Post.findByIdAndDelete(req.params.id);
+  res.json({ ok: true });
+});
+router.delete('/clubpost/:id', requireAdmin, async (req, res) => {
+  await ClubPost.findByIdAndDelete(req.params.id);
+  res.json({ ok: true });
+});
+router.delete('/listing/:id', requireAdmin, async (req, res) => {
+  await Listing.findByIdAndDelete(req.params.id);
+  res.json({ ok: true });
+});
+
+// Disable a user (soft delete)
+router.post('/users/:id/disable', requireAdmin, async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, { $set: { isVerified: false } });
+  res.json({ ok: true });
 });
 
 module.exports = router;

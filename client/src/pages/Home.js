@@ -1,3 +1,4 @@
+// client/src/pages/Home.js
 import React, { useState, useEffect, useContext } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
@@ -13,6 +14,7 @@ const HomeContainer = styled.div`
   display: flex;
   justify-content: center;
   padding: 20px;
+  /* inherits page background + text from theme */
 `;
 
 const Feed = styled.div`
@@ -29,13 +31,16 @@ const DMButton = styled(Link)`
   width: 42px;
   height: 42px;
   border-radius: 999px;
-  background: #111;
-  color: #fff;
+
+  /* THEME-AWARE contrast pill */
+  background: var(--text-color);
+  color: var(--container-white);
+
   display: grid;
   place-items: center;
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-  transition: transform .15s ease;
-  &:hover { transform: translateY(-1px); }
+  transition: transform .15s ease, filter .15s ease;
+  &:hover { transform: translateY(-1px); filter: brightness(1.05); }
 `;
 
 const Badge = styled.span`
@@ -46,13 +51,13 @@ const Badge = styled.span`
   height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: #e02424;
-  color: #fff;
+  background: #e02424;                     /* alert red works in both themes */
+  color: var(--container-white);
   font-size: 12px;
   font-weight: 700;
   display: grid;
   place-items: center;
-  border: 2px solid #fff;
+  border: 2px solid var(--container-white); /* ring matches theme surface */
 `;
 
 const Home = () => {

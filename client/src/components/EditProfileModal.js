@@ -1,152 +1,233 @@
-import React, { useState, useContext } from 'react';
+// client/src/components/EditProfileModal.jsx
+import React, { useContext, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';
 
-const ModalBackdrop = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+const Backdrop = styled.div`
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: grid; place-items: center;
   z-index: 1000;
 `;
 
-const ModalContainer = styled.form`
-  background: white;
-  padding: 30px;
-  border-radius: 8px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  width: 90%;
-  max-width: 500px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+const Dialog = styled.div`
+  background: #fff;
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  border-radius: 12px;
+  box-shadow: 0 20px 44px rgba(0,0,0,0.18);
+  overflow: hidden;
+
+  /* 3 rows: header / scrolling body / footer */
+  display: grid;
+  grid-template-rows: auto 1fr auto;
 `;
 
-const ModalHeader = styled.h2`
-  margin: 0;
-  text-align: center;
-`;
-
-const InputGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-`;
-
-const Label = styled.label`
-  font-weight: 600;
-  font-size: 14px;
-`;
-
-const Input = styled.input`
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 16px;
-`;
-
-const Textarea = styled.textarea`
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 16px;
-  min-height: 100px;
-  resize: vertical;
-  font-family: inherit;
-`;
-
-const ButtonGroup = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 10px;
-`;
-
-const Button = styled.button`
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid #ccc;
-  background-color: ${props => props.primary ? '#1877f2' : '#f0f2f5'};
-  color: ${props => props.primary ? 'white' : '#333'};
-
-   &:hover {
-    filter: brightness(0.95);
+const Header = styled.div`
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex; align-items: center; justify-content: space-between;
+  h3 { margin: 0; font-size: 18px; }
+  button {
+    border: 0; background: transparent; cursor: pointer; font-size: 20px; color: #666;
+    padding: 4px 6px; border-radius: 8px;
+    &:hover { background:#f3f4f6; color:#111; }
   }
 `;
 
-const EditProfileModal = ({ user, onClose, onProfileUpdate }) => {
-    const { user: currentUser, login } = useContext(AuthContext);
-    const [formData, setFormData] = useState({
-        username: user.username || '',
-        bio: user.bio || ''
-    });
+const Body = styled.form`
+  padding: 14px 16px;
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;               /* scroll only the content */
+  overscroll-behavior: contain;   /* prevent background scroll on iOS */
+`;
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
+const SectionTitle = styled.h4`
+  margin: 4px 0 0;
+  font-size: 14px;
+`;
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!currentUser) return;
-        try {
-            const res = await axios.put(`http://localhost:5000/api/users/${currentUser._id}`, {
-                userId: currentUser._id, // Required for backend validation
-                ...formData
-            });
-            // 1. Update the global context state
-            login(res.data); 
-            // 2. Update the local state on the Profile page
-            onProfileUpdate(res.data); 
-            // 3. Close the modal
-            onClose();
-        } catch (err) {
-            console.error("Failed to update profile", err);
-            // Provide more specific feedback if possible
-            const errorMessage = err.response?.data?.message || "The username might already be taken.";
-            alert(`Failed to update profile: ${errorMessage}`);
-        }
-    };
+const Field = styled.div`
+  display: grid;
+  gap: 6px;
+`;
 
-    return (
-        <ModalBackdrop>
-            <ModalContainer onSubmit={handleSubmit}>
-                <ModalHeader>Edit Profile</ModalHeader>
-                <InputGroup>
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                        id="username"
-                        type="text"
-                        name="username"
-                        value={formData.username}
-                        onChange={handleChange}
-                    />
-                </InputGroup>
-                <InputGroup>
-                    <Label htmlFor="bio">Bio</Label>
-                    <Textarea
-                        id="bio"
-                        name="bio"
-                        value={formData.bio}
-                        onChange={handleChange}
-                        placeholder="Tell us about yourself..."
-                    />
-                </InputGroup>
-                <ButtonGroup>
-                    <Button type="button" onClick={onClose}>Cancel</Button>
-                    <Button type="submit" primary>Save Changes</Button>
-                </ButtonGroup>
-            </ModalContainer>
-        </ModalBackdrop>
-    );
-};
+const Label = styled.label`
+  font-weight: 600; font-size: 13px;
+`;
 
-export default EditProfileModal;
+const Input = styled.input`
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 14px;
+  background: #fff;
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  min-height: 120px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 14px;
+  resize: vertical;
+`;
+
+const Footer = styled.div`
+  padding: 12px 16px;
+  display: flex; justify-content: flex-end; gap: 10px;
+  border-top: 1px solid var(--border-color);
+  background: #fff;
+`;
+
+const Button = styled.button`
+  padding: 10px 14px; border-radius: 10px; font-weight: 700; border: 0; cursor: pointer;
+  background: ${p => (p.$primary ? 'var(--primary-blue)' : '#e5e7eb')};
+  color: ${p => (p.$primary ? '#fff' : '#111')};
+  &:disabled { opacity: .6; cursor: not-allowed; }
+`;
+
+export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
+  const { user: me, login } = useContext(AuthContext);
+
+  const [form, setForm] = useState({
+    username: '', email: '', bio: '',
+    oldPassword: '', oldPassword2: '', newPassword: ''
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    setForm(f => ({
+      ...f,
+      username: user.username || '',
+      email: user.email || '',
+      bio: user.bio || ''
+    }));
+  }, [user]);
+
+  const change = (k, v) => setForm(s => ({ ...s, [k]: v }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr('');
+    setSaving(true);
+    try {
+      const payload = {
+        userId: me._id,
+        username: form.username.trim(),
+        email: (form.email || '').trim().toLowerCase(),
+        bio: form.bio,
+      };
+
+      const wantsPw = form.oldPassword || form.oldPassword2 || form.newPassword;
+      if (wantsPw) {
+        payload.oldPassword = form.oldPassword;
+        payload.oldPassword2 = form.oldPassword2;
+        payload.newPassword = form.newPassword;
+      }
+
+      const res = await axios.put(`http://localhost:5000/api/users/${me._id}/account`, payload);
+
+      login(res.data);
+      onProfileUpdate?.(res.data);
+      onClose?.();
+    } catch (e2) {
+      const msg = e2?.response?.data?.message || 'Failed to save changes.';
+      setErr(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Backdrop onMouseDown={(e)=>{ if (e.target === e.currentTarget) onClose?.(); }}>
+      <Dialog role="dialog" aria-modal="true">
+        <Header>
+          <h3>Edit profile</h3>
+          <button aria-label="Close" onClick={onClose}>×</button>
+        </Header>
+
+        <Body onSubmit={submit}>
+          {err && (
+            <div style={{background:'#fee2e2', color:'#991b1b', padding:'10px 12px', borderRadius:10}}>
+              {err}
+            </div>
+          )}
+
+          <Field>
+            <Label>Username</Label>
+            <Input
+              value={form.username}
+              onChange={e=>change('username', e.target.value)}
+              required
+            />
+          </Field>
+
+          <Field>
+            <Label>Email</Label>
+            <Input
+              type="email"
+              value={form.email}
+              onChange={e=>change('email', e.target.value)}
+              required
+            />
+          </Field>
+
+          <Field>
+            <Label>Bio</Label>
+            <TextArea
+              value={form.bio}
+              onChange={e=>change('bio', e.target.value)}
+              placeholder="Tell people a bit about you…"
+            />
+          </Field>
+
+          <SectionTitle>Change password (optional)</SectionTitle>
+
+          <Field>
+            <Label>Old Password</Label>
+            <Input
+              type="password"
+              value={form.oldPassword}
+              onChange={e=>change('oldPassword', e.target.value)}
+            />
+          </Field>
+
+          <Field>
+            <Label>Retype Old Password</Label>
+            <Input
+              type="password"
+              value={form.oldPassword2}
+              onChange={e=>change('oldPassword2', e.target.value)}
+            />
+          </Field>
+
+          <Field>
+            <Label>New Password</Label>
+            <Input
+              type="password"
+              value={form.newPassword}
+              onChange={e=>change('newPassword', e.target.value)}
+              placeholder="At least 6 characters"
+            />
+          </Field>
+        </Body>
+
+        <Footer>
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button $primary type="submit" formAction="submit" onClick={(e)=>e.currentTarget.form?.dispatchEvent(new Event('submit', {cancelable:true, bubbles:true}))} disabled={saving}>
+            Save
+          </Button>
+        </Footer>
+      </Dialog>
+    </Backdrop>
+  );
+}

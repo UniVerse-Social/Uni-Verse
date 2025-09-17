@@ -1,11 +1,10 @@
-// server/routes/clubPosts.js
 const router = require('express').Router();
 const mongoose = require('mongoose');
 const Club = require('../models/Club');
 const ClubPost = require('../models/ClubPost');
+const { maskText, enforceNotBanned } = require('../middleware/moderation');
 
-// ---------- List posts by club + channel ----------
-// GET /api/club-posts/:clubId?channel=main|side&sideId=<channelId>
+// List (unchanged core)
 router.get('/:clubId', async (req, res) => {
   const clubId = new mongoose.Types.ObjectId(req.params.clubId);
   const channel = (req.query.channel || 'side').toLowerCase() === 'main' ? 'main' : 'side';
@@ -20,10 +19,8 @@ router.get('/:clubId', async (req, res) => {
     { $match: match },
     { $sort: { createdAt: -1 } },
     { $limit: 100 },
-    // author
     { $lookup: { from: 'users', localField: 'authorId', foreignField: '_id', as: 'author' } },
     { $unwind: '$author' },
-    // club -> side channel name
     { $lookup: { from: 'clubs', localField: 'clubId', foreignField: '_id', as: 'club' } },
     { $unwind: '$club' },
     {
@@ -34,12 +31,9 @@ router.get('/:clubId', async (req, res) => {
             in: {
               $first: {
                 $map: {
-                  input: {
-                    $filter: {
-                      input: '$$arr', as: 'sc', cond: { $eq: ['$$sc._id', '$sideChannelId'] }
-                    }
-                  },
-                  as: 'sc', in: '$$sc.name'
+                  input: { $filter: { input: '$$arr', as: 'sc', cond: { $eq: ['$$sc._id', '$sideChannelId'] } } },
+                  as: 'sc',
+                  in: '$$sc.name'
                 }
               }
             }
@@ -49,19 +43,27 @@ router.get('/:clubId', async (req, res) => {
     },
     {
       $project: {
-        _id: 1, clubId: 1, channel: 1, sideChannelId: 1, sideChannelName: 1,
-        text: 1, images: 1, likes: 1, createdAt: 1,
-        authorId: 1, author: { _id: '$author._id', username: '$author.username', profilePicture: '$author.profilePicture' }
+        _id: 1,
+        clubId: 1,
+        channel: 1,
+        sideChannelId: 1,
+        sideChannelName: 1,
+        text: 1,
+        images: 1,
+        attachments: 1,
+        likes: 1,
+        createdAt: 1,
+        authorId: 1,
+        author: { _id: '$author._id', username: '$author.username', profilePicture: '$author.profilePicture' }
       }
     }
   ]);
   res.json(posts);
 });
 
-// ---------- Create post ----------
-// body: { clubId, authorId, channel: 'main'|'side', sideChannelId?, text, images[] }
-router.post('/', async (req, res) => {
-  const { clubId, authorId, channel='side', text='', images=[], sideChannelId=null } = req.body || {};
+// Create post (mask text; allow images or attachments)
+router.post('/', enforceNotBanned, async (req, res) => {
+  const { clubId, authorId, channel = 'side', text = '', images = [], attachments = [], sideChannelId = null } = req.body || {};
   if (!clubId || !authorId) return res.status(400).json({ message: 'Missing fields' });
 
   const club = await Club.findById(clubId);
@@ -70,8 +72,9 @@ router.post('/', async (req, res) => {
   const isMember = (club.members || []).map(String).includes(String(authorId));
   if (!isMember) return res.status(403).json({ message: 'Join the club to post' });
 
-  const isAllowedMain = String(club.president) === String(authorId) ||
-                        (club.mainPosters || []).map(String).includes(String(authorId));
+  const isAllowedMain =
+    String(club.president) === String(authorId) ||
+    (club.mainPosters || []).map(String).includes(String(authorId));
 
   if (channel === 'main' && !isAllowedMain) {
     return res.status(403).json({ message: 'Not allowed to post on Main' });
@@ -86,16 +89,18 @@ router.post('/', async (req, res) => {
   }
 
   const created = await ClubPost.create({
-    clubId, authorId,
+    clubId,
+    authorId,
     channel: channel === 'main' ? 'main' : 'side',
     sideChannelId: sideId,
-    text: String(text).trim().slice(0, 2000),
-    images: Array.isArray(images) ? images.slice(0, 10) : []
+    text: maskText(String(text).trim().slice(0, 2000)),
+    images: Array.isArray(images) ? images.slice(0, 10) : [],
+    attachments: Array.isArray(attachments) ? attachments.slice(0, 10) : []
   });
   res.status(201).json(created);
 });
 
-// ---------- Like / Unlike ----------
+// Like/unlike (unchanged)
 router.put('/:id/like', async (req, res) => {
   const { userId } = req.body || {};
   const p = await ClubPost.findById(req.params.id);
@@ -105,7 +110,7 @@ router.put('/:id/like', async (req, res) => {
   res.json({ liked: !has });
 });
 
-// ---------- Delete (author or president) ----------
+// Delete (author or president) (unchanged logic)
 router.delete('/:id', async (req, res) => {
   const { userId } = req.body || {};
   const p = await ClubPost.findById(req.params.id);

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { AuthContext } from '../App';
 import { FaHeart, FaRegHeart } from 'react-icons/fa';
 import { API_BASE_URL } from '../config';
+import UserLink from './UserLink';
 
 const Backdrop = styled.div`position: fixed; inset:0; background: rgba(0,0,0,.25); z-index:1500;`;
 const Drawer = styled.aside`
@@ -31,25 +32,50 @@ export default function CommentDrawer({ post, onClose, onCountChange }) {
   const repliesOf = (id) => items.filter(i => String(i.parentId) === String(id));
 
   const load = async () => {
-    const res = await axios.get(`${api}/post/${post._id}`);
-    setItems(res.data || []);
-    onCountChange?.(res.data?.length || 0);
+    try {
+      const res = await axios.get(`${api}/post/${post._id}`);
+      setItems(res.data || []);
+      onCountChange?.(res.data?.length || 0);
+    } catch (e) {
+      console.error('comments load failed', e);
+      setItems([]);
+      onCountChange?.(0);
+    }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [post._id]);
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post._id]);
 
-  const send = async (e, parent=null) => {
+  const send = async (e, parent = null) => {
     e.preventDefault();
     const base = text.trim();
     if (!base) return;
-    const body = parent ? (base.startsWith('@') ? base : `@${parent.username} ${base}`) : base;
-    await axios.post(`${api}`, { postId: post._id, userId: user._id, body, parentId: parent?._id || null });
-    setText(''); await load();
+    const body = parent
+      ? (base.startsWith('@') ? base : `@${parent.username} ${base}`)
+      : base;
+    try {
+      await axios.post(`${api}`, {
+        postId: post._id,
+        userId: user._id,
+        body,
+        parentId: parent?._id || null
+      });
+      setText('');
+      await load();
+    } catch (err) {
+      console.error('comment send failed', err);
+    }
   };
 
   const toggleLike = async (commentId) => {
-    await axios.put(`${api}/${commentId}/like`, { userId: user._id });
-    await load();
+    try {
+      await axios.put(`${api}/${commentId}/like`, { userId: user._id });
+      await load();
+    } catch (err) {
+      console.error('comment like failed', err);
+    }
   };
 
   return (
@@ -60,7 +86,14 @@ export default function CommentDrawer({ post, onClose, onCountChange }) {
         <List>
           {topLevel.map(c => (
             <div key={c._id}>
-              <CommentRow c={c} me={user} onLike={() => toggleLike(c._id)} onReply={(e)=>send(e, { _id:c._id, username: byId[c._id]?.username || 'user' })}/>
+              <CommentRow
+                c={c}
+                me={user}
+                onLike={() => toggleLike(c._id)}
+                onReply={(e) =>
+                  send(e, { _id: c._id, username: byId[c._id]?.username || 'user' })
+                }
+              />
               {repliesOf(c._id).map(r => (
                 <Row key={r._id} style={{ marginLeft: 18 }}>
                   <CommentRow c={r} me={user} onLike={() => toggleLike(r._id)} />
@@ -70,8 +103,13 @@ export default function CommentDrawer({ post, onClose, onCountChange }) {
           ))}
           {topLevel.length === 0 && <Meta>No comments yet — be the first!</Meta>}
         </List>
-        <InputBar onSubmit={(e)=>send(e, null)}>
-          <Text rows={2} value={text} onChange={e=>setText(e.target.value)} placeholder="Write a comment…" />
+        <InputBar onSubmit={(e) => send(e, null)}>
+          <Text
+            rows={2}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="Write a comment…"
+          />
           <button type="submit">Send</button>
         </InputBar>
       </Drawer>
@@ -82,12 +120,19 @@ export default function CommentDrawer({ post, onClose, onCountChange }) {
 function CommentRow({ c, me, onLike, onReply }) {
   const liked = (c.likes || []).map(String).includes(String(me._id));
   const likeCount = (c.likes || []).length || 0;
+  const displayName = c.username || 'user';
+
   return (
     <Row>
-      <Meta>{c.username || 'user'} · {new Date(c.createdAt).toLocaleString()}</Meta>
+      <Meta>
+        <UserLink username={displayName}>{displayName}</UserLink>
+        {' · '}{new Date(c.createdAt).toLocaleString()}
+      </Meta>
       <Body>{c.body}</Body>
       <Actions>
-        <span onClick={onLike} style={{ cursor:'pointer' }}>{liked ? <FaHeart/> : <FaRegHeart/>} {likeCount}</span>
+        <span onClick={onLike} style={{ cursor: 'pointer' }}>
+          {liked ? <FaHeart /> : <FaRegHeart />} {likeCount}
+        </span>
         {onReply && <button onClick={onReply}>Reply</button>}
       </Actions>
     </Row>

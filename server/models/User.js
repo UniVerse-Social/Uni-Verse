@@ -1,34 +1,36 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const UserSchema = new mongoose.Schema({
-  username:   { type: String, required: true, unique: true },
-  email:      { type: String, required: true, unique: true },
-  password:   { type: String, required: true, select: false }, // hide by default
-  profilePicture: { type: String, default: "" },
-  bannerPicture:  { type: String, default: "" },
-  bio:        { type: String, default: "" },
-  department: { type: String, required: true },
-  hobbies:    [{ type: String }],
-  clubs:      [{ type: mongoose.Schema.Types.ObjectId, ref: 'Club' }],
-  followers:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  following:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  isVerified: { type: Boolean, default: false },
-}, { timestamps: true });
+const UserSchema = new mongoose.Schema(
+  {
+    username: { type: String, required: true, unique: true, trim: true },
+    email: { type: String, required: true, unique: true, trim: true, lowercase: true },
+    password: { type: String, required: true, select: false },
 
-// Auto-verify seed/test users (your original helper kept)
-UserSchema.pre('save', function(next) {
-  if (this.isNew) {
-    this.isVerified = true;
-  }
-  next();
-});
+    profilePicture: { type: String, default: '' },
+    bannerPicture: { type: String, default: '' },
+    bio: { type: String, default: '' },
+    department: { type: String, default: '' },
 
-// Hash password before save if it changed
-UserSchema.pre('save', async function(next) {
+    hobbies: [{ type: String }],
+    clubs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Club' }],
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+
+    isAdmin: { type: Boolean, default: false },
+    isVerified: { type: Boolean, default: true },
+
+    // NEW: moderation/economy
+    strikes: { type: Number, default: 0 },
+    bannedUntil: { type: Date, default: null }
+  },
+  { timestamps: true }
+);
+
+UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   try {
-    const salt = await bcrypt.genSalt(12); // cost factor 12
+    const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (err) {
@@ -36,18 +38,14 @@ UserSchema.pre('save', async function(next) {
   }
 });
 
-// Hash password on findOneAndUpdate if provided
-UserSchema.pre('findOneAndUpdate', async function(next) {
+UserSchema.pre('findOneAndUpdate', async function (next) {
   const update = this.getUpdate();
   if (!update) return next();
-
-  // support both $set.password and direct password
-  const pwd = update.password || (update.$set && update.$set.password);
-  if (!pwd) return next();
-
+  const raw = update.password ?? update.$set?.password;
+  if (!raw) return next();
   try {
     const salt = await bcrypt.genSalt(12);
-    const hashed = await bcrypt.hash(pwd, salt);
+    const hashed = await bcrypt.hash(String(raw), salt);
     if (update.password) update.password = hashed;
     if (update.$set && update.$set.password) update.$set.password = hashed;
     next();
@@ -56,18 +54,13 @@ UserSchema.pre('findOneAndUpdate', async function(next) {
   }
 });
 
-// Instance method to compare passwords
-UserSchema.methods.comparePassword = function(plain) {
-  // if password field was not selected, throw
-  if (typeof this.password !== 'string') {
-    throw new Error('Password not selected on this document');
-  }
+UserSchema.methods.comparePassword = function (plain) {
+  if (typeof this.password !== 'string') throw new Error('Password not selected on this document');
   return bcrypt.compare(plain, this.password);
 };
 
-// Never return password in JSON
 UserSchema.set('toJSON', {
-  transform(doc, ret) {
+  transform(_doc, ret) {
     delete ret.password;
     return ret;
   }

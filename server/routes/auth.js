@@ -4,14 +4,25 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Optional helpers the client might use
+// Helper: remove sensitive fields
+function sanitizeUser(u) {
+  const obj = u?.toObject ? u.toObject() : { ...u };
+  delete obj.password;
+  return obj;
+}
+
+// -------------------- OPTIONAL HELPERS --------------------
 router.post('/check-availability', async (req, res) => {
   try {
-    const { email, username } = req.body || {};
+    let { email, username } = req.body || {};
+    email = typeof email === 'string' ? email.trim().toLowerCase() : undefined;
+    username = typeof username === 'string' ? username.trim() : undefined;
+
     const [emailUser, usernameUser] = await Promise.all([
       email ? User.findOne({ email }) : null,
       username ? User.findOne({ username }) : null,
     ]);
+
     res.status(200).json({
       isEmailTaken: !!emailUser,
       isUsernameTaken: !!usernameUser,
@@ -23,40 +34,61 @@ router.post('/check-availability', async (req, res) => {
 });
 
 const csufDepartments = [
-  "Business & Economics","Communications","Engineering & Comp Sci","Arts",
-  "Health & Human Dev","Humanities & Social Sci","Natural Sci & Math","Education",
+  'Business & Economics','Communications','Engineering & Comp Sci','Arts',
+  'Health & Human Dev','Humanities & Social Sci','Natural Sci & Math','Education',
 ];
 const commonHobbies = [
-  "Reading","Traveling","Movies","Fishing","Crafts","Television","Bird watching",
-  "Collecting","Music","Gardening","Video Games","Drawing","Walking","Hiking",
-  "Cooking","Sports","Fitness","Yoga","Photography","Writing","Dancing","Painting","Camping",
+  'Reading','Traveling','Movies','Fishing','Crafts','Television','Bird watching',
+  'Collecting','Music','Gardening','Video Games','Drawing','Walking','Hiking',
+  'Cooking','Sports','Fitness','Yoga','Photography','Writing','Dancing','Painting','Camping',
 ];
+
 router.get('/signup-data', (_req, res) => {
   res.status(200).json({ departments: csufDepartments, hobbies: commonHobbies });
 });
 
 // -------------------- SIGNUP --------------------
+// NOTE: We DO NOT hash here; rely on the User model's pre-save hook.
+// If your model does NOT hash, see note below.
 router.post('/signup', async (req, res) => {
   try {
-    const { username, email, password, department, hobbies } = req.body || {};
-    if (!username || !email || !password || !department) {
+    let { username, email, password, department, hobbies } = req.body || {};
+    username = typeof username === 'string' ? username.trim() : '';
+    email = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    password = typeof password === 'string' ? password : '';
+
+    // department is optional; default to empty string if not provided
+    department = typeof department === 'string' ? department.trim() : '';
+
+    if (!username || !email || !password) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
 
-    // Hash here (safe even if model also hashes; but typical pattern is model pre-save)
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // Uniqueness checks (friendly 409s)
+    const [uTaken, eTaken] = await Promise.all([
+      User.findOne({ username }),
+      User.findOne({ email }),
+    ]);
+    if (uTaken) return res.status(409).json({ message: 'Username already taken' });
+    if (eTaken) return res.status(409).json({ message: 'Email already in use' });
 
+    // Create user (model should hash password via pre-save)
     const user = await User.create({
       username,
       email,
-      password: hashedPassword,
-      department,
+      password,               // plain here; model should hash
+      department,             // may be ''
       hobbies: Array.isArray(hobbies) ? hobbies : [],
     });
 
-    // Return safe user (password hidden by select:false / toJSON transform)
-    res.status(201).json(user);
+    // Optionally mint a token so the client can auto-login after signup
+    const secret = process.env.JWT_SECRET;
+    const token = secret ? jwt.sign({ id: user._id }, secret, { expiresIn: '1d' }) : undefined;
+
+    res.status(201).json({ ...sanitizeUser(user), ...(token ? { token } : {}) });
   } catch (err) {
     console.error('signup error:', err);
     if (err.code === 11000) {
@@ -67,44 +99,40 @@ router.post('/signup', async (req, res) => {
 });
 
 // -------------------- LOGIN --------------------
-// Accepts ANY of these from the client: loginIdentifier | emailOrUsername | email | username
+// Accepts ANY of these: loginIdentifier | emailOrUsername | email | username
 router.post('/login', async (req, res) => {
   try {
-    const identifier =
-      (req.body && (req.body.loginIdentifier || req.body.emailOrUsername || req.body.email || req.body.username)) || '';
-    const password = (req.body && req.body.password) || '';
+    const body = req.body || {};
+    const rawIdentifier =
+      body.loginIdentifier || body.emailOrUsername || body.email || body.username || '';
+    const password = typeof body.password === 'string' ? body.password : '';
 
-    if (!identifier || !password) {
+    if (!rawIdentifier || !password) {
       return res.status(400).json({ message: 'Missing credentials' });
     }
 
-    // Find by email or username; explicitly include password hash
+    const trimmed = rawIdentifier.trim();
+    const identifierEmail = trimmed.toLowerCase();
+
+    // Look up by email (lowercased) OR exact username; include password for compare
     const user = await User.findOne({
-      $or: [{ email: identifier }, { username: identifier }],
+      $or: [{ email: identifierEmail }, { username: trimmed }],
     }).select('+password');
 
-    if (!user) {
+    if (!user || !user.password) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
+    const ok = await bcrypt.compare(String(password), String(user.password));
+    if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
 
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      // Helpful error instead of a 500 from jwt.sign(undefined)
       return res.status(500).json({ message: 'JWT secret not set on server' });
     }
-
     const token = jwt.sign({ id: user._id }, secret, { expiresIn: '1d' });
 
-    // Strip password manually
-    const safe = user.toObject();
-    delete safe.password;
-
-    res.json({ ...safe, token });
+    res.json({ ...sanitizeUser(user), token });
   } catch (err) {
     console.error('login error:', err);
     res.status(500).json({ message: 'Server error' });

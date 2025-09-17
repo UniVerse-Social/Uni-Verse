@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import UserLink from './UserLink';
 
 const Backdrop = styled.div`position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:50;`;
 const Panel = styled.div`position:fixed; top:0; right:0; width:min(480px,92vw); height:100vh; background:#fff; box-shadow:-2px 0 12px rgba(0,0,0,.2); z-index:51; display:flex; flex-direction:column;`;
@@ -30,7 +31,6 @@ export default function MemberDrawer({ club, me, onClose }){
     setClubDoc(c.data);
   }, [clubDoc._id]);
 
-  // keep local clubDoc in sync if parent passes a different club
   useEffect(() => { setClubDoc(club); }, [club]);
   useEffect(() => { loadMembers(); refreshClub(); }, [loadMembers, refreshClub]);
 
@@ -43,7 +43,7 @@ export default function MemberDrawer({ club, me, onClose }){
   const toggleMain = async (u)=>{
     const inMain = (clubDoc.mainPosters || []).map(String).includes(String(u._id));
     await axios.put(`${API_BASE_URL}/api/clubs/${clubDoc._id}/allow-main`, { actorId: me._id, targetId: u._id, allow: !inMain });
-    await refreshClub(); // reflect changes instantly
+    await refreshClub();
   };
   const transfer = async (u)=>{
     if (!window.confirm(`Transfer presidency to ${u.username}?`)) return;
@@ -51,7 +51,7 @@ export default function MemberDrawer({ club, me, onClose }){
     await refreshClub(); loadMembers();
   };
 
-  // ---- Side channels ----
+  // Side channels (unchanged) …
   const newSide = async ()=>{
     const name = prompt('New side channel name?'); if(!name) return;
     await axios.post(`${API_BASE_URL}/api/clubs/${clubDoc._id}/side-channels`, { actorId: me._id, name });
@@ -110,7 +110,9 @@ export default function MemberDrawer({ club, me, onClose }){
               <Row key={u._id}>
                 <Av>{u.profilePicture ? <img src={u.profilePicture} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (u.username||'?')[0]?.toUpperCase()}</Av>
                 <div>
-                  <div style={{fontWeight:700}}>{u.username}</div>
+                  <div style={{fontWeight:700}}>
+                    <UserLink username={u.username}>{u.username}</UserLink>
+                  </div>
                   <Title>{u.title}</Title>
                 </div>
                 {amPresident ? (

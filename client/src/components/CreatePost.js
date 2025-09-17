@@ -1,49 +1,182 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';
+import { API_BASE_URL } from '../config';
 
-const CreatePostContainer = styled.div` padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); margin-bottom: 20px; `;
-const TextArea = styled.textarea` width: 100%; min-height: 80px; border: 1px solid #ddd; border-radius: 6px; padding: 10px; font-size: 16px; resize: vertical; margin-bottom: 10px; `;
-const PostButton = styled.button` background-color: var(--primary-orange); color: white; border: none; border-radius: 20px; padding: 10px 20px; font-weight: bold; cursor: pointer; float: right; &:hover { opacity: 0.9; } `;
+const CreatePostContainer = styled.div`
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px;
+  background-color: var(--container-white);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  margin-bottom: 20px;
+`;
+
+const TextArea = styled.textarea`
+  width: 95%;
+  min-height: 88px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 16px;
+  resize: vertical;
+  margin-bottom: 12px;
+  background: #fff;
+  color: #111;
+`;
+
+const Toolbar = styled.div`
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+`;
+
+const AttachBtn = styled.label`
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+  font-weight: 600;
+  &:hover { background: #f8fafc; }
+`;
+
+const HiddenInput = styled.input` display: none; `;
+
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+`;
+
+const Thumb = styled.div`
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: #f8f9fb;
+  aspect-ratio: 1/1;
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  button {
+    position: absolute; top: 6px; right: 6px;
+    border: none; background: rgba(0,0,0,0.6); color: #fff;
+    font-size: 12px; border-radius: 999px; padding: 4px 8px; cursor: pointer;
+  }
+`;
+
+const Actions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+`;
+
+const PostButton = styled.button`
+  background-color: var(--primary-orange);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  &:disabled { opacity: .6; cursor: not-allowed; }
+`;
 
 const CreatePost = ({ onPostCreated }) => {
-    const { user } = useContext(AuthContext);
-    const [textContent, setTextContent] = useState('');
+  const { user } = useContext(AuthContext);
+  const [textContent, setTextContent] = useState('');
+  const [files, setFiles] = useState([]);         // File[]
+  const [busy, setBusy] = useState(false);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!textContent.trim()) return;
+  const previews = useMemo(
+    () => files.map(f => ({ name: f.name, url: URL.createObjectURL(f) })),
+    [files]
+  );
 
-        const newPost = {
-            userId: user._id,
-            username: user.username,
-            textContent: textContent,
-        };
+  const onPick = (e) => {
+    const next = Array.from(e.target.files || []).slice(0, 10 - files.length);
+    if (next.length) setFiles(prev => [...prev, ...next]);
+    e.target.value = null;
+  };
 
-        try {
-            const res = await axios.post("http://localhost:5000/api/posts", newPost);
-            
-            const postWithPic = { ...res.data, profilePicture: user.profilePicture };
-            onPostCreated(postWithPic);
-            setTextContent('');
-        } catch (err) {
-            console.error(err);
-        }
-    };
+  const removeAt = (i) => setFiles(prev => prev.filter((_, idx) => idx !== i));
 
-    return (
-        <CreatePostContainer>
-            <form onSubmit={handleSubmit}>
-                <TextArea
-                    placeholder={`What's on your mind, ${user.username}?`}
-                    value={textContent}
-                    onChange={(e) => setTextContent(e.target.value)}
-                />
-                <PostButton type="submit">Post</PostButton>
-            </form>
-        </CreatePostContainer>
-    );
+  const uploadOne = async (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await axios.post(`${API_BASE_URL}/api/uploads/image`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data', 'x-user-id': user._id }
+    });
+    return res.data; // { url, type, width, height, scan }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!textContent.trim() && files.length === 0) return;
+    setBusy(true);
+    try {
+      const attachments = [];
+      for (const f of files) {
+        const up = await uploadOne(f);
+        attachments.push(up);
+      }
+
+      const payload = {
+        userId: user._id,
+        username: user.username,
+        textContent: textContent.trim(),
+        attachments
+      };
+
+      const res = await axios.post(`${API_BASE_URL}/api/posts`, payload);
+      const postWithPic = { ...res.data, profilePicture: user.profilePicture };
+      onPostCreated?.(postWithPic);
+      setTextContent('');
+      setFiles([]);
+    } catch (err) {
+      console.error(err);
+      alert(err?.response?.data?.message || 'Failed to create post');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <CreatePostContainer className="surface">
+      <form onSubmit={handleSubmit}>
+        <Toolbar>
+          <AttachBtn htmlFor="feed-attach">Add photos</AttachBtn>
+          <HiddenInput id="feed-attach" type="file" accept="image/*" multiple onChange={onPick} />
+        </Toolbar>
+
+        {previews.length > 0 && (
+          <Grid aria-label="Selected images">
+            {previews.map((p, i) => (
+              <Thumb key={p.name}>
+                <img src={p.url} alt={`selected ${p.name}`} />
+                <button type="button" onClick={() => removeAt(i)}>✕</button>
+              </Thumb>
+            ))}
+          </Grid>
+        )}
+
+        <TextArea
+          placeholder={`What's on your mind, ${user.username}?`}
+          value={textContent}
+          onChange={(e) => setTextContent(e.target.value)}
+        />
+        <Actions>
+          <PostButton type="submit" disabled={busy}>
+            {busy ? 'Posting…' : 'Post'}
+          </PostButton>
+        </Actions>
+      </form>
+    </CreatePostContainer>
+  );
 };
 
 export default CreatePost;

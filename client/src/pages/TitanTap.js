@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { API_BASE_URL } from '../config';
+import UserLink from "../components/UserLink";
 
 // ---------- Minimal styles (scoped via classNames) ----------
 const styles = `
@@ -40,7 +41,7 @@ const styles = `
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; padding: 10px 14px; border-radius: 999px; }
 `;
 
-// Utility to get current user id from localStorage
+// (rest unchanged)
 function getCurrentUserId() {
   try {
     const u = localStorage.getItem('user') || localStorage.getItem('currentUser');
@@ -73,7 +74,6 @@ async function api(path, { method = 'GET', body } = {}) {
   return res.json();
 }
 
-// Simple swipeable card using Pointer Events
 function SwipeableCard({ user, onDecision }) {
   const [dx, setDx] = useState(0);
   const [dy, setDy] = useState(0);
@@ -84,71 +84,42 @@ function SwipeableCard({ user, onDecision }) {
     if (released) return;
     e.currentTarget.setPointerCapture(e.pointerId);
   };
-
   const handlePointerMove = (e) => {
     if (released) return;
-    if (!(e.buttons & 1)) return; // only while pressed
-    const movementX = e.movementX || 0;
-    const movementY = e.movementY || 0;
-    const nextDx = dx + movementX;
-    const nextDy = dy + movementY;
-    setDx(nextDx);
-    setDy(nextDy);
-    setRot(nextDx / 12); // little rotation
+    if (!(e.buttons & 1)) return;
+    const nextDx = dx + (e.movementX || 0);
+    const nextDy = dy + (e.movementY || 0);
+    setDx(nextDx); setDy(nextDy); setRot(nextDx / 12);
   };
-
   const handlePointerUp = () => {
     if (released) return;
-    const threshold = 120; // px
-    if (dx > threshold) {
-      setReleased(true);
-      onDecision('right', user);
-    } else if (dx < -threshold) {
-      setReleased(true);
-      onDecision('left', user);
-    } else {
-      // snap back
-      setDx(0);
-      setDy(0);
-      setRot(0);
-    }
+    const threshold = 120;
+    if (dx > threshold) { setReleased(true); onDecision('right', user); }
+    else if (dx < -threshold) { setReleased(true); onDecision('left', user); }
+    else { setDx(0); setDy(0); setRot(0); }
   };
 
-  const style = {
-    transform: `translate(calc(-50% + ${dx}px), ${dy}px) rotate(${rot}deg)`,
-    transition: released ? 'transform 250ms ease-out' : 'transform 0s',
-  };
+  const style = { transform: `translate(calc(-50% + ${dx}px), ${dy}px) rotate(${rot}deg)`, transition: released ? 'transform 250ms ease-out' : 'transform 0s' };
 
   return (
-    <div
-      className="card-wrap"
-      style={style}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-    >
+    <div className="card-wrap" style={style}
+      onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
       <div className="card">
         <div className="header">
           <div className="avatar">
-            {user.profilePicture ? (
-              <img src={user.profilePicture} alt={user.username || 'user'} />
-            ) : (
-              <span style={{ fontWeight: 700 }}>
-                {(user.username || '?').slice(0,1).toUpperCase()}
-              </span>
-            )}
+            {user.profilePicture ? <img src={user.profilePicture} alt={user.username || 'user'} /> : <span style={{ fontWeight: 700 }}>{(user.username || '?').slice(0,1).toUpperCase()}</span>}
           </div>
           <div>
-            <div className="name">{user.username}</div>
+            <div className="name">
+              <UserLink username={user.username}>{user.username}</UserLink>
+            </div>
             <div className="sub">{user.department ? `Dept: ${user.department}` : ''}</div>
           </div>
         </div>
 
         {Array.isArray(user.hobbies) && user.hobbies.length > 0 && (
           <div className="chips">
-            {user.hobbies.slice(0, 6).map((h, i) => (
-              <span key={i} className="chip">{h}</span>
-            ))}
+            {user.hobbies.slice(0, 6).map((h, i) => (<span key={i} className="chip">{h}</span>))}
           </div>
         )}
 
@@ -168,55 +139,31 @@ const TitanTap = () => {
 
   const userId = useMemo(() => getCurrentUserId(), []);
 
-  // Load suggestions
   useEffect(() => {
     (async () => {
-      if (!userId) {
-        setLoading(false);
-        setError('Sign in required to load suggestions.');
-        return;
-      }
-      try {
-        setLoading(true);
-        const data = await api(`/api/users/titantap/${userId}`);
-        setDeck(Array.isArray(data) ? data : []);
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
+      if (!userId) { setLoading(false); setError('Sign in required to load suggestions.'); return; }
+      try { setLoading(true); const data = await api(`/api/users/titantap/${userId}`); setDeck(Array.isArray(data) ? data : []); }
+      catch (e) { setError(e.message); }
+      finally { setLoading(false); }
     })();
   }, [userId]);
 
-  // Debounced search
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
         if (!query.trim()) return setSearchResults([]);
-        const data = await api(
-          `/api/users/search?q=${encodeURIComponent(query.trim())}&userId=${encodeURIComponent(userId || '')}`
-        );
+        const data = await api(`/api/users/search?q=${encodeURIComponent(query.trim())}&userId=${encodeURIComponent(userId || '')}`);
         setSearchResults(Array.isArray(data) ? data : []);
-      } catch (e) {
-        setError(e.message);
-      }
+      } catch (e) { setError(e.message); }
     }, 300);
     return () => clearTimeout(t);
   }, [query, userId]);
 
   const decideTop = async (dir, user) => {
     if (dir === 'right' && userId) {
-      try {
-        await api(`/api/users/${user._id}/follow`, {
-          method: 'PUT',
-          body: { userId }
-        });
-        setJustFollowed(user);
-      } catch (e) {
-        setError(e.message);
-      }
+      try { await api(`/api/users/${user._id}/follow`, { method: 'PUT', body: { userId } }); setJustFollowed(user); }
+      catch (e) { setError(e.message); }
     }
-    // remove from deck (top card)
     setDeck(prev => prev.filter(u => u._id !== user._id));
   };
 
@@ -229,31 +176,18 @@ const TitanTap = () => {
   const followFromSearch = async (targetId, isFollowing) => {
     if (!userId) return setError('Sign in required.');
     try {
-      await api(`/api/users/${targetId}/follow`, {
-        method: 'PUT',
-        body: { userId }
-      });
-      setSearchResults(prev =>
-        prev.map(u => u._id === targetId ? { ...u, isFollowing: !isFollowing } : u)
-      );
-    } catch (e) {
-      setError(e.message);
-    }
+      await api(`/api/users/${targetId}/follow`, { method: 'PUT', body: { userId } });
+      setSearchResults(prev => prev.map(u => u._id === targetId ? { ...u, isFollowing: !isFollowing } : u));
+    } catch (e) { setError(e.message); }
   };
 
   return (
     <div className="titantap-page">
-      {/* inline style injection */}
       <style>{styles}</style>
 
       <div className="titantap-header">
         <h2>TitanTap</h2>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by username, department, or hobbies…"
-        />
+        <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by username, department, or hobbies…" />
       </div>
 
       {error && <div className="note">{error}</div>}
@@ -266,22 +200,16 @@ const TitanTap = () => {
             searchResults.map(u => (
               <div key={u._id} className="result-row">
                 <div className="res-avatar" aria-hidden>
-                  {u.profilePicture ? (
-                    <img src={u.profilePicture} alt={u.username} />
-                  ) : (
-                    <span style={{ fontWeight: 700 }}>
-                      {(u.username || '?').slice(0,1).toUpperCase()}
-                    </span>
-                  )}
+                  {u.profilePicture ? <img src={u.profilePicture} alt={u.username} /> : <span style={{ fontWeight: 700 }}>{(u.username || '?').slice(0,1).toUpperCase()}</span>}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div className="res-name">{u.username}</div>
+                  <div className="res-name">
+                    <UserLink username={u.username}>{u.username}</UserLink>
+                  </div>
                   <div className="res-sub">{u.department ? `Dept: ${u.department}` : ''}</div>
                   {Array.isArray(u.hobbies) && u.hobbies.length > 0 && (
                     <div className="chips">
-                      {u.hobbies.slice(0,4).map((h,i) => (
-                        <span key={i} className="chip">{h}</span>
-                      ))}
+                      {u.hobbies.slice(0,4).map((h,i) => (<span key={i} className="chip">{h}</span>))}
                     </div>
                   )}
                 </div>
@@ -289,14 +217,7 @@ const TitanTap = () => {
                   <button
                     onClick={() => followFromSearch(u._id, !!u.isFollowing)}
                     className={u.isFollowing ? 'ghost' : ''}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 8,
-                      border: '1px solid #111',
-                      background: u.isFollowing ? '#fff' : '#111',
-                      color: u.isFollowing ? '#111' : '#fff',
-                      cursor: 'pointer'
-                    }}
+                    style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #111', background: u.isFollowing ? '#fff' : '#111', color: u.isFollowing ? '#111' : '#fff', cursor: 'pointer' }}
                   >
                     {u.isFollowing ? 'Following' : 'Follow'}
                   </button>
@@ -310,16 +231,11 @@ const TitanTap = () => {
       <div className="deck">
         {loading && <div className="note">Loading suggestions…</div>}
         {!loading && deck.length === 0 && <div className="note">No more suggestions right now.</div>}
-
-        {deck.map((user, idx) => {
-          // stack: later items underneath
-          const z = 1000 + idx;
-          return (
-            <div key={user._id} style={{ zIndex: z }}>
-              <SwipeableCard user={user} onDecision={decideTop} />
-            </div>
-          );
-        })}
+        {deck.map((user, idx) => (
+          <div key={user._id} style={{ zIndex: 1000 + idx }}>
+            <SwipeableCard user={user} onDecision={decideTop} />
+          </div>
+        ))}
       </div>
 
       <div className="controls">
@@ -327,11 +243,7 @@ const TitanTap = () => {
         <button onClick={() => programmaticSwipe('right')}>Connect</button>
       </div>
 
-      {justFollowed && (
-        <div className="toast" role="status" aria-live="polite">
-          Followed {justFollowed.username}
-        </div>
-      )}
+      {justFollowed && <div className="toast" role="status" aria-live="polite">Followed {justFollowed.username}</div>}
     </div>
   );
 };
