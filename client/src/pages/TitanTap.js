@@ -7,7 +7,7 @@ const styles = `
 .titantap-page { max-width: 900px; margin: 0 auto; padding: 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
 .titantap-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .titantap-header input { flex: 1; /* take remaining space but keep left-aligned */ }
-.titantap-header h2 { margin: 0; }
+.titantap-header h2 { margin: 0; color: white}
 .titantap-header input { width: 100%; padding: 10px 12px; border: 1px solid #e3e3e3; border-radius: 10px; font-size: 14px; }
 
 .note { text-align: center; padding: 16px 0; color: #666; }
@@ -22,7 +22,7 @@ const styles = `
 .chips { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { background: #f4f6f8; border: 1px solid #e5e8eb; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
 
-.deck { position: relative; height: 460px; margin-top: 8px; perspective: 1000px; }
+.deck { position: relative; height: 480px; margin-top: 20px; perspective: 10px; }
 .card-wrap { position: absolute; left: 50%; transform: translateX(-50%); touch-action: none; width: 100%; max-width: 520px; top: 0; }
 
 .card { width: 100%; max-width: 520px; height: 420px; background: #fff; border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); padding: 16px; position: relative; }

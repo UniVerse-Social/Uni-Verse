@@ -1,4 +1,4 @@
-import React, { useState, useContext} from 'react';
+import React, { useState, useContext } from 'react';
 import styled from 'styled-components';
 import { Link } from 'react-router-dom';
 import { FaHeart, FaRegHeart, FaCommentAlt, FaEllipsisH } from 'react-icons/fa';
@@ -6,6 +6,11 @@ import axios from 'axios';
 import { AuthContext } from '../App';
 import { toMediaUrl } from '../config';
 
+/* Hardcoded default avatar (SVG data URI; always available) */
+const FALLBACK_AVATAR =
+  'https://www.clipartmax.com/png/middle/72-721825_tuffy-tuffy-the-titan-csuf.png';
+
+/* Stick-with-fallback image */
 function SmartImg({ src, fallback, alt = '', ...imgProps }) {
   const [useSrc, setUseSrc] = React.useState(src || fallback);
   const [errored, setErrored] = React.useState(false);
@@ -74,8 +79,6 @@ const MediaGrid = styled.div`
   }
 `;
 
-const TUFFY_FALLBACK = '/img/tuffy-default.png';
-
 const Post = ({ post, onPostDeleted, onPostUpdated }) => {
   const { user: currentUser } = useContext(AuthContext);
   const [likeCount, setLikeCount] = useState(post.likes.length);
@@ -106,7 +109,11 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
     }
   };
 
-  const avatarSrc = post.profilePicture || TUFFY_FALLBACK;
+  /* Use custom avatar if provided; otherwise the hardcoded fallback */
+  const avatarSrc =
+    post.profilePicture && String(post.profilePicture).trim()
+      ? toMediaUrl(post.profilePicture)
+      : FALLBACK_AVATAR;
 
   const images = (post.attachments || [])
     .filter(a => a.type === 'image')
@@ -116,7 +123,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
   return (
     <PostContainer className="surface">
       <PostHeader>
-        <ProfilePic src={avatarSrc} fallback={TUFFY_FALLBACK} alt="User avatar" />
+        <ProfilePic src={avatarSrc} fallback={FALLBACK_AVATAR} alt="User avatar" />
         <UserInfo>
           <Username to={`/profile/${post.username}`} data-username-link>{post.username}</Username>
           <Timestamp>{new Date(post.createdAt).toLocaleString()}</Timestamp>
@@ -142,7 +149,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
       {images.length > 0 && (
         <MediaGrid $count={images.length}>
           {images.map((src, i) => (
-            <SmartImg key={i} src={src} fallback="" alt={`post media ${i+1}`} />
+            <SmartImg key={i} src={src} fallback="" alt={`post media ${i + 1}`} />
           ))}
         </MediaGrid>
       )}

@@ -30,7 +30,7 @@ export default function ClubCommentDrawer({ post, onClose, onCountChange }){
     const r = await axios.get(`${api}/post/${post._id}`);
     setItems(r.data || []); onCountChange?.(r.data?.length || 0);
   };
-  useEffect(()=>{ load(); /* eslint-disable-next-line */ }, [post._id]);
+  useEffect(()=>{ load(); /* eslint-disable-next-line */ });
 
   const send = async (e, parent=null)=>{
     e.preventDefault();

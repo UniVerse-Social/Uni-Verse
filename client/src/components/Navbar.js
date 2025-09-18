@@ -44,7 +44,7 @@ const NavLinks = styled.div`
 
 const StyledNavLink = styled(NavLink)`
   font-size: 24px;
-  color: #8e8e8e;
+  color: #111111;
   &.active { color: var(--primary-blue); }
 `;
 
