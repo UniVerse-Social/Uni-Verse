@@ -35,10 +35,10 @@ const styles = `
 .card .hint { margin-top: 18px; color: #888; font-size: 12px; text-align: center; }
 
 .controls { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
-.controls button { padding: 10px 16px; border-radius: 999px; border: 1px solid #111; background: #111; color: #fff; cursor: pointer; }
+.controls button { padding: 10px 16px; border-radius: 999px; border: 1px solid #111; background: #fff; color: #111; cursor: pointer; }
 .controls .ghost { background: #fff; color: #111; }
 
-.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; padding: 10px 14px; border-radius: 999px; }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #fff; color: #111; padding: 10px 14px; border-radius: 999px; }
 `;
 
 // (rest unchanged)
