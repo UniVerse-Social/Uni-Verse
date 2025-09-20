@@ -1,15 +1,12 @@
 // client/src/pages/DMs.js
-import React, { useEffect, useMemo, useState, useContext } from 'react';
+import React, { useEffect, useMemo, useState, useContext, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';
 import UserLink from '../components/UserLink';
-import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL, toMediaUrl } from '../config';
 
-const Page = styled.div`
-  max-width: 980px; margin: 0 auto; padding: 16px;
-`;
+const Page = styled.div`max-width: 980px; margin: 0 auto; padding: 16px;`;
 const Title = styled.h2` color: #e5e7eb; margin: 0 0 12px 0; `;
 const Layout = styled.div`
   display: grid; grid-template-columns: 320px 1fr; gap: 16px; min-height: calc(100vh - 120px);
@@ -34,14 +31,31 @@ const Row = styled.button`
   &:hover { background: #f3f4f6; }
   .avatar { width: 42px; height: 42px; border-radius: 50%; overflow: hidden; background: #eef2f7; display: grid; place-items: center; }
   .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .nameLine { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .name { font-weight: 800; }
   .sub { font-size: 12px; color: #666; }
 `;
-const ThreadHeader = styled.div` padding: 10px 12px; border-bottom: 1px solid var(--border-color); font-weight: 800; `;
-const Messages = styled.div` flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; `;
+const ThreadHeader = styled.div`
+  padding: 10px 12px; border-bottom: 1px solid var(--border-color); font-weight: 800;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+`;
+const Messages = styled.div`
+  flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px;
+`;
+const MsgRow = styled.div`
+  display: flex; gap: 8px; align-items: flex-end;
+  justify-content: ${p => (p.$mine ? 'flex-end' : 'flex-start')};
+`;
+const MsgAvatar = styled.div`
+  width: 32px; height: 32px; border-radius: 50%; overflow: hidden; background: #eef2f7; flex: 0 0 auto;
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+`;
+const MsgContent = styled.div` max-width: 70%; `;
+const MsgHeader = styled.div`
+  font-size: 12px; margin: 0 0 4px 0; color: #6b7280;
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+`;
 const Bubble = styled.div`
-  max-width: 70%;
-  align-self: ${p => (p.$mine ? 'flex-end' : 'flex-start')};
   background: ${p => (p.$mine ? '#111' : '#f1f3f5')}; color: ${p => (p.$mine ? '#fff' : '#111')};
   padding: 10px 12px; border-radius: 12px;
   img { display: block; max-width: 260px; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--border-color); margin-top: 6px; }
@@ -57,55 +71,122 @@ const AttachBtn = styled.label`
 `;
 const Hidden = styled.input` display:none; `;
 const Mini = styled.div` font-size: 12px; color: #666; `;
+const TitleBadge = styled.span`
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  background: #f3f4f6; color: #111; border: 1px solid var(--border-color);
+`;
+
+const FALLBACK_AVATAR =
+  'https://www.clipartmax.com/png/middle/72-721825_tuffy-tuffy-the-titan-csuf.png';
 
 const DMPage = () => {
   const { user } = useContext(AuthContext);
   const [q, setQ] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [, setSearchResults] = useState([]); // value not used in current UI; keep setter for debounce effect
   const [conversations, setConversations] = useState([]);
-  const [active, setActive] = useState(null);       // conversation object
+  const [active, setActive] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [participants, setParticipants] = useState({}); // id -> {_id, username, profilePicture, badgesEquipped}
   const [text, setText] = useState('');
   const [file, setFile] = useState(null);
   const [selecting, setSelecting] = useState(false);
-  const [selectedUsers, setSelectedUsers] = useState([]); // for group creation
+  const [selectedUsers, setSelectedUsers] = useState([]);
   const [groupName, setGroupName] = useState('');
-  const navigate = useNavigate();
+  const [err, setErr] = useState('');
+  const messagesRef = useRef(null);
 
   const isGroup = useMemo(() => active?.isGroup, [active]);
- 
-  // Load conversations
-  const loadConversations = async () => {
+  const getConvTitleBadge = (conv) =>
+    conv?.titleBadge ??
+    conv?.otherUser?.titleBadge ??
+    (Array.isArray(conv?.otherUser?.badgesEquipped) ? conv.otherUser.badgesEquipped[0] : null) ??
+    (Array.isArray(conv?.badgesEquipped) ? conv.badgesEquipped[0] : null) ?? '';
+
+  useEffect(() => {
+    if (!messagesRef.current) return;
+    messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+  }, [messages]);
+
+  // Compact user loader (batch)
+  const ensureUsers = useCallback(async (ids) => {
+    const need = (ids || [])
+      .map((x) => (x && typeof x === 'object' ? (x._id || x.id || x.userId) : x))
+      .map(String)
+      .filter(Boolean)
+      .filter((id, i, a) => a.indexOf(id) === i)
+      .filter((id) => !participants[id] || !participants[id].username);
+    if (!need.length) return;
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/users/basic`, { params: { ids: need.join(',') } });
+      const map = {};
+      (res.data || []).forEach(u => { map[String(u._id)] = u; });
+      setParticipants(prev => ({ ...prev, ...map }));
+    } catch { /* ignore */ }
+  }, [participants]);
+
+  // Conversations list loader
+  const loadConversations = useCallback(async () => {
+    if (!user?._id) return;
     try {
       const res = await axios.get(`${API_BASE_URL}/api/messages/conversations/${user._id}`, { params: { userId: user._id } });
       setConversations(res.data || []);
-    } catch (e) { console.error(e); }
-  };
+      setErr('');
+    } catch (e) { console.error(e); setErr('Failed to load conversations'); }
+  }, [user?._id]);
 
-  const loadMessages = async (convId) => {
+  const loadMessages = useCallback(async (convId) => {
+    if (!user?._id || !convId) return;
     try {
       const res = await axios.get(`${API_BASE_URL}/api/messages/${convId}`, { params: { userId: user._id } });
       setMessages(res.data || []);
       await axios.put(`${API_BASE_URL}/api/messages/${convId}/read`, { userId: user._id });
       await loadConversations();
-    } catch (e) { console.error(e); }
+      setErr('');
+    } catch (e) { console.error(e); setErr('Failed to load messages'); }
+  }, [user?._id, loadConversations]); // ✅ no duplicate deps
+
+  // initial load + poll
+  useEffect(() => {
+    if (!user?._id) return;
+    loadConversations();
+    const t = setInterval(loadConversations, 15000);
+    return () => clearInterval(t);
+  }, [user?._id, loadConversations]);
+
+  // auto-open a conversation
+  useEffect(() => {
+    if (!conversations.length) return;
+    const last = localStorage.getItem('lastConv');
+    const found = last && conversations.find(c => c._id === last);
+    const target = found || conversations[0];
+    if (!active || active._id !== target._id) {
+      openConversation(target);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations]);
+
+  const openConversation = async (conv) => {
+    if (!conv) return;
+    setActive(conv);
+    localStorage.setItem('lastConv', conv._id);
+
+    // seed with me
+    setParticipants(prev => ({ ...prev, [user._id]: { _id: user._id, username: user.username, profilePicture: user.profilePicture, badgesEquipped: user.badgesEquipped } }));
+
+    // proactively hydrate group members from conv.participants if present
+    if (Array.isArray(conv.participants) && conv.participants.length) {
+      ensureUsers(conv.participants);
+    }
+
+    await loadMessages(conv._id);
   };
 
-  //useEffect(() => { if (user?._id) loadConversations(); }, [user?._id]);
-
-  // Debounced search
+  // when messages change, resolve unknown senders (covers group DMs)
   useEffect(() => {
-    const t = setTimeout(async () => {
-      if (!q.trim()) { setSearchResults([]); return; }
-      try {
-        const res = await axios.get(`${API_BASE_URL}/api/users/search?q=${encodeURIComponent(q)}&userId=${user._id}`);
-        setSearchResults(res.data || []);
-      } catch (e) { console.error(e); }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [q, user._id]);
-
-  const openConversation = async (conv) => { setActive(conv); await loadMessages(conv._id); };
+    if (!messages.length) return;
+    const ids = messages.map(m => m.senderId);
+    ensureUsers(ids);
+  }, [messages, ensureUsers]);
 
   const createConversation = async (participantIds, name) => {
     try {
@@ -126,7 +207,7 @@ const DMPage = () => {
     const res = await axios.post(`${API_BASE_URL}/api/uploads/image`, fd, {
       headers: { 'Content-Type': 'multipart/form-data', 'x-user-id': user._id }
     });
-    return res.data; // { url, type, ... }
+    return res.data;
   };
 
   const handleSend = async (e) => {
@@ -147,19 +228,75 @@ const DMPage = () => {
     } catch (e) { console.error(e); }
   };
 
-  const toggleSelect = (u) => {
-    setSelectedUsers(prev => {
-      const has = prev.find(x => x._id === u._id);
-      return has ? prev.filter(x => x._id !== u._id) : [...prev, u];
-    });
+  // search people to start a chat (kept for future “New chat” UI)
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (!q.trim()) { setSearchResults([]); return; }
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/users/search?q=${encodeURIComponent(q)}&userId=${user._id}`);
+        setSearchResults(res.data || []);
+      } catch (e) { console.error(e); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q, user._id]);
+
+  const titleBadge = getConvTitleBadge(active);
+
+  const nameFromMessage = (m) => {
+    const mine = m.senderId === user._id;
+    if (mine) return user.username;
+    if (!isGroup && active?.title) return active.title; // 1-1 fallback
+    return (
+      participants[m.senderId]?.username ||
+      m.sender?.username ||
+      m.senderUsername ||
+      m.username ||
+      'Unknown'
+    );
   };
 
-  const NameCell = ({ conv }) => {
-    if (conv.isGroup) return <div className="name">{conv.title}</div>;
+  const avatarFromMessage = (m) => {
+    const mine = m.senderId === user._id;
+    if (mine) return user.profilePicture || FALLBACK_AVATAR;
     return (
-      <div className="name" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${conv.title}`); }} title={`Open ${conv.title}'s profile`}>
-        <UserLink username={conv.title}>{conv.title}</UserLink>
-      </div>
+      participants[m.senderId]?.profilePicture ||
+      (isGroup ? null : active?.avatar) ||
+      FALLBACK_AVATAR
+    );
+  };
+
+  const renderMessage = (m) => {
+    const mine = m.senderId === user._id;
+    const senderUsername = nameFromMessage(m);
+    const senderAvatar = avatarFromMessage(m);
+
+    return (
+      <MsgRow key={m._id} $mine={mine}>
+        {!mine && (
+          <MsgAvatar aria-hidden>
+            <img src={senderAvatar || FALLBACK_AVATAR} alt="" />
+          </MsgAvatar>
+        )}
+        <MsgContent>
+          <MsgHeader>
+            {senderUsername && senderUsername !== 'Unknown'
+              ? <UserLink username={senderUsername}>{senderUsername}</UserLink>
+              : <span>Unknown</span>}
+            <span>{new Date(m.createdAt).toLocaleString()}</span>
+          </MsgHeader>
+          <Bubble $mine={mine}>
+            {m.body}
+            {(m.attachments || []).map((a, i) =>
+              a.type === 'image' ? <img key={i} src={toMediaUrl(a.url)} alt="DM attachment" /> : null
+            )}
+          </Bubble>
+        </MsgContent>
+        {mine && (
+          <MsgAvatar aria-hidden>
+            <img src={user.profilePicture || FALLBACK_AVATAR} alt="" />
+          </MsgAvatar>
+        )}
+      </MsgRow>
     );
   };
 
@@ -184,47 +321,29 @@ const DMPage = () => {
             )}
           </SearchBox>
 
-          {selecting && (
-            <div style={{ padding: '8px', borderBottom: '1px solid var(--border-color)' }}>
-              {selectedUsers.length >= 2 && (
-                <input
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="Group name (optional)"
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: 8, marginBottom: 8 }}
-                />
-              )}
-              <Mini>
-                {selectedUsers.length === 0 ? 'Pick one or more people.' :
-                 selectedUsers.length === 1 ? `DM with ${selectedUsers[0].username}` :
-                 `${selectedUsers.length} people selected`}
-              </Mini>
-            </div>
-          )}
-
-          {selecting && (
-            <List>
-              {searchResults.map(u => (
-                <Row key={u._id} onClick={() => toggleSelect(u)}>
-                  <div className="avatar">{u.profilePicture ? <img src={u.profilePicture} alt={u.username} /> : <span>{u.username?.[0]?.toUpperCase() || '?'}</span>}</div>
-                  <div>
-                    <div className="name">{u.username}</div>
-                    <div className="sub">{u.department || ''}</div>
-                  </div>
-                  <div>{selectedUsers.some(x => x._id === u._id) ? '✓' : ''}</div>
-                </Row>
-              ))}
-            </List>
-          )}
-
           {!selecting && (
             <List>
+              {err && <Mini style={{ padding: 8, color: '#b00020' }}>{err}</Mini>}
               {conversations.length === 0 && <Mini style={{ padding: 8 }}>No messages yet.</Mini>}
               {conversations.map(c => (
                 <Row key={c._id} onClick={() => openConversation(c)}>
-                  <div className="avatar">{c.avatar ? <img src={c.avatar} alt={c.title} /> : <span>{c.title?.[0]?.toUpperCase() || '?'}</span>}</div>
-                  <div><NameCell conv={c} /><div className="sub">{c.last?.body || 'No messages yet'}</div></div>
-                  <div>{c.unread > 0 ? <span style={{ background:'#e02424', color:'#fff', borderRadius: 999, padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>{c.unread}</span> : null}</div>
+                  <div className="avatar">
+                    {c.avatar ? <img src={c.avatar} alt={c.title} /> : <span>{c.title?.[0]?.toUpperCase() || '?'}</span>}
+                  </div>
+                  <div>
+                    <div className="nameLine">
+                      <div className="name">{c.title}</div>
+                      {!!getConvTitleBadge(c) && <TitleBadge>{getConvTitleBadge(c)}</TitleBadge>}
+                    </div>
+                    <div className="sub">{c.last?.body || 'No messages yet'}</div>
+                  </div>
+                  <div>
+                    {c.unread > 0 ? (
+                      <span style={{ background:'#e02424', color:'#fff', borderRadius: 999, padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>
+                        {c.unread}
+                      </span>
+                    ) : null}
+                  </div>
                 </Row>
               ))}
             </List>
@@ -236,18 +355,19 @@ const DMPage = () => {
             <div style={{ padding: 16, color: '#666' }}>Select a conversation or start a new one.</div>
           ) : (
             <>
-              <ThreadHeader>{isGroup ? active.title : <UserLink username={active.title}>{active.title}</UserLink>}</ThreadHeader>
-              <Messages>
-                {messages.map(m => (
-                  <Bubble key={m._id} $mine={m.senderId === user._id}>
-                    {m.body}
-                      {(m.attachments || []).map((a, i) =>
-                        a.type === 'image' ? <img key={i} src={toMediaUrl(a.url)} alt="DM attachment" /> : null
-                      )}
-                    <div style={{ fontSize: 10, opacity: .7, marginTop: 4 }}>{new Date(m.createdAt).toLocaleString()}</div>
-                  </Bubble>
-                ))}
+              {isGroup ? (
+                <ThreadHeader>{active.title}</ThreadHeader>
+              ) : (
+                <ThreadHeader>
+                  <UserLink username={active.title}>{active.title}</UserLink>
+                  {!!titleBadge && <TitleBadge>{titleBadge}</TitleBadge>}
+                </ThreadHeader>
+              )}
+
+              <Messages ref={messagesRef}>
+                {messages.map(renderMessage)}
               </Messages>
+
               <Compose onSubmit={handleSend}>
                 <AttachBtn htmlFor="dm-attach">Attach</AttachBtn>
                 <Hidden id="dm-attach" type="file" accept="image/*" onChange={(e)=> setFile(e.target.files?.[0] || null)} />

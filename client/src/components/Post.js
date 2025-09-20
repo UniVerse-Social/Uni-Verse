@@ -6,7 +6,7 @@ import axios from 'axios';
 import { AuthContext } from '../App';
 import { toMediaUrl } from '../config';
 
-/* Hardcoded default avatar (SVG data URI; always available) */
+/* Hardcoded default avatar (always available) */
 const FALLBACK_AVATAR =
   'https://www.clipartmax.com/png/middle/72-721825_tuffy-tuffy-the-titan-csuf.png';
 
@@ -54,7 +54,26 @@ const PostContainer = styled.div`
 const PostHeader = styled.div` display: flex; align-items: center; margin-bottom: 12px; `;
 const ProfilePic = styled(SmartImg)` width: 42px; height: 42px; border-radius: 50%; background-color: #eee; margin-right: 12px; object-fit: cover; `;
 const UserInfo = styled.div` display: flex; flex-direction: column; flex-grow: 1; `;
+
+const UsernameRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
 const Username = styled(Link)` font-weight: 800; color: #111; text-decoration: none; `;
+
+const TitleBadge = styled.span`
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #111;
+  border: 1px solid var(--border-color);
+`;
+
 const Timestamp = styled.span` font-size: 12px; color: #6b7280; `;
 const PostContent = styled.p` font-size: 16px; line-height: 1.5; margin: 0 0 12px 0; white-space: pre-wrap; word-break: break-word; color: #111; `;
 const PostActions = styled.div` display: flex; align-items: center; gap: 20px; color: #374151; `;
@@ -125,7 +144,10 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
       <PostHeader>
         <ProfilePic src={avatarSrc} fallback={FALLBACK_AVATAR} alt="User avatar" />
         <UserInfo>
-          <Username to={`/profile/${post.username}`} data-username-link>{post.username}</Username>
+          <UsernameRow>
+            <Username to={`/profile/${post.username}`} data-username-link>{post.username}</Username>
+            {!!post.titleBadge && <TitleBadge>{post.titleBadge}</TitleBadge>}
+          </UsernameRow>
           <Timestamp>{new Date(post.createdAt).toLocaleString()}</Timestamp>
         </UserInfo>
 

@@ -22,7 +22,13 @@ const UserSchema = new mongoose.Schema(
 
     // NEW: moderation/economy
     strikes: { type: Number, default: 0 },
-    bannedUntil: { type: Date, default: null }
+    bannedUntil: { type: Date, default: null },
+
+    // NEW: badges
+    // - badgesUnlocked: all badge names the user has earned
+    // - badgesEquipped: up to 5 equipped badge names (index 0 is the "Title" badge)
+    badgesUnlocked: { type: [String], default: [] },
+    badgesEquipped: { type: [String], default: [] }
   },
   { timestamps: true }
 );

@@ -11,7 +11,7 @@ import Login from './pages/Login';
 import TitanTap from './pages/TitanTap';
 import './App.css';
 import DMPage from './pages/DMs';
-import Games from './pages/Games';
+import Games from './pages/Game';
 
 // ---------- Global username click handler ----------
 function GlobalUsernameLinker() {

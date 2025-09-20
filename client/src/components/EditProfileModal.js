@@ -103,6 +103,12 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
+  // --- NEW: derive effective title badge string (read-only, no UI changes) ---
+  const currentTitleBadge =
+    user?.titleBadge ??
+    (Array.isArray(user?.badgesEquipped) ? user.badgesEquipped[0] : null) ??
+    null;
+
   useEffect(() => {
     if (!user) return;
     setForm(f => ({
@@ -136,6 +142,7 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
 
       const res = await axios.put(`http://localhost:5000/api/users/${me._id}/account`, payload);
 
+      // server returns full user (sans password); badges/titleBadge preserved
       login(res.data);
       onProfileUpdate?.(res.data);
       onClose?.();
@@ -149,13 +156,17 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
 
   return (
     <Backdrop onMouseDown={(e)=>{ if (e.target === e.currentTarget) onClose?.(); }}>
-      <Dialog role="dialog" aria-modal="true">
+      {/* Expose current title badge in a non-visual way for consistency/debug */}
+      <Dialog role="dialog" aria-modal="true" data-title-badge={currentTitleBadge || ''}>
         <Header>
           <h3>Edit profile</h3>
           <button aria-label="Close" onClick={onClose}>×</button>
         </Header>
 
         <Body onSubmit={submit}>
+          {/* Hidden field keeps the badge value part of the form (no UI added) */}
+          <input type="hidden" name="titleBadge" value={currentTitleBadge || ''} readOnly aria-hidden="true" />
+
           {err && (
             <div style={{background:'#fee2e2', color:'#991b1b', padding:'10px 12px', borderRadius:10}}>
               {err}

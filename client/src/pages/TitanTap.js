@@ -12,15 +12,20 @@ const styles = `
 
 .note { text-align: center; padding: 16px 0; color: #666; }
 
-.search-results { border: 1px solid #eee; border-radius: 12px; padding: 6px; margin-bottom: 14px; max-height: 360px; overflow: auto; }
-.result-row { display: flex; align-items: center; gap: 12px; padding: 8px; border-bottom: 1px solid #f3f3f3; }
+.search-results { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 6px; margin-bottom: 14px; max-height: 360px; overflow: auto; }
+.result-row { background: #fff; display: flex; align-items: center; gap: 12px; padding: 8px; border-bottom: 1px solid #f3f3f3; }
 .result-row:last-child { border-bottom: none; }
 .res-avatar { width: 44px; height: 44px; border-radius: 50%; background: #f0f0f0; display: grid; place-items: center; overflow: hidden; flex: 0 0 auto; }
 .res-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.res-name { font-weight: 600; }
-.res-sub { font-size: 12px; color: #666; margin-top: 2px; }
+.res-name { color: #111; font-weight: 600;}
+.res-sub { font-size: 12px; color: #111; margin-top: 2px; }
 .chips { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { background: #f4f6f8; border: 1px solid #e5e8eb; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
+
+/* --- NEW: badges row on the card --- */
+.badges { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.badge { background: #f3f4f6; border: 1px solid #e5e8eb; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #111; }
+.badge.title { background: #111; color: #fff; border-color: #111; }
 
 .deck { position: relative; height: 480px; margin-top: 20px; perspective: 10px; }
 .card-wrap { position: absolute; left: 50%; transform: translateX(-50%); touch-action: none; width: 100%; max-width: 520px; top: 0; }
@@ -101,6 +106,20 @@ function SwipeableCard({ user, onDecision }) {
 
   const style = { transform: `translate(calc(-50% + ${dx}px), ${dy}px) rotate(${rot}deg)`, transition: released ? 'transform 250ms ease-out' : 'transform 0s' };
 
+  /* --- NEW: compute badges for display (title first, then slots 1-4) --- */
+  const equipped = Array.isArray(user.badgesEquipped) ? user.badgesEquipped.slice(0, 5) : [];
+  const title = user.titleBadge || equipped[0] || null;
+  const badgeLine = (() => {
+    const out = [];
+    if (title) out.push(title);
+    for (let i = 0; i < equipped.length; i++) {
+      if (i === 0 && equipped[0] === title) continue;
+      const b = equipped[i];
+      if (b && !out.includes(b)) out.push(b);
+    }
+    return out.slice(0, 5);
+  })();
+
   return (
     <div className="card-wrap" style={style}
       onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
@@ -116,6 +135,15 @@ function SwipeableCard({ user, onDecision }) {
             <div className="sub">{user.department ? `Dept: ${user.department}` : ''}</div>
           </div>
         </div>
+
+        {/* --- NEW: badges row (title first) --- */}
+        {badgeLine.length > 0 && (
+          <div className="badges" aria-label="Equipped badges">
+            {badgeLine.map((b, i) => (
+              <span key={i} className={`badge ${i === 0 ? 'title' : ''}`}>{b}</span>
+            ))}
+          </div>
+        )}
 
         {Array.isArray(user.hobbies) && user.hobbies.length > 0 && (
           <div className="chips">
@@ -217,7 +245,7 @@ const TitanTap = () => {
                   <button
                     onClick={() => followFromSearch(u._id, !!u.isFollowing)}
                     className={u.isFollowing ? 'ghost' : ''}
-                    style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #111', background: u.isFollowing ? '#fff' : '#111', color: u.isFollowing ? '#111' : '#fff', cursor: 'pointer' }}
+                    style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #111', background: u.isFollowing ? '#111' : '#fff', color: u.isFollowing ? '#fff' : '#111', cursor: 'pointer' }}
                   >
                     {u.isFollowing ? 'Following' : 'Follow'}
                   </button>

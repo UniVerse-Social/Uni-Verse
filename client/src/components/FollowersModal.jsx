@@ -157,7 +157,7 @@ export default function FollowersModal({
       <Modal>
         <Card className="surface" role="dialog" aria-modal="true" aria-label={`View ${type}`}>
           <Header>
-            <h3>{type === "followers" ? "Followers" : "Following"}</h3>
+            <h2>{type === "followers" ? "Followers" : "Following"}</h2>
             <button onClick={onClose} aria-label="Close">✕</button>
           </Header>
 
