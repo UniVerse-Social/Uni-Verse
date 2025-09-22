@@ -1,4 +1,4 @@
-// client/src/lib/useMatchmaking.js
+// client/src/games/useMatchmaking.js
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../config';
@@ -6,10 +6,15 @@ import { API_BASE_URL } from '../config';
 export function useMatchmaking(game, me) {
   const socketRef = useRef(null);
   const [roomId, setRoomId] = useState(null);
-  const [role, setRole] = useState(null); // 'A' or 'B'
   const [seed, setSeed] = useState(null);
   const [status, setStatus] = useState('Idle');
   const [connected, setConnected] = useState(false);
+
+  // IceRacer additions
+  const [lobbyCount, setLobbyCount] = useState(0);
+  const [lobbySize, setLobbySize] = useState(0);
+  const [roster, setRoster] = useState(null);
+  const [raceMeta, setRaceMeta] = useState(null); // { mapId, laps, startAt }
 
   const ensure = () => {
     if (socketRef.current) return socketRef.current;
@@ -17,14 +22,28 @@ export function useMatchmaking(game, me) {
     socketRef.current = s;
     s.on('connect', () => setConnected(true));
     s.on('disconnect', () => setConnected(false));
-    s.on('mm:queued', () => setStatus('Looking for an opponent…'));
-    s.on('mm:start', ({ roomId, role, seed }) => {
-      setRoomId(roomId); setRole(role); setSeed(seed);
-      setStatus(`Matched! You are ${role}.`);
+
+    s.on('mm:queued', () => setStatus('Looking for opponents…'));
+    s.on('mm:lobby', ({ count, size }) => {
+      setLobbyCount(count);
+      setLobbySize(size);
+      setStatus(`Looking for opponents… (${count}/${size} players)`);
     });
+
+    s.on('mm:start', (payload) => {
+      const { roomId, seed, roster, mapId, laps, startAt, size } = payload;
+      setRoomId(roomId);
+      setSeed(seed);
+      setRoster(roster || []);
+      setLobbySize(size || (roster ? roster.length : 0));
+      setRaceMeta({ mapId, laps, startAt });
+      setStatus('Matched! Starting…');
+    });
+
     s.on('mm:ended', ({ reason }) => {
       setStatus(`Match ended (${reason || 'done'}).`);
-      setRoomId(null); setRole(null); setSeed(null);
+      setRoomId(null); setSeed(null); setRoster(null);
+      setLobbyCount(0); setLobbySize(0); setRaceMeta(null);
     });
     return s;
   };
@@ -37,7 +56,8 @@ export function useMatchmaking(game, me) {
   const leave = useCallback(() => {
     const s = ensure();
     s.emit('mm:leave', { roomId });
-    setRoomId(null); setRole(null); setSeed(null);
+    setRoomId(null); setSeed(null); setRoster(null);
+    setLobbyCount(0); setLobbySize(0); setRaceMeta(null);
   }, [roomId]);
 
   const send = useCallback((type, payload) => {
@@ -48,7 +68,7 @@ export function useMatchmaking(game, me) {
 
   const on = useCallback((handler) => {
     const s = ensure();
-    const fn = ({ type, payload }) => handler(type, payload);
+    const fn = ({ type, payload, from }) => handler(type, payload, from);
     s.on('mm:msg', fn);
     return () => s.off('mm:msg', fn);
   }, []);
@@ -57,5 +77,9 @@ export function useMatchmaking(game, me) {
     if (socketRef.current) socketRef.current.disconnect();
   }, []);
 
-  return { queue, leave, send, on, roomId, role, seed, status, connected };
+  return {
+    queue, leave, send, on,
+    roomId, seed, status, connected,
+    lobbyCount, lobbySize, roster, raceMeta
+  };
 }

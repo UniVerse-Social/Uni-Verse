@@ -2,6 +2,7 @@
 const router = require('express').Router();
 const mongoose = require('mongoose');
 const GameProfile = require('../models/GameProfile');
+const GameResult = require('../models/GameResult');
 const { checkAndUnlock } = require('../services/badges'); // optional, if present
 const User = require('../models/User');
 
@@ -16,9 +17,9 @@ const TIERS = [
 ];
 
 function rankFromTrophies(total) {
-  let r = TIERS[0].name;
-  for (const t of TIERS) if (total >= t.min) r = t.name;
-  return r;
+  let result = TIERS[0].name;
+  for (const t of TIERS) if (total >= t.min) result = t.name;
+  return result;
 }
 
 async function ensureProfile(userId) {
@@ -27,31 +28,36 @@ async function ensureProfile(userId) {
   return gp;
 }
 
-// Reset rule: If a new calendar month has started and rank was Champion,
-// clamp total to 1500 and convert overflow to coins.
+/**
+ * Optional monthly soft reset:
+ * - If total trophies exceed Champion threshold, overflow converts to coins
+ * - Scale down per-game trophies proportionally to keep total at cap
+ */
 async function maybeMonthlyReset(gp) {
-  const then = new Date(gp.lastResetAt || Date.now());
+  if (!gp) return gp;
   const now = new Date();
-  const changedMonth = (then.getUTCFullYear() !== now.getUTCFullYear()) || (then.getUTCMonth() !== now.getUTCMonth());
-  if (!changedMonth) return gp;
-
+  const last = gp.lastResetAt || new Date(0);
+  const monthsApart = (now.getUTCFullYear() - last.getUTCFullYear()) * 12 + (now.getUTCMonth() - last.getUTCMonth());
   const currentRank = rankFromTrophies(gp.totalTrophies);
-  if (currentRank === 'Champion' && gp.totalTrophies > 1500) {
-    const overflow = gp.totalTrophies - 1500;
-    gp.coins += overflow;
 
-    // Scale per-game trophies down proportionally to total=1500
-    const total = Math.max(1, gp.totalTrophies);
-    const scale = 1500 / total;
-    const nextMap = new Map();
-    for (const [k, v] of gp.trophiesByGame.entries()) {
-      nextMap.set(k, Math.floor(v * scale));
+  if (monthsApart >= 1) {
+    if (currentRank === 'Champion' && gp.totalTrophies > 1500) {
+      const overflow = gp.totalTrophies - 1500;
+      gp.coins += overflow;
+
+      // Scale per-game trophies down proportionally to total=1500
+      const total = Math.max(1, gp.totalTrophies);
+      const scale = 1500 / total;
+      const nextMap = new Map();
+      for (const [k, v] of gp.trophiesByGame.entries()) {
+        nextMap.set(k, Math.floor(v * scale));
+      }
+      gp.trophiesByGame = nextMap;
+      gp.totalTrophies = 1500;
     }
-    gp.trophiesByGame = nextMap;
-    gp.totalTrophies = 1500;
+    gp.lastResetAt = now;
+    await gp.save();
   }
-  gp.lastResetAt = now;
-  await gp.save();
   return gp;
 }
 
@@ -99,14 +105,22 @@ router.post('/result', async (req, res) => {
     gp.totalTrophies = total;
     await gp.save();
 
-    // Optional: award "Gamer" on first ever trophy, and rank badges for thresholds
+    // log history
+    try {
+      await GameResult.create({ userId: uid, gameKey, delta, didWin: delta > 0 });
+    } catch (e) {
+      console.warn('unable to create game result log', e?.message);
+    }
+
+    // Optional: award badges
     try {
       if (Math.abs(delta) > 0) {
         await checkAndUnlock(userId, { type: 'played_game' });
         const r = rankFromTrophies(gp.totalTrophies);
-        await checkAndUnlock(userId, { type: 'games_rank', rank: r });
+        const tier = TIERS.find(t => t.name === r);
+        if (tier) await checkAndUnlock(userId, { type: 'rank_reached', payload: { name: r, min: tier.min } });
       }
-    } catch (_) {}
+    } catch {}
 
     res.json({
       ok: true,
@@ -119,6 +133,49 @@ router.post('/result', async (req, res) => {
   } catch (e) {
     console.error('games result error:', e);
     res.status(500).json({ message: 'Failed to post game result' });
+  }
+});
+
+/** GET leaderboard by gameKey (top N) */
+router.get('/leaderboard/:gameKey', async (req, res) => {
+  try {
+    const gameKey = String(req.params.gameKey);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '10', 10)));
+    const path = `trophiesByGame.${gameKey}`;
+
+    const leaders = await GameProfile.aggregate([
+      { $addFields: { score: { $ifNull: [`$${path}`, 0] } } },
+      { $match: { score: { $gt: 0 } } },
+      { $sort: { score: -1 } },
+      { $limit: limit },
+      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $project: { _id: 0, userId: '$userId', username: { $ifNull: ['$user.username', 'Player'] }, score: 1 } },
+    ]);
+
+    res.json({ leaders });
+  } catch (e) {
+    console.error('games leaderboard error:', e);
+    res.status(500).json({ message: 'Failed to load leaderboard' });
+  }
+});
+
+/** GET recent history for a user/gameKey */
+router.get('/history/:userId/:gameKey', async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.params.userId);
+    const gameKey = String(req.params.gameKey);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '10', 10)));
+
+    const history = await GameResult.find({ userId, gameKey })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    res.json({ history });
+  } catch (e) {
+    console.error('games history error:', e);
+    res.status(500).json({ message: 'Failed to load history' });
   }
 });
 

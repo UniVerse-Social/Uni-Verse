@@ -81,6 +81,12 @@ try {
   console.warn('Realtime: checkers module not found or failed to load:', e?.message || e);
 }
 
+try {
+  require('./realtime/mm')(io);
+  console.log('Realtime: generic matchmaker initialized');
+} catch (e) {
+  console.warn('Realtime: matchmaker failed to load:', e?.message || e);
+}
 /* -------------------- START -------------------- */
 server.listen(PORT, () => {
   console.log(`API + Realtime listening on http://localhost:${PORT}`);
