@@ -1,6 +1,6 @@
 // client/src/pages/Games.js
 import React, { useEffect, useState, useContext, useCallback } from 'react';
-import styled from 'styled-components';
+import styled, { createGlobalStyle } from 'styled-components';
 import { AuthContext } from '../App';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
@@ -14,29 +14,83 @@ import ArmArena from './ArmArena';
 import JumpArena from './JumpArena';
 import OddEvenArena from './OddEvenArena';
 
-/* ------------------- Layout ------------------- */
-const Page = styled.div` max-width: 1120px; margin: 0 auto; padding: 16px; `;
-const Top = styled.div` display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; `;
-const TitleBtn = styled.button`
-  border:none; background:transparent; color:#e5e7eb; font-size:28px; font-weight:900; padding:0; cursor:pointer;
-  &:hover { opacity:.9; text-decoration: underline; text-underline-offset: 4px; }
-`;
-const GameBarWrap = styled.div`
-  position:sticky; top:72px; z-index:5;
-  background: rgba(255,255,255,.92);
-  backdrop-filter: blur(6px);
-  border:1px solid var(--border-color);
-  border-radius:12px; padding:8px;
-`;
-const GameBar = styled.div` display:flex; gap:8px; flex-wrap:wrap; align-items:center; `;
-const GameTab = styled.button`
-  padding: 8px 12px; border-radius: 999px; cursor: pointer; font-weight: 700;
-  background: ${p=>p.$active ? '#111' : '#fff'};
-  color: ${p=>p.$active ? '#fff' : '#111'};
-  border: 1px solid ${p=>p.$active ? '#111' : 'var(--border-color)'};
-  box-shadow: ${p=>p.$active ? '0 3px 10px rgba(0,0,0,.15)' : 'none'};
+/* ------------------- Global fonts for the header ------------------- */
+const GamesFonts = createGlobalStyle`
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@700;800;900&display=swap');
 `;
 
+/* ------------------- Layout ------------------- */
+const Page = styled.div` max-width: 1120px; margin: 0 auto; padding: 16px; `;
+
+/* ======= New connected top bar ======= */
+const TopBar = styled.nav`
+  position: sticky;
+  top: 72px;                /* sits under your main app header */
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: var(--container-white);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.06);
+`;
+
+const TitleButton = styled.button`
+  appearance: none;
+  border: 0;
+  /* vibrant gradient kept */
+  background: linear-gradient(92deg, #ff8718 0%, #ffb95e 25%, #3b5cff 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+
+  font-family: 'Exo 2', 'Bebas Neue', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-weight: 600;              /* ultra-bold */
+  font-size: 34px;               /* a touch larger than tabs */
+  letter-spacing: 0.6px;
+  line-height: 1;
+
+  -webkit-text-stroke: 1px rgba(0,0,0,0.22);   /* Safari/Chromium */
+  text-shadow:
+    0 1px 0 rgba(255,255,255,0.05),
+    0 2px 4px rgba(0,0,0,0.25);
+
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: transform .08s ease-in-out, background .2s ease;
+  white-space: nowrap;
+
+  &:hover { transform: translateY(-1px) scale(1.02); }
+  &:active { transform: translateY(0) scale(.99); }
+`;
+
+const TabButton = styled.button`
+  appearance: none;
+  border: 1px solid ${p => (p.$active ? '#111' : 'var(--border-color)')};
+  background: ${p => (p.$active ? '#111' : '#fff')};
+  color: ${p => (p.$active ? '#fff' : '#111')};
+  font-weight: 800;
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, transform .08s ease;
+  white-space: nowrap;
+  box-shadow: ${p => (p.$active ? '0 3px 10px rgba(0,0,0,.12)' : 'none')};
+
+  &:hover { background: ${p => (p.$active ? '#111' : '#f6f7f9')}; transform: translateY(-1px); }
+  &:active { transform: translateY(0); }
+`;
+
+const BarSeparator = styled.div`
+  height: 10px;
+  pointer-events: none;
+`;
+
+/* ------------------- Content blocks ------------------- */
 const Row = styled.div` display:grid; grid-template-columns: 300px 1fr; gap:16px; align-items:start; `;
 const Card = styled.div`
   background: var(--container-white);
@@ -134,6 +188,39 @@ function useGameStats(userId) {
   return { stats, load, addResult };
 }
 
+/* ------------------- Reusable top bar component ------------------- */
+function GamesTopBar({ active, onChange }) {
+  return (
+    <>
+      <GamesFonts />
+      <TopBar role="tablist" aria-label="Games">
+        <TitleButton
+          role="tab"
+          aria-selected={active === 'home'}
+          onClick={() => onChange('home')}
+          title="Back to Games profile"
+        >
+          Games
+        </TitleButton>
+
+        {GAMES.map(g => (
+          <TabButton
+            key={g.key}
+            role="tab"
+            $active={active === g.key}
+            aria-selected={active === g.key}
+            onClick={() => onChange(g.key)}
+            title={g.name}
+          >
+            {g.name}
+          </TabButton>
+        ))}
+      </TopBar>
+      <BarSeparator />
+    </>
+  );
+}
+
 /* ------------------- Main Page ------------------- */
 export default function Games() {
   const { user } = useContext(AuthContext);
@@ -175,19 +262,8 @@ export default function Games() {
 
   return (
     <Page>
-      {/* Secondary bar: title navigates to profile; bar provides direct game buttons */}
-      <Top>
-        <TitleBtn onClick={() => setView('home')} title="Open Game Profile">Games</TitleBtn>
-        <GameBarWrap>
-          <GameBar>
-            {GAMES.map(g => (
-              <GameTab key={g.key} $active={view === g.key} onClick={() => setView(g.key)}>
-                {g.name}
-              </GameTab>
-            ))}
-          </GameBar>
-        </GameBarWrap>
-      </Top>
+      {/* Connected top bar (Games title + 7 game tabs) */}
+      <GamesTopBar active={view} onChange={setView} />
 
       {view === 'home' ? (
         /* --------- Game Profile (dashboard) --------- */
@@ -247,7 +323,7 @@ export default function Games() {
               <SectionTitle>Leaderboards</SectionTitle>
               <LeaderTabs>
                 {GAMES.map(g => (
-                  <GameTab key={g.key} $active={lbTab === g.key} onClick={() => setLbTab(g.key)}>{g.name}</GameTab>
+                  <TabButton key={g.key} $active={lbTab === g.key} onClick={() => setLbTab(g.key)}>{g.name}</TabButton>
                 ))}
               </LeaderTabs>
               {lbErr && <Subtle style={{ color: '#b00020' }}>{lbErr}</Subtle>}

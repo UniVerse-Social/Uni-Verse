@@ -29,7 +29,7 @@ const Logo = styled(NavLink)`
   font-size: 24px;
   font-weight: bold;
   text-decoration: none;
-  color: var(--primary-blue);
+  color: #0d2d7d;
 `;
 
 const OrangeText = styled.span`
@@ -45,7 +45,7 @@ const NavLinks = styled.div`
 const StyledNavLink = styled(NavLink)`
   font-size: 24px;
   color: #111111;
-  &.active { color: var(--primary-blue); }
+  &.active { color: '#0d2d7d'; }
 `;
 
 const Navbar = () => {

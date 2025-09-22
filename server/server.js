@@ -73,6 +73,14 @@ try {
   console.warn('Realtime: chess module not found or failed to load:', e?.message || e);
 }
 
+// attach checkers matchmaking/realtime handlers
+try {
+  require('./realtime/checkers')(io);
+  console.log('Realtime: checkers namespace initialized');
+} catch (e) {
+  console.warn('Realtime: checkers module not found or failed to load:', e?.message || e);
+}
+
 /* -------------------- START -------------------- */
 server.listen(PORT, () => {
   console.log(`API + Realtime listening on http://localhost:${PORT}`);

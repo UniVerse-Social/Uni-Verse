@@ -88,8 +88,8 @@ const Footer = styled.div`
 
 const Button = styled.button`
   padding: 10px 14px; border-radius: 10px; font-weight: 700; border: 0; cursor: pointer;
-  background: ${p => (p.$primary ? 'var(--primary-blue)' : '#e5e7eb')};
-  color: ${p => (p.$primary ? '#fff' : '#111')};
+  background: ${p => (p.$primary ? '#e5e7eb' : '#e5e7eb')};
+  color: ${p => (p.$primary ? '#111' : '#111')};
   &:disabled { opacity: .6; cursor: not-allowed; }
 `;
 
