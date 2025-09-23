@@ -25,7 +25,7 @@ const Feed = styled.div`
 
 const DMButton = styled(Link)`
   position: fixed;
-  top: 14px;                /* top-right of the page */
+  top: 8px;                /* top-right of the page */
   right: 18px;
   z-index: 1100;
   width: 42px;

@@ -66,7 +66,6 @@ const Navbar = () => {
           {/* Marketplace moved to Clubs sub-nav; use Games icon here */}
           <StyledNavLink to="/games"><FaGamepad /></StyledNavLink>
           <StyledNavLink to={`/profile/${user.username}`}><FaUser /></StyledNavLink>
-          {/* DM icon removed from navbar */}
         </NavLinks>
       </NavContainer>
     </NavWrapper>

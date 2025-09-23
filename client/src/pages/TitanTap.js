@@ -46,7 +46,6 @@ const styles = `
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #fff; color: #111; padding: 10px 14px; border-radius: 999px; }
 `;
 
-// (rest unchanged)
 function getCurrentUserId() {
   try {
     const u = localStorage.getItem('user') || localStorage.getItem('currentUser');
