@@ -81,6 +81,46 @@ try {
   console.warn('Realtime: checkers module not found or failed to load:', e?.message || e);
 }
 
+// attach go matchmaking/realtime handlers
+try {
+  require('./realtime/go')(io);
+  console.log('Realtime: go namespace initialized');
+} catch (e) {
+  console.warn('Realtime: go module not found or failed to load:', e?.message || e);
+}
+
+// attach shogi matchmaking/realtime handlers
+try {
+  require('./realtime/shogi')(io);
+  console.log('Realtime: shogi namespace initialized');
+} catch (e) {
+  console.warn('Realtime: shogi module not found or failed to load:', e?.message || e);
+}
+
+// attach reversi matchmaking/realtime handlers
+try {
+  require('./realtime/reversi')(io);
+  console.log('Realtime: reversi namespace initialized');
+} catch (e) {
+  console.warn('Realtime: reversi module not found or failed to load:', e?.message || e);
+}
+
+// Jump realtime
+try {
+  require('./realtime/jump')(io);
+  console.log('Realtime: jump namespace initialized');
+} catch (e) {
+  console.warn('Realtime: jump module failed to load:', e?.message || e);
+}
+
+// Odd/Even realtime
+try {
+  require('./realtime/oddeven')(io);
+  console.log('Realtime: oddeven namespace initialized');
+} catch (e) {
+  console.warn('Realtime: oddeven module failed to load:', e?.message || e);
+}
+
 try {
   require('./realtime/mm')(io);
   console.log('Realtime: generic matchmaker initialized');
