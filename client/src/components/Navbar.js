@@ -26,10 +26,12 @@ const NavContainer = styled.div`
 `;
 
 const Logo = styled(NavLink)`
-  font-size: 24px;
+  font-size: 27px;
   font-weight: bold;
   text-decoration: none;
   color: #0d2d7d;
+  position: absolute;
+  left: 20px;
 `;
 
 const OrangeText = styled.span`
@@ -40,6 +42,8 @@ const NavLinks = styled.div`
   display: flex;
   align-items: center;
   gap: 25px;
+  margin-left: auto;
+  margin-right: auto;
 `;
 
 const StyledNavLink = styled(NavLink)`
