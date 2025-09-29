@@ -198,7 +198,6 @@ router.put('/:id/account', async (req, res) => {
 
     await user.save();
 
-    // Optional safety check: ensure new hash matches newPassword if changed
     if (wantsPwChange) {
       const fresh = await User.findById(id).select('+password');
       const okNew = await bcrypt.compare(String(newPassword), String(fresh.password));
@@ -444,7 +443,7 @@ router.get('/titantap/:userId', async (req, res) => {
     const meHobbies = Array.isArray(me.hobbies) ? me.hobbies : [];
 
     const pipeline = [
-      { $match: { _id: { $ne: meId } } },
+      { $match: { _id: { $ne: meId, $nin: meFollowing } } },
       {
         $addFields: {
           followersSafe: { $ifNull: ['$followers', []] },
@@ -455,7 +454,7 @@ router.get('/titantap/:userId', async (req, res) => {
       {
         $addFields: {
           isFollower:         { $in: [meId, '$followersSafe'] },
-          iFollow:            { $in: ['_id', meFollowing] },
+          iFollow:            { $in: ['$_id', meFollowing] },
           isMutual:           { $and: [{ $in: [meId, '$followersSafe'] }, { $in: ['$_id', meFollowing] }] },
           deptMatch:          { $cond: [{ $eq: ['$department', me.department || null] }, 1, 0] },
           sharedClubsCount:   { $size: { $setIntersection: ['$clubsSafe',   meClubs] } },
