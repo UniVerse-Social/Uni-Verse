@@ -22,7 +22,7 @@ const GamesFonts = createGlobalStyle`
 `;
 
 /* ------------------- Layout ------------------- */
-const Page = styled.div` max-width: 1160px; margin: 0 auto; padding: 16px; `;
+const Page = styled.div` max-width: 1160px; margin: 0 auto; padding: 16px; min-height: calc(100vh - 101px); `;
 
 /* ======= Top bar (now non-sticky) ======= */
 const TopBar = styled.nav`

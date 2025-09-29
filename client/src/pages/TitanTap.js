@@ -4,7 +4,7 @@ import UserLink from "../components/UserLink";
 
 // ---------- Minimal styles (scoped via classNames) ----------
 const styles = `
-.titantap-page { max-width: 900px; margin: 0 auto; padding: 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+.titantap-page { max-width: 900px; margin: 0 auto; padding: 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; min-height: calc(100vh - 101px);}
 .titantap-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .titantap-header input { flex: 1; /* take remaining space but keep left-aligned */ }
 .titantap-header h2 { margin: 0; color: white}

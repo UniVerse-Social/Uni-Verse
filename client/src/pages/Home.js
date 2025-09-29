@@ -14,6 +14,7 @@ const HomeContainer = styled.div`
   display: flex;
   justify-content: center;
   padding: 20px;
+  min-height: calc(100vh - 101px);
   /* inherits page background + text from theme */
 `;
 

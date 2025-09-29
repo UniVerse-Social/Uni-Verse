@@ -29,7 +29,7 @@ import MemberDrawer from '../components/MemberDrawer';
 import Marketplace from './Marketplace';
 
 // ---------- layout ----------
-const Shell = styled.div`max-width:1200px; margin:0 auto; padding:16px;`;
+const Shell = styled.div`max-width:1200px; margin:0 auto; padding:16px; min-height: calc(100vh - 101px);`;
 const Subbar = styled.div`
   display:flex; gap:10px; margin-bottom:12px;
   & > button{
