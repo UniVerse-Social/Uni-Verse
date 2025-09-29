@@ -5,6 +5,10 @@ import { FaHeart, FaRegHeart, FaCommentAlt, FaEllipsisH } from 'react-icons/fa';
 import axios from 'axios';
 import { AuthContext } from '../App';
 import { toMediaUrl } from '../config';
+import EditPostModal from './EditPostModal';
+import CommentDrawer from './CommentDrawer';
+
+
 
 /* Hardcoded default avatar (always available) */
 const FALLBACK_AVATAR =
@@ -103,6 +107,10 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
   const [likeCount, setLikeCount] = useState(post.likes.length);
   const [isLiked, setIsLiked] = useState(currentUser ? post.likes.includes(currentUser._id) : false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [textContent, setTextContent] = useState(post.textContent);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+
 
   const isOwner = currentUser && (currentUser._id === post.userId || currentUser.username === post.username);
 
@@ -158,7 +166,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
             </OptionsButton>
             {menuOpen && (
               <DropdownMenu onMouseLeave={() => setMenuOpen(false)}>
-                <DropdownItem onClick={() => onPostUpdated?.(post)}>Edit Post</DropdownItem>
+                <DropdownItem onClick={() => { setMenuOpen(false); setEditOpen(true); }} > Edit Post </DropdownItem>
                 <DropdownItem onClick={handleDelete}>Delete Post</DropdownItem>
               </DropdownMenu>
             )}
@@ -166,7 +174,8 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
         )}
       </PostHeader>
 
-      {post.textContent && <PostContent>{post.textContent}</PostContent>}
+      {textContent && <PostContent>{textContent}</PostContent>}
+
 
       {images.length > 0 && (
         <MediaGrid $count={images.length}>
@@ -175,15 +184,30 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
           ))}
         </MediaGrid>
       )}
-
+                
       <PostActions>
         <Action onClick={likeHandler}>
           {isLiked ? <FaHeart color="red" /> : <FaRegHeart />} {likeCount}
         </Action>
-        <Action onClick={() => window.dispatchEvent(new CustomEvent('open-comments', { detail: { postId: post._id } }))}>
-          <FaCommentAlt /> Comments
+        <Action onClick={() => {setCommentsOpen(true)}}> 
+          <FaCommentAlt /> Comments 
         </Action>
       </PostActions>
+      
+      {editOpen && (    // v edit post button   //open comments button^
+        <EditPostModal
+          post={{ ...post, textContent }}
+          onClose={() => setEditOpen(false)}  
+          onPostUpdated={(updated) => {setTextContent(updated.textContent); setEditOpen(false);}}
+        />
+      )}
+
+      {commentsOpen && (
+        <CommentDrawer
+          post={post}           // Comment Drawer
+          onClose={() => setCommentsOpen(false)}
+        />
+      )}
     </PostContainer>
   );
 };
