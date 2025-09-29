@@ -15,7 +15,7 @@
 
 - [ ] if a post is edited, make an indicator showing that it was edited
 
-- [ ] fix the edit profile
+- [ ] add count next to comments
 
 
 Done
