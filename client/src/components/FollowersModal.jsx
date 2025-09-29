@@ -126,12 +126,17 @@ export default function FollowersModal({
     );
   }, [items, q]);
 
-  const [followingSet, setFollowingSet] = useState(
-    () => new Set((myFollowing || []).map(String))
-  );
+  const [followingSet, setFollowingSet] = useState(() => new Set((myFollowing || []).map(String)));
   useEffect(() => {
-    setFollowingSet(new Set((myFollowing || []).map(String)));
-  }, [myFollowing]);
+    (async () => {
+      if (!me?._id) return;
+      try {
+        const res = await axios.get(`http://localhost:5000/api/users/${me._id}/following`);
+        const freshIds = (res.data || []).map(p => String(p._id));
+        setFollowingSet(new Set(freshIds));
+      } catch { /* keep optimistic state if request fails */ }
+    })();
+  }, [me?._id]);
 
   const toggleFollow = async (targetId) => {
     try {
