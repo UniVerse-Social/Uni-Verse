@@ -13,7 +13,7 @@
 
 - [ ] If we delete/edit posts make it so it lives updates without having to refresh the page. 
 
-- [ ] if a post is edited, make an indicator showing that it was edited
+- [ ] if a post is edited, make an indicator + timestamp showing when it was edited
 
 - [ ] add count next to comments
 
