@@ -3,11 +3,7 @@
 
 - [ ] Put the logo, navlink buttons, and dm button in certain positions for every screen: (Logo at the top left) (navblink buttons in the top center) (dm button in the top right)
 
-- [ ] Fix TitanTap card database to not include already following users
-
 - [ ] add signup requirements
-
-- [ ] add the EULA button in the signup page
 
 - [ ] make the homepage screen flush with the designs (homepage, club page, titantap page)
 
