@@ -74,7 +74,7 @@ export default function GameSidebar({ gameKey, title }) {
     }
   };
 
-  useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, [gameKey, user?._id]);
+  useEffect(() => { loadAll(); /* eslint-disable-next-line */ });
 
   const myScore = stats?.trophiesByGame?.[gameKey] || 0;
   const wins = useMemo(() => history.filter(h => !!h.didWin).length, [history]);

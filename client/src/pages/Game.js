@@ -9,8 +9,8 @@ import { API_BASE_URL } from '../config';
 // Arenas
 import ChessArena from './ChessArena';
 import CheckersArena from './CheckersArena';
-import ShogiArena from './ShogiArena';
-import GoArena from './GoArena';
+import FishingArena from './FishingArena';
+import PokerArena from './PokerArena';
 import ReversiArena from './ReversiArena';
 import JumpArena from './JumpArena';
 import OddEvenArena from './OddEvenArena';
@@ -117,8 +117,8 @@ const Pill = styled.span`
 const GAMES = [
   { key:'chess',    name:'Chess',       icon:'♟️' },
   { key:'checkers', name:'Checkers',    icon:'⛀' },
-  { key:'shogi',    name:'Shogi',       icon:'将' },
-  { key:'go',       name:'Go',          icon:'⚪' },
+  { key: 'fishing', name: 'Fishing',   icon: '🎣'  },
+  { key: 'poker',   name: 'Poker',     icon: '🃏'  },
   { key:'reversi',  name:'Reversi',     icon:'◐' },
   { key:'jump',     name:'Jump Game',   icon:'🦘' },
   { key:'oddeven',  name:'Odd or Even', icon:'🎲' },
@@ -245,7 +245,7 @@ export default function Games() {
   /* --------- Home (Dashboard) --------- */
   const Home = (
     <Row>
-      {/* LEFT: Overall Rank → Per-game Ranks → Customization (avatar removed) */}
+      {/* LEFT: Overall Rank → Per-game Ranks → Customization */}
       <div style={{ display:'grid', gap:12 }}>
         {/* Overall rank card */}
         <Card>
@@ -326,7 +326,7 @@ export default function Games() {
           </div>
 
           <Subtle style={{marginTop:12}}>
-            More cosmetics soon. Avatar preview removed from this page per your request.
+            More cosmetics soon.
           </Subtle>
         </Card>
       </div>
@@ -371,8 +371,8 @@ export default function Games() {
       <Card>
         {view === 'chess'    && <ChessArena />}                    {/* Unranked */}
         {view === 'checkers' && <CheckersArena onResult={onResult} />}
-        {view === 'shogi'    && <ShogiArena onResult={onResult} />}
-        {view === 'go'       && <GoArena onResult={onResult} />}
+        {view === 'fishing'  && <FishingArena onResult={onResult} />}
+        {view === 'poker'    && <PokerArena onResult={onResult} />}
         {view === 'reversi'  && <ReversiArena onResult={onResult} />}
         {view === 'jump'     && <JumpArena onResult={onResult} />}
         {view === 'oddeven'  && <OddEvenArena onResult={onResult} />}

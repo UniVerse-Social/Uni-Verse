@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
+import GameRules from '../components/GameRules';
 
 /* ---------- shared look & feel (matches ChessArena) ---------- */
 const Wrap = styled.div`display:grid; grid-template-columns: 480px 1fr; gap:16px; align-items:start;`;
@@ -493,12 +494,50 @@ export default function CheckersArena() {
           )}
           <Button onClick={resign}>Resign</Button>
         </div>
-        <div style={{marginTop:10, color:'#555'}}>{status}</div>
+        <div style={{marginTop:10, color:'#555'}}>
+          {isGameOver ? gameOverText : status}
+        </div>
         {!!notice && <Alert>{notice}</Alert>}
         <div style={{marginTop:12, fontSize:12, color:'#6b7280'}}>
           Wins vs real players grant <b>+6 trophies</b>. Bot games are unranked.
         </div>
       </Panel>
+            {/* Floating "📘 Rules" button + modal */}
+      <GameRules
+        title="How to Play American Checkers (English Draughts)"
+        subtitle="Mandatory captures, multiple jumps, and simple one-square moves."
+        sections={[
+          { heading: 'Goal', text: 'Capture all of your opponent’s pieces, or block them so they have no legal move.' },
+          { heading: 'Board & Setup', list: [
+              '8×8 board; only the dark squares are used.',
+              'Each side starts with 12 men on the first three rows of dark squares.',
+            ],
+          },
+          { heading: 'Moves', list: [
+              'Men move diagonally forward one square to an empty dark square.',
+              'Kings (promoted pieces) move diagonally one square in any direction.',
+            ],
+          },
+          { heading: 'Captures (Mandatory)', list: [
+              'If a capture is available, you must take it.',
+              'Jump diagonally over one adjacent enemy piece to an empty square immediately beyond.',
+              'Men capture forward only; kings can capture forward or backward.',
+              'If another jump is available with the same piece, you must continue jumping in the same turn (multi-jump).',
+            ],
+            note: 'This arena enforces forced captures and makes you continue a jump chain with the same piece.',
+          },
+          { heading: 'Promotion', list: [
+              'A man that reaches the farthest row is crowned and becomes a king immediately.',
+              'Promotion ends the current move—even if further jumps would have been available.',
+            ],
+          },
+          { heading: 'End of Game', list: [
+              'Win by capturing all opposing pieces or leaving the opponent with no legal move.',
+              'If neither side can force progress, agree to a draw (house-rules may apply).',
+            ],
+          },
+        ]}
+       />
     </Wrap>
   );
 }

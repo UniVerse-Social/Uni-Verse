@@ -43,7 +43,7 @@ export default function OddEvenArena() {
   const [roomId, setRoomId] = useState(null);
   const socketRef = useRef(null);
   const awardedRef = useRef(false);
-  const [myRole, setMyRole] = useState('p1'); // for ordering only
+  const [setMyRole] = useState('p1'); // for ordering only
 
   const flash = useCallback((msg, ms=1600) => {
     setNotice(msg);

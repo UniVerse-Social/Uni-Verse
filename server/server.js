@@ -81,21 +81,19 @@ try {
   console.warn('Realtime: checkers module not found or failed to load:', e?.message || e);
 }
 
-// attach go matchmaking/realtime handlers
-try {
-  require('./realtime/go')(io);
-  console.log('Realtime: go namespace initialized');
-} catch (e) {
-  console.warn('Realtime: go module not found or failed to load:', e?.message || e);
-}
+// attach fishing realtime handlers
+try { 
+  require('./realtime/fishing')(io); 
+  console.log('Realtime: fishing namespace initialized'); 
+} catch (e) { 
+  console.warn('Realtime: fishing module not found or failed to load:', e?.message || e); }
 
-// attach shogi matchmaking/realtime handlers
-try {
-  require('./realtime/shogi')(io);
-  console.log('Realtime: shogi namespace initialized');
-} catch (e) {
-  console.warn('Realtime: shogi module not found or failed to load:', e?.message || e);
-}
+// attach poker realtime handlers
+try { 
+  require('./realtime/poker')(io); 
+  console.log('Realtime: poker namespace initialized'); 
+} catch (e) { 
+  console.warn('Realtime: poker module not found or failed to load:', e?.message || e); }
 
 // attach reversi matchmaking/realtime handlers
 try {

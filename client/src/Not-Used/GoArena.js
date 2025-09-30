@@ -31,7 +31,7 @@ export default function GoArena() {
   const [mode, setMode] = useState(null); // null | 'bot' | 'online'
   const [turn, setTurn] = useState(1); // 1 = black, -1 = white
   const [status, setStatus] = useState('Pick a mode to start.');
-  const [notice, setNotice] = useState('');
+  const [notice] = useState('');
   const [passes, setPasses] = useState(0);
   const [captures, setCaptures] = useState({ black:0, white:0 });
 
@@ -40,11 +40,6 @@ export default function GoArena() {
   const [myColor, setMyColor] = useState(1); // 1 (black) or -1 (white) in Go terms
   const socketRef = useRef(null);
   const awardedRef = useRef(false);
-
-  const flash = useCallback((msg, ms=1600) => {
-    setNotice(msg);
-    setTimeout(()=>setNotice(''), ms);
-  }, []);
 
   const inB = (x,y)=>x>=0&&x<SIZE&&y>=0&&y<SIZE;
   const neigh = (x,y)=>[[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy])=>[x+dx,y+dy]).filter(([nx,ny])=>inB(nx,ny));

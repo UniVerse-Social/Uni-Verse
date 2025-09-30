@@ -37,18 +37,13 @@ export default function ReversiArena() {
   const [status, setStatus] = useState('Pick a mode to start.');
   const [live, setLive]     = useState(false);
   const [mode, setMode]     = useState(null);    // null | 'bot' | 'online'
-  const [notice, setNotice] = useState('');
+  const [notice] = useState('');
 
   // online bits
   const [roomId, setRoomId] = useState(null);
   const [myColor, setMyColor] = useState(1); // 1=black, -1=white
   const socketRef = useRef(null);
   const awardedRef = useRef(false);
-
-  const flash = useCallback((msg, ms=1600) => {
-    setNotice(msg);
-    setTimeout(()=>setNotice(''), ms);
-  }, []);
 
   const dirs = useMemo(() => (
     [-1,0,1].flatMap(dx=>[-1,0,1].map(dy=>[dx,dy])).filter(([dx,dy])=>dx||dy)

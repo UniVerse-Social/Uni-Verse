@@ -8,6 +8,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
 import { createStockfish } from '../engine/sfEngine';
+import GameRules from '../components/GameRules';
 
 /* Styles */
 const Wrap = styled.div`display:grid; grid-template-columns: 480px 1fr; gap:16px; align-items:start;`;
@@ -38,7 +39,7 @@ const BOT_PRESETS = {
   medium:    { label: 'Medium (900)', useSF: false, timeMs: 280, maxDepth: 3, randomness: 0.18, blunder: 0.05, thinkMs: 140 },
   hard:      { label: 'Hard (1300)',  useSF: false, timeMs: 420, maxDepth: 4, randomness: 0.10, blunder: 0.02, thinkMs: 160 },
   elite:     { label: 'Elite (1700)', useSF: true,  sf: { movetime: 420, depth: 14 }, randomness: 0.02, thinkMs: 180 },
-  gm:        { label: 'Grandmaster (2000+)', useSF: true, sf: { movetime: 520, depth: 18 }, randomness: 0.0, thinkMs: 200 },
+  gm:        { label: 'Grandmaster (2000+)', useSF: true, sf: { movetime: 520, depth: 20 }, randomness: 0.0, thinkMs: 200 },
 };
 
 /* Rank helper used for modal badge (mirror Games page thresholds) */
@@ -403,9 +404,6 @@ export default function ChessArena() {
     [orientation]
   );
 
-  // NEW: rules modal state
-  const [showRules, setShowRules] = useState(false);
-
   // Drag origin highlight
   const [dragFrom, setDragFrom] = useState(null);
 
@@ -522,7 +520,7 @@ export default function ChessArena() {
       return move ? `${move.from}${move.to}${move.promotion || ''}` : null;
     }
   }, [sfRef, readyRef, withSFLock]);
-  
+
   // ---- Results modal helpers (must come before botMove/connectSocket) ----
   const fetchMyChessTrophies = useCallback(async () => {
     if (!user?._id) return 0;
@@ -822,7 +820,6 @@ export default function ChessArena() {
 
       {/* Floating Rules button */}
       <button
-        onClick={()=>setShowRules(true)}
         style={{position:'fixed', right:24, bottom:24, zIndex:20, border:'1px solid var(--border-color)', background:'#fff',
                 borderRadius:12, padding:'8px 12px', boxShadow:'0 8px 24px rgba(0,0,0,.06)'}}
         title="Basic Chess Rules"
@@ -871,30 +868,27 @@ export default function ChessArena() {
         </Overlay>
       )}
 
-      {/* Rules modal */}
-      {showRules && (
-        <Overlay onClick={()=>setShowRules(false)}>
-          <Modal onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:18, fontWeight:800}}>How to Play Chess</div>
-            <div style={{fontSize:13, color:'#6b7280', marginTop:4}}>Quick basics with examples.</div>
-            <div style={{display:'grid', gap:10, marginTop:10, fontSize:14}}>
-              <div><b>Goal:</b> Checkmate the enemy king (attack it so it can’t escape).</div>
-              <div><b>Setup:</b> White starts. Pieces: ♔♕♖♖♗♗♘♘ + 8×♙ per side.</div>
-              <div><b>Moves:</b>
-                <ul style={{margin:'6px 0 0 18px'}}>
-                  <li>♙ Pawns move forward 1 (2 from start), capture diagonally; en-passant is allowed.</li>
-                  <li>♘ Knights jump in an L-shape.</li>
-                  <li>♗ Bishops along diagonals; ♖ Rooks along ranks/files; ♕ both; ♔ one square.</li>
-                  <li><b>Castling:</b> King two squares toward a rook, rook jumps over (no check/no through check, no moved pieces).</li>
-                  <li><b>Promotion:</b> A pawn reaching last rank becomes ♕ (default) or any piece.</li>
-                </ul>
-              </div>
-              <div><b>Draws:</b> Stalemate, threefold repetition, insufficient material, 50-move rule.</div>
-              <div style={{fontSize:12, color:'#6b7280'}}>Tip: Control the center and develop ♘/♗ before moving the same piece twice.</div>
-            </div>
-          </Modal>
-        </Overlay>
-      )}
+      <GameRules
+        title="How to Play Chess"
+        subtitle="Quick basics with examples."
+        sections={[
+          { heading: 'Goal', text: 'Checkmate the enemy king (attack it so it can’t escape).' },
+          { heading: 'Setup', text: 'White starts. Pieces: ♔♕♖♖♗♗♘♘ + 8×♙ per side.' },
+          { heading: 'Moves', list: [
+              '♙ Pawns move forward 1 (2 from start), capture diagonally; en-passant is allowed.',
+              '♘ Knights jump in an L-shape.',
+              '♗ Bishops along diagonals; ♖ rooks along files/ranks; ♕ both; ♔ one square.',
+              'Castling: king two squares toward a rook, rook jumps over; allowed only if not in check, no pieces in between, and neither piece has moved.',
+              'Promotion: a pawn reaching last rank becomes a queen by default (or any piece).',
+            ],
+          },
+          { heading: 'Draws', list: [
+              'Stalemate', 'Threefold repetition', 'Insufficient material', '50-move rule'
+            ],
+            note: 'Tip: Control the center and develop knights/bishops before moving the same piece twice.',
+          },
+        ]}
+      />
     </>
   );
 }

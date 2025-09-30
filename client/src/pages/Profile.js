@@ -191,8 +191,8 @@ const PlusDot = styled.span`
   position: absolute;
   right: -4px;
   bottom: -4px;
-  width: 18px;
-  height: 18px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: #1877f2;
   color: #fff;
@@ -200,7 +200,7 @@ const PlusDot = styled.span`
   place-items: center;
   font-size: 12px;
   border: 2px solid var(--container-white);
-  font-weight: 800;
+  font-weight: 200;
 `;
 
 const BadgeEmoji = styled.span`
