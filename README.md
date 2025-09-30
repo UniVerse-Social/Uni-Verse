@@ -14,13 +14,13 @@ fullerton-connect/
 │  ├─ public/
 │  └─ src/
 │     ├─ components/  # Post, Navbar, modals, etc.
-│     ├─ pages/       # Home, Login, Signup, Profile, DMs, TitanTap
+│     ├─ pages/       # Home, Login, Signup, Profile, DMs, TitanTap, etc.
 │     └─ utils/
 ├─ server/            # Node/Express API
-│  ├─ models/         # User, Post, Message, Conversation
-│  ├─ routes/         # auth, users, posts, messages
+│  ├─ models/         # User, Post, Message, Conversation, etc.
+│  ├─ routes/         # auth, users, posts, messages, etc.
 │  ├─ scripts/        # maintenance scripts (e.g., hash_existing_passwords.js)
-│  ├─ seed.js         # optional: seed database from local files
+│  ├─ seed.js         # seeding database option from local files (Not Reccomended)
 │  └─ server.js
 └─ package.json
 ```
