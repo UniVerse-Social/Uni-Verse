@@ -1,6 +1,6 @@
 // client/src/pages/PokerArena.jsx
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled, { keyframes, css } from 'styled-components';
 import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
@@ -65,6 +65,15 @@ const BlindChip = styled.div`
   display:flex; align-items:center; justify-content:center;
   border:2px solid rgba(0,0,0,.25);
   animation:${fadeIn} .2s ease;
+`;
+
+/* NEW: replace inline keyframes usage with styled + css helper */
+const NameWrap = styled.span`
+  display:inline-block; padding:0 6px; border-radius:12px; background:transparent;
+`;
+const NamePulse = styled.span`
+  display:inline-block;
+  ${(p)=>p.$on && css`animation: ${pulseGlow} 1.2s ease infinite;`}
 `;
 
 /* Action bar */
@@ -257,11 +266,11 @@ export default function PokerArena() {
                 return (
                   <Seat key={idx} style={{left:`${pos.left}%`, top:`${pos.top}%`}}>
                     <SeatName>
-                      <span style={{display:'inline-block', padding:'0 6px', borderRadius:12, background:'transparent'}}>
-                        <span style={{display:'inline-block', animation: turn ? `${pulseGlow} 1.2s ease infinite` : 'none'}}>
+                      <NameWrap>
+                        <NamePulse $on={turn}>
                           {seat ? seat.username : 'Empty'}{waiting ? ' (spectating)' : ''}
-                        </span>
-                      </span>
+                        </NamePulse>
+                      </NameWrap>
                     </SeatName>
                     <SeatStack>💰 {seat?.stack ?? 0}</SeatStack>
                     <SeatCards aria-label={isMe?'Your cards':''}>

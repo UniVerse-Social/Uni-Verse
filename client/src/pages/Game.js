@@ -123,13 +123,13 @@ const Pill = styled.span`
 
 /* ------------------- Game metadata ------------------- */
 const GAMES = [
-  { key:'chess',    name:'Chess',       icon:'♟️' },
-  { key:'checkers', name:'Checkers',    icon:'⛀' },
-  { key: 'fishing', name: 'Fishing',   icon: '🎣'  },
-  { key: 'poker',   name: 'Poker',     icon: '🃏'  },
-  { key:'reversi',  name:'Reversi',     icon:'◐' },
-  { key:'jump',     name:'Jump Game',   icon:'🦘' },
-  { key:'oddeven',  name:'Odd or Even', icon:'🎲' },
+  { key:'chess',    name:'Chess',       icon: '♟️' },
+  { key:'checkers', name:'Checkers',    icon: '⛀ ' },
+  { key:'fishing',  name:'Fishing',     icon: '🎣' },
+  { key:'poker',    name:'Poker',       icon: '🃏' },
+  { key:'reversi',  name:'Reversi',     icon: '◐ ' },
+  { key:'jump',     name:'Jump Game',   icon: '🦘' },
+  { key:'oddeven',  name:'Odd or Even', icon: '🎲' },
 ];
 
 /* Rank thresholds */
@@ -295,7 +295,7 @@ export default function Games() {
           </div>
         </Card>
 
-        {/* Customization (kept minimal, under ranks) */}
+        {/* Customization */}
         <Card>
           <SectionTitle>Customization</SectionTitle>
 

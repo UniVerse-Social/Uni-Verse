@@ -5,113 +5,238 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
 
+/* =============== styled =============== */
+
 const Card = styled.div`
   background: var(--container-white);
   border: 1px solid var(--border-color);
-  border-radius: 16px; padding: 14px;
+  border-radius: 16px;
+  padding: 14px;
   box-shadow: 0 10px 24px rgba(0,0,0,.06);
 `;
+
 const Title = styled.div`
   font-family: 'Exo 2', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  font-weight: 800; font-size: 28px; letter-spacing: .4px;
-  margin-bottom: 8px;
-`;
-const Meta = styled.div` font-size: 13px; color: #6b7280; `;
-const Row = styled.div` display: grid; grid-template-columns: 1fr; gap: 12px; `;
-const Pill = styled.div`
-  border: 1px solid var(--border-color);
-  background: #f9fafb;
-  border-radius: 12px;
-  padding: 8px 10px;
-  font-size: 13px;
-  display: flex; gap: 8px; align-items: center; justify-content: space-between;
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: .4px;
+  margin-bottom: 12px;
 `;
 
-const BoardWrap = styled.div` margin-top: 10px; `;
-const Pedestals = styled.div`
-  display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; align-items:end; margin-bottom: 8px;
+const Meta = styled.div`
+  font-size: 13px;
+  color: #6b7280;
 `;
+
+const Row = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+`;
+
+const Label = styled.div`
+  font-weight: 600;
+`;
+
+const Value = styled.div`
+  font-weight: 700;
+`;
+
+const Pill = styled.span`
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f3f4f6;
+  border: 1px solid var(--border-color);
+`;
+
+const BoardWrap = styled.div`
+  margin: 12px 0 4px;
+`;
+
+const Podium = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+`;
+
 const Ped = styled.div`
   background: linear-gradient(180deg, #f3f4f6, #e5e7eb);
-  border: 1px solid var(--border-color); border-radius: 10px;
-  height: ${p=>p.$h || 80}px; display:flex; flex-direction:column; align-items:center; justify-content:center;
-`;
-const PedName = styled.div` font-weight: 700; font-size: 12px; `;
-const PedScore = styled.div` font-size: 11px; color:#6b7280; `;
-const List = styled.div` display:grid; grid-template-columns: 1fr; gap:6px; `;
-const Item = styled.div`
-  display:flex; align-items:center; justify-content:space-between; font-size: 13px;
-  padding:6px 8px; border-radius:10px; border:1px solid var(--border-color); background:#fff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  height: ${p => p.$h || 80}px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 `;
 
-const HistoryList = styled.div` display:grid; grid-template-columns:1fr; gap:6px; `;
-const Result = styled.div` font-weight:700; color:${p=>p.$win ? '#065f46' : '#991b1b'}; `;
-const Small = styled.span` font-size:12px; color:#6b7280; `;
+const PedName = styled.div`
+  font-weight: 700;
+  font-size: 12px;
+`;
+
+const PedScore = styled.div`
+  font-size: 11px;
+  color: #6b7280;
+`;
+
+const List = styled.div`
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+`;
+
+const Item = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+`;
+
+const HistoryList = styled.div`
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+`;
+
+const Result = styled.div`
+  font-weight: 800;
+  font-size: 12px;
+  color: ${p => (p.$win ? '#16a34a' : '#dc2626')};
+`;
+
+const Small = styled.span`
+  font-size: 11px;
+  color: #6b7280;
+`;
+
+/* =============== component =============== */
 
 export default function GameSidebar({ gameKey, title }) {
   const { user } = useContext(AuthContext);
-  const [stats, setStats] = useState(null);
-  const [board, setBoard] = useState([]);
-  const [history, setHistory] = useState([]);
+
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(null);       // { rankName, trophies, wins, losses }
+  const [leaders, setLeaders] = useState([]);     // [{ name, trophies, _id }, ...]
+  const [history, setHistory] = useState([]);     // [{ _id, didWin, delta, createdAt }, ...]
 
-  const loadAll = async () => {
-    if (!user?._id) return;
-    setLoading(true);
-    try {
-      const [st, lb, hi] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/games/stats/${user._id}`),
-        axios.get(`${API_BASE_URL}/api/games/leaderboard/${gameKey}?limit=10`),
-        axios.get(`${API_BASE_URL}/api/games/history/${user._id}/${gameKey}?limit=10`),
-      ]);
-      setStats(st.data);
-      setBoard(lb.data?.leaders || []);
-      setHistory(hi.data?.history || []);
-    } catch (e) {
-      console.error('sidebar load', e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const myScore = useMemo(() => stats?.trophies ?? 0, [stats]);
 
-  useEffect(() => { loadAll(); /* eslint-disable-next-line */ });
+  useEffect(() => {
+    // Guard: nothing to load without a user or a game
+    if (!user?._id || !gameKey) return;
 
-  const myScore = stats?.trophiesByGame?.[gameKey] || 0;
-  const wins = useMemo(() => history.filter(h => !!h.didWin).length, [history]);
-  const losses = Math.max(0, history.length - wins);
+    const controller = new AbortController();
+    let mounted = true;
+
+    const loadAll = async () => {
+      setLoading(true);
+      try {
+        const [stRes, lbRes, hiRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/api/games/stats/${user._id}`, { signal: controller.signal }),
+          axios.get(`${API_BASE_URL}/api/games/leaderboard/${gameKey}?limit=10`, { signal: controller.signal }),
+          axios.get(`${API_BASE_URL}/api/games/history/${user._id}/${gameKey}?limit=10`, { signal: controller.signal }),
+        ]);
+
+        if (!mounted) return;
+
+        setStats(stRes?.data ?? null);
+        // handle both {leaders: [...]} and [...] shapes
+        const lb = lbRes?.data?.leaders ?? lbRes?.data ?? [];
+        setLeaders(Array.isArray(lb) ? lb : []);
+
+        const hi = hiRes?.data?.history ?? hiRes?.data ?? [];
+        setHistory(Array.isArray(hi) ? hi : []);
+      } catch (e) {
+        // ignore request cancellations; surface other errors
+        if (e.name !== 'CanceledError' && e.name !== 'AbortError') {
+          console.error('GameSidebar load error', e);
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    loadAll();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [user?._id, gameKey]);
+
+  const wins = stats?.wins ?? 0;
+  const losses = stats?.losses ?? 0;
+  const rankName = stats?.rankName ?? stats?.rank ?? '—';
+
+  // top-3 for the podium, rest go to the list
+  const podium = leaders.slice(0, 3);
+  const rest = leaders.slice(3);
 
   return (
     <Card>
-      <Title>{title || (gameKey === 'chess' ? 'Chess' :
-                        gameKey === 'checkers' ? 'Checkers' :
-                        gameKey === 'iceracer' ? 'Ice Racer' : gameKey)}</Title>
+      <Title>{title ?? 'Game'}</Title>
 
-      {/* Rank + W/L */}
-      <Row>
-        <Pill><span>Rank</span><b>{stats?.rank || '—'}</b></Pill>
-        <Pill><span>Trophies</span><b>{myScore}</b></Pill>
-        <Pill><span>W / L</span><b>{wins} / {losses}</b></Pill>
-      </Row>
+      {/* Quick stats */}
+      <div style={{ display: 'grid', gap: 8 }}>
+        <Row>
+          <Label>Rank</Label>
+          <Value>{rankName}</Value>
+        </Row>
+        <Row>
+          <Label>Trophies</Label>
+          <Value>{myScore}</Value>
+        </Row>
+        <Row>
+          <Label>W / L</Label>
+          <Value>{wins} / {losses}</Value>
+        </Row>
+      </div>
 
       {/* Leaderboard */}
       <BoardWrap>
-        <div style={{fontWeight:800, margin:'10px 0 6px'}}>Leaderboard</div>
+        <div style={{ fontWeight: 800, margin: '12px 0 6px' }}>Leaderboard</div>
         {loading && <Meta>Loading…</Meta>}
         {!loading && (
           <>
-            <Pedestals>
-              {[board[1], board[0], board[2]].map((p, i) => (
-                <Ped key={i} $h={i===1?92:(i===0?70:70)}>
-                  <PedName>{p?.username || '-'}</PedName>
-                  <PedScore>{p?.score ?? ''} 🏆</PedScore>
-                </Ped>
-              ))}
-            </Pedestals>
+            <Podium>
+              <Ped $h={70}>
+                <PedName>{podium[1]?.name ?? '—'}</PedName>
+                <PedScore>{podium[1]?.trophies ?? 0} 🏆</PedScore>
+              </Ped>
+              <Ped $h={90}>
+                <PedName>{podium[0]?.name ?? '—'}</PedName>
+                <PedScore>{podium[0]?.trophies ?? 0} 🏆</PedScore>
+              </Ped>
+              <Ped $h={60}>
+                <PedName>{podium[2]?.name ?? '—'}</PedName>
+                <PedScore>{podium[2]?.trophies ?? 0} 🏆</PedScore>
+              </Ped>
+            </Podium>
+
             <List>
-              {board.slice(3, 10).map((p, idx) => (
-                <Item key={p.userId || idx}>
-                  <div><Small>#{idx+4}</Small> &nbsp; {p.username}</div>
-                  <div>{p.score} 🏆</div>
+              {rest.length === 0 && <Meta>No other players yet.</Meta>}
+              {rest.map((p, i) => (
+                <Item key={p._id ?? `${p.name}-${i}`}>
+                  <div>
+                    <Pill>#{i + 4}</Pill>{' '}
+                    <strong>{p.name ?? 'Anonymous'}</strong>
+                  </div>
+                  <div>{p.trophies ?? 0} 🏆</div>
                 </Item>
               ))}
             </List>
@@ -120,7 +245,7 @@ export default function GameSidebar({ gameKey, title }) {
       </BoardWrap>
 
       {/* Recent games */}
-      <div style={{fontWeight:800, margin:'12px 0 6px'}}>Recent games</div>
+      <div style={{ fontWeight: 800, margin: '12px 0 6px' }}>Recent games</div>
       {loading && <Meta>Loading…</Meta>}
       {!loading && (
         <HistoryList>
@@ -128,8 +253,13 @@ export default function GameSidebar({ gameKey, title }) {
           {history.map((h) => (
             <Item key={h._id}>
               <Result $win={h.didWin}>{h.didWin ? 'Win' : 'Loss'}</Result>
-              <div><Small>{new Date(h.createdAt).toLocaleDateString()} • {new Date(h.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</Small></div>
-              <div>{h.delta>0?`+${h.delta}`:h.delta} 🏆</div>
+              <div>
+                <Small>
+                  {new Date(h.createdAt).toLocaleDateString()}&nbsp;
+                  {new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Small>
+              </div>
+              <div>{h.delta > 0 ? `+${h.delta}` : h.delta} 🏆</div>
             </Item>
           ))}
         </HistoryList>

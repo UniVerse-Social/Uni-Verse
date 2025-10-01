@@ -1,14 +1,17 @@
 // server/realtime/poker.js
 const GameProfile = require('../models/GameProfile');
 
-let redis = null;  // cache success OR failure
+/* ----------------- Shared stores (Redis OR Postgres) ----------------- */
+let redis = null; // node-redis client or false if not usable
 async function getRedis() {
-  if (redis !== null) return redis || null;  // return cached result
+  if (redis !== null) return redis || null;
   const url = process.env.REDIS_URL || process.env.REDIS_URI || process.env.UPSTASH_REDIS_URL || null;
-  if (!url) { 
-    console.log('[Poker] Redis not configured, using in-memory tables');
-    redis = false; 
-    return null; 
+  // Socket.IO redis adapter requires Redis TCP (redis:// or rediss://). Upstash HTTP endpoints start with http(s) and won't work.
+  if (!url || /^https?:\/\//i.test(url)) {
+    if (url) console.warn('[Poker] Skipping Redis adapter: URL looks HTTP (Upstash REST), pub/sub not supported for Socket.IO:', url);
+    else console.log('[Poker] Redis not configured.');
+    redis = false;
+    return null;
   }
   try {
     const { createClient } = require('redis');
@@ -16,7 +19,7 @@ async function getRedis() {
     client.on('error', (e) => console.error('[Poker] Redis error', e));
     await client.connect();
     redis = client;
-    console.log('[Poker] Redis connected');   // <-- you should see this once on boot
+    console.log('[Poker] Redis connected');
     return redis;
   } catch (err) {
     console.warn('[Poker] Redis unavailable, using in-memory tables only:', err?.message || err);
@@ -25,14 +28,55 @@ async function getRedis() {
   }
 }
 
-// Small helpers for Redis keys
 const K = {
-  stakeSet: (stake) => `poker:stake:${stake}`,         // SET of table ids for a stake
-  table:    (id)    => `poker:table:${id}`,            // JSON of the table
+  stakeSet: (stake) => `poker:stake:${stake}`,
+  table:    (id)    => `poker:table:${id}`,
 };
 
 module.exports = function attachPoker(io) {
-  // ---- Game constants ----
+
+  /* ----------------- Enable a cross-node adapter ----------------- */
+  (async () => {
+    let adapterEnabled = false;
+
+    // Option A: Redis
+    try {
+      const r = await getRedis();
+      if (r) {
+        const { createAdapter } = require('@socket.io/redis-adapter');
+        const sub = r.duplicate();
+        await sub.connect();
+        io.adapter(createAdapter(r, sub));
+        adapterEnabled = true;
+        console.log('[Poker] Socket.IO Redis adapter enabled');
+      }
+    } catch (e) {
+      console.warn('[Poker] Redis adapter not enabled:', e?.message || e);
+    }
+
+    // Option B: Postgres (fallback if no usable Redis)
+    if (!adapterEnabled && process.env.PG_CONNECTION_STRING) {
+      try {
+        const { createAdapter } = require('@socket.io/postgres-adapter');
+        const { Pool } = require('pg');
+        const pool = new Pool({ connectionString: process.env.PG_CONNECTION_STRING });
+        io.adapter(createAdapter(pool));
+        adapterEnabled = true;
+        console.log('[Poker] Socket.IO Postgres adapter enabled');
+      } catch (e) {
+        console.warn('[Poker] Postgres adapter not enabled:', e?.message || e);
+      }
+    }
+
+    if (!adapterEnabled) {
+      console.warn('[Poker] No cross-node adapter enabled. Multiplayer will only work for users on the same process. Configure REDIS_URL (redis://) or PG_CONNECTION_STRING.');
+    }
+
+    // Heal all tables once the adapter decision is made
+    try { await healAllTables(); } catch (e) { console.warn('[Poker] Heal on boot failed:', e?.message || e); }
+  })();
+
+  /* ----------------- Game constants & cache ----------------- */
   const STAKES = {
     '100':   { min:100,   sb:1,  bb:2 },
     '1000':  { min:1000,  sb:10, bb:20 },
@@ -45,9 +89,8 @@ module.exports = function attachPoker(io) {
   const DEFAULT_PUBLIC_TABLES = 10;
   const READY_MS = 10_000;
 
-  // ---- Global (in-process) cache to avoid re-allocations ----
-  const GLB = (globalThis.__POKER__ ||= { cache: new Map(), seeded: false });
-  const cache = GLB.cache; // id -> table (mirror of Redis when available)
+  const GLB = (globalThis.__POKER__ ||= { cache: new Map() });
+  const cache = GLB.cache;
 
   const detId = (stakeKey, idx) => `tbl:${stakeKey}:${idx}`;
   function newTable(id, stakeKey, name, isPrivate=false, pass='') {
@@ -58,12 +101,12 @@ module.exports = function attachPoker(io) {
       deck: [], board: [], pot:0,
       dealer:0, turn:null, toCall:0, bet:0, betPaid:{}, round:'idle', lastActionAt:0,
       sbSeat:null, bbSeat:null,
-      ready:null, // { deadline:number, accepted:Set<number>, timer:any } (timer not serialized)
+      ready:null, // { deadline:number, accepted:Set<number>, timer:any }
       chat:[]
     };
   }
 
-  // ---- Persistence helpers (Redis if available, else in-memory) ----
+  /* ----------------- Persistence helpers ----------------- */
   async function loadTable(id) {
     const r = await getRedis();
     if (r) {
@@ -77,15 +120,11 @@ module.exports = function attachPoker(io) {
     }
     return cache.get(id) || null;
   }
-
   async function saveTable(t) {
     const r = await getRedis();
     cache.set(t.id, t);
-    if (r) {
-      await r.set(K.table(t.id), JSON.stringify(serialize(t)));
-    }
+    if (r) await r.set(K.table(t.id), JSON.stringify(serialize(t)));
   }
-
   async function ensurePublicTables(stakeKey, howMany = DEFAULT_PUBLIC_TABLES) {
     const r = await getRedis();
     for (let i = 1; i <= howMany; i++) {
@@ -98,7 +137,6 @@ module.exports = function attachPoker(io) {
       if (r) await r.sAdd(K.stakeSet(stakeKey), id);
     }
   }
-
   async function listTables(stakeKey) {
     const r = await getRedis();
     await ensurePublicTables(stakeKey);
@@ -107,28 +145,18 @@ module.exports = function attachPoker(io) {
       const out = [];
       for (const id of ids) {
         const t = await loadTable(id);
-        if (t && !t.isPrivate) {
-          out.push({ id: t.id, name: t.name, players: t.seats.filter(Boolean).length, max: MAX, min: t.min });
-        }
+        if (t && !t.isPrivate) out.push({ id: t.id, name: t.name, players: t.seats.filter(Boolean).length, max: MAX, min: t.min });
       }
       return out;
     }
-    // memory fallback
     const out = [];
     for (const t of cache.values()) {
-      if (t.stakeKey === stakeKey && !t.isPrivate) {
-        out.push({ id: t.id, name: t.name, players: t.seats.filter(Boolean).length, max: MAX, min: t.min });
-      }
+      if (t.stakeKey === stakeKey && !t.isPrivate) out.push({ id: t.id, name: t.name, players: t.seats.filter(Boolean).length, max: MAX, min: t.min });
     }
     return out;
   }
-
   function serialize(t) {
-    // Drop timers and Sets for JSON
-    return {
-      ...t,
-      ready: t.ready ? { deadline: t.ready.deadline, accepted: Array.from(t.ready.accepted || []) } : null
-    };
+    return { ...t, ready: t.ready ? { deadline: t.ready.deadline, accepted: Array.from(t.ready.accepted || []) } : null };
   }
   function revive(obj) {
     if (!obj) return obj;
@@ -136,7 +164,7 @@ module.exports = function attachPoker(io) {
     return obj;
   }
 
-  // ---- Cards & hand evaluation ----
+  /* ----------------- Cards & helpers ----------------- */
   const RANKS = '23456789TJQKA';
   const SUITS = 'CDHS';
   const mkDeck = () => {
@@ -169,7 +197,6 @@ module.exports = function attachPoker(io) {
     for (const [,cards] of bySuit){ if (cards.length>=5){ const v=cards.map(c=>RANKS.indexOf(c[0])).sort((a,b)=>b-a).slice(0,5); return 6e6 + v[0]*1e4+v[1]*1e3+v[2]*1e2+v[3]*10+v[4]; } }
     { const hi=bestStraight(rv); if (hi>=0) return 5e6+hi; }
     if (counts[0]?.n===3) return 4e6+counts[0].r*1e4+(kick([counts[0].r])[0]||0)*1e2+(kick([counts[0].r])[1]||0);
-    if (counts[0]?.n===2 && counts[1]?.n===2) return 3e6+Math.max(counts[0].r,counts[1].r)*1e4+Math.min(counts[0].r,counts[1].r)*1e2+kick([counts[0].r,counts[1].r])[0];
     if (counts[0]?.n===2) return 2e6 + counts[0].r*1e4 + kick([counts[0].r])[0]*1e2 + kick([counts[0].r])[1];
     const v=rv.slice(0,5); return 1e6 + v[0]*1e4+v[1]*1e3+v[2]*1e2+v[3]*10+v[4];
   }
@@ -182,7 +209,7 @@ module.exports = function attachPoker(io) {
     return { deadline: t.ready.deadline, accepted: Array.from(t.ready.accepted) };
   }
   async function broadcastState(t){
-    await saveTable(t); // persist before broadcasting
+    await saveTable(t);
     io.to(t.id).emit('poker:state', {
       id:t.id, name:t.name, stake:t.stakeKey, min:t.min, max:MAX,
       seats:t.seats.map(s=> s? { id:s.id, userId:s.userId, username:s.username, stack:s.stack, seat:s.seat, waiting:!!s.waiting } : null),
@@ -201,6 +228,72 @@ module.exports = function attachPoker(io) {
     return true;
   }
 
+  /* ----------------- Multiplayer guards ----------------- */
+  async function socketsAlive(ids) {
+    try { return (await io.in(ids).fetchSockets()).map(s=>s.id); }
+    catch { return []; }
+  }
+  async function isSocketAlive(id) {
+    const alive = await socketsAlive([id]);
+    return alive.includes(id);
+  }
+
+  async function enforceMinimumPlayers(t) {
+    const aliveIdxs = participantIndices(t);
+    if (aliveIdxs.length >= 3) return false;
+
+    if (t.round !== 'idle') {
+      if (aliveIdxs.length === 1 && t.pot > 0) {
+        const p = t.seats[aliveIdxs[0]];
+        if (p) p.stack += t.pot;
+      }
+      t.pot = 0; t.round = 'idle';
+      t.sbSeat = null; t.bbSeat = null;
+      t.bet = 0; t.toCall = 0; t.betPaid = {};
+      t.board = []; t.turn = null; t.ready = null;
+      await broadcastState(t);
+    }
+    return true;
+  }
+
+  async function pruneStaleSeats(t, joiningUserId = null) {
+    let changed = false;
+    for (let i = 0; i < t.seats.length; i++) {
+      const s = t.seats[i]; if (!s) continue;
+
+      if (joiningUserId && String(s.userId) === String(joiningUserId)) {
+        try { await io.in(s.id).disconnectSockets(true); } catch {}
+        if (s.stack > 0) await adjustCoins(s.userId, s.stack);
+        t.seats[i] = null; changed = true; continue;
+      }
+      const alive = await isSocketAlive(s.id);
+      if (!alive) {
+        if (s.stack > 0) await adjustCoins(s.userId, s.stack);
+        t.seats[i] = null; changed = true;
+      }
+    }
+    if (changed) await saveTable(t);
+    if (changed) await enforceMinimumPlayers(t);
+    return changed;
+  }
+
+  async function healAllTables() {
+    const r = await getRedis();
+    const stakeKeys = Object.keys(STAKES);
+    for (const sk of stakeKeys) {
+      await ensurePublicTables(sk);
+      const ids = r ? await r.sMembers(K.stakeSet(sk))
+                    : Array.from({length:DEFAULT_PUBLIC_TABLES},(_,i)=>detId(sk, i+1));
+      for (const id of ids) {
+        const t = await loadTable(id);
+        if (t) { await pruneStaleSeats(t, null); await enforceMinimumPlayers(t); }
+      }
+    }
+  }
+
+  // Background sweeper every 20s
+  setInterval(() => { healAllTables().catch(e=>console.warn('[Poker] sweeper error', e?.message||e)); }, 20000);
+
   function clearReadyTimer(t){ if (t.ready?.timer){ clearInterval(t.ready.timer); t.ready.timer=null; } }
 
   async function beginReadyPhase(t){
@@ -211,11 +304,12 @@ module.exports = function attachPoker(io) {
     t.ready = { deadline: Date.now() + READY_MS, accepted: new Set(), timer: null };
     await broadcastState(t);
     t.ready.timer = setInterval(async () => {
-      if (!t.ready) { clearReadyTimer(t); return; }
+      if (participantIndices(t).length < 3) {
+        clearReadyTimer(t); t.round='idle'; t.ready=null; await broadcastState(t); return;
+      }
       if (Date.now() >= t.ready.deadline) {
-        for (const i of order) t.ready.accepted.add(i);
-        clearReadyTimer(t);
-        await startHand(t);
+        for (const i of participantIndices(t)) t.ready.accepted.add(i);
+        clearReadyTimer(t); await startHand(t);
       } else {
         await broadcastState(t);
       }
@@ -229,8 +323,7 @@ module.exports = function attachPoker(io) {
     await broadcastState(t);
     const order = participantIndices(t);
     if (order.every(i => t.ready.accepted.has(i))) {
-      clearReadyTimer(t);
-      await startHand(t);
+      clearReadyTimer(t); await startHand(t);
     }
   }
 
@@ -341,7 +434,7 @@ module.exports = function attachPoker(io) {
     }
   }
 
-  // ---- Sockets ----
+  /* ----------------- Sockets ----------------- */
   io.on('connection', (socket)=>{
     let tableId = null, seat = -1;
 
@@ -360,18 +453,13 @@ module.exports = function attachPoker(io) {
       socket.emit('poker:lobbies', [{ id:t.id, name:t.name, players:0, max:MAX, min:t.min }]);
     });
 
-    socket.on('poker:list', async (data = {}) => {
-      const stakes = data.stakes || '100';
-      const arr = await listTables(stakes);
-      console.log(`[Poker] Stake=${stakes} tables: ${arr.map(x=>`${x.id}(${x.players})`).join(', ')}`);
-      socket.emit('poker:lobbies', arr);
-    });
-
     socket.on('poker:join', async (data = {}) => {
       const { tableId: tid, userId, username, pass } = data;
       let t = await loadTable(tid);
       if (!t) return socket.emit('poker:error', { message:'Table not found' });
       if (t.isPrivate && t.pass && t.pass!==pass) return socket.emit('poker:error', { message:'Wrong passcode' });
+
+      await pruneStaleSeats(t, userId); // de-dupe & ghost cleanup
 
       const sIdx = t.seats.findIndex(x=>!x);
       if (sIdx < 0) return socket.emit('poker:error', { message:'Table full' });
@@ -386,7 +474,6 @@ module.exports = function attachPoker(io) {
       tableId = tid; seat = sIdx;
       socket.join(t.id);
 
-      // snapshot
       socket.emit('poker:joined', {
         id:t.id, name:t.name, round:t.round,
         seats:t.seats.map(x=>x?({id:x.id, userId:x.userId, username:x.username, stack:x.stack, seat:x.seat, waiting:!!x.waiting}):null),
@@ -407,12 +494,9 @@ module.exports = function attachPoker(io) {
         const p = t.seats[seat];
         await adjustCoins(p.userId, p.stack);
         t.seats[seat] = null;
-        if (t.ready){ t.ready.accepted.delete(seat); if (participantIndices(t).length < 3){ clearReadyTimer(t); t.ready=null; t.round='idle'; } }
-        if (t.turn===seat) {
-          const order = participantIndices(t);
-          if (order.length>=2) t.turn = order[(order.indexOf(seat)+1)%order.length];
-        }
+        if (t.ready){ t.ready.accepted.delete(seat); }
         await broadcastState(t);
+        await enforceMinimumPlayers(t);
       }
       socket.leave(tableId); tableId=null; seat=-1;
     });
@@ -426,6 +510,7 @@ module.exports = function attachPoker(io) {
       const t = await loadTable(tableId); if (!t) return;
       const { type, amount } = data;
       await act(t, seat, type, amount);
+      await enforceMinimumPlayers(t);
     });
 
     socket.on('poker:chat', async (data = {})=>{
@@ -448,6 +533,7 @@ module.exports = function attachPoker(io) {
         await adjustCoins(p.userId, p.stack);
         t.seats[seat]=null;
         await broadcastState(t);
+        await enforceMinimumPlayers(t);
       }
     });
   });
