@@ -7,7 +7,7 @@ A full‑stack MERN social app with posts, profiles, DMs, and image upload/cropp
 - **Server:** Node.js, Express, MongoDB (Mongoose), JWT auth
 - **Models:** User, Post, Message, Conversation
 
-## Project structure
+## Project structure( Run: (tree -I 'node_modules|.git|build') for full structure)
 ```
 fullerton-connect/
 ├─ client/            # React app
