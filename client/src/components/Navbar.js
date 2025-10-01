@@ -90,6 +90,7 @@ const StyledNavLink = styled(NavLink)`
   font-size: 24px;
   color: #111111;
   &.active { color: '#0d2d7d'; }
+  &:hover { transform: translateY(-1px); filter: brightness(1.05); }
 `;
 
 const Navbar = () => {
