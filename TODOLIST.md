@@ -25,4 +25,6 @@
 
 - [ ] make a max word count for posts
 
+- [ ] remove the "Add Photo" button from the top of posts and then add a small button next to the "Post" button instead
+
 Done
