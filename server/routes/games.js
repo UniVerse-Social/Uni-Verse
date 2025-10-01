@@ -6,6 +6,7 @@ const GameResult = require('../models/GameResult');
 const { checkAndUnlock } = require('../services/badges'); // optional, if present
 const User = require('../models/User');
 
+/* -------------------- Ranks / tiers -------------------- */
 const TIERS = [
   { name: 'Wood',     min:   0 },
   { name: 'Bronze',   min: 100 },
@@ -28,6 +29,7 @@ async function ensureProfile(userId) {
   return gp;
 }
 
+/* -------------------- Monthly (existing) -------------------- */
 /**
  * Optional monthly soft reset:
  * - If total trophies exceed Champion threshold, overflow converts to coins
@@ -43,7 +45,7 @@ async function maybeMonthlyReset(gp) {
   if (monthsApart >= 1) {
     if (currentRank === 'Champion' && gp.totalTrophies > 1500) {
       const overflow = gp.totalTrophies - 1500;
-      gp.coins += overflow;
+      gp.coins = (gp.coins || 0) + overflow;
 
       // Scale per-game trophies down proportionally to total=1500
       const total = Math.max(1, gp.totalTrophies);
@@ -61,17 +63,43 @@ async function maybeMonthlyReset(gp) {
   return gp;
 }
 
-/** GET game profile / rank */
+/* -------------------- Coins helpers (new) -------------------- */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+async function awardCoins(gp, amount) {
+  gp.coins = Math.max(0, (gp.coins || 0) + (amount || 0));
+  await gp.save();
+  return gp.coins;
+}
+
+async function autoGrantDailyCoins(gp) {
+  const now = Date.now();
+  const last = gp.lastDailyCoinAt ? gp.lastDailyCoinAt.getTime() : 0;
+  if (now - last >= DAY_MS) {
+    gp.coins = (gp.coins || 0) + 100;
+    gp.lastDailyCoinAt = new Date(now);
+    await gp.save();
+    return 100;
+  }
+  return 0;
+}
+
+/* -------------------- Routes -------------------- */
+/** GET game profile / rank (+auto daily coins) */
 router.get('/stats/:userId', async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.params.userId);
     let gp = await ensureProfile(userId);
     gp = await maybeMonthlyReset(gp);
+
+    // NEW: +100 once per day, granted on first stats load per day
+    await autoGrantDailyCoins(gp);
+
     res.json({
       userId: gp.userId,
       trophiesByGame: Object.fromEntries(gp.trophiesByGame.entries()),
       totalTrophies: gp.totalTrophies,
-      coins: gp.coins,
+      coins: gp.coins || 0,
       rank: rankFromTrophies(gp.totalTrophies),
       tiers: TIERS,
     });
@@ -81,7 +109,7 @@ router.get('/stats/:userId', async (req, res) => {
   }
 });
 
-/** POST game result -> adjust trophies
+/** POST game result -> adjust trophies (+1 coin on wins)
  * body: { userId, gameKey, delta }  // e.g. +15 win, -5 loss (floored at 0)
  */
 router.post('/result', async (req, res) => {
@@ -95,24 +123,31 @@ router.post('/result', async (req, res) => {
     const gp = await ensureProfile(uid);
     await maybeMonthlyReset(gp);
 
+    // Adjust per-game trophies
     const current = Number(gp.trophiesByGame.get(gameKey) || 0);
     const next = Math.max(0, current + delta);
     gp.trophiesByGame.set(gameKey, next);
 
-    // recompute total
+    // Recompute total
     let total = 0;
     for (const v of gp.trophiesByGame.values()) total += v;
     gp.totalTrophies = total;
+
+    // NEW: +1 coin for wins (we treat delta>0 as a win from bot games)
+    if (delta > 0) {
+      gp.coins = (gp.coins || 0) + 1;
+    }
+
     await gp.save();
 
-    // log history
+    // Log history
     try {
       await GameResult.create({ userId: uid, gameKey, delta, didWin: delta > 0 });
     } catch (e) {
       console.warn('unable to create game result log', e?.message);
     }
 
-    // Optional: award badges
+    // Optional: award badges (unchanged, but kept for compatibility)
     try {
       if (Math.abs(delta) > 0) {
         await checkAndUnlock(userId, { type: 'played_game' });
@@ -128,11 +163,37 @@ router.post('/result', async (req, res) => {
       trophiesByGame: Object.fromEntries(gp.trophiesByGame.entries()),
       totalTrophies: gp.totalTrophies,
       rank: rankFromTrophies(gp.totalTrophies),
-      coins: gp.coins,
+      coins: gp.coins || 0,
     });
   } catch (e) {
     console.error('games result error:', e);
     res.status(500).json({ message: 'Failed to post game result' });
+  }
+});
+
+/** NEW: POST /api/games/coins/badge -> +100 coins per unique badge
+ * body: { userId, badgeKey }
+ * - Idempotent: same badgeKey only pays once per user.
+ */
+router.post('/coins/badge', async (req, res) => {
+  try {
+    const { userId, badgeKey } = req.body || {};
+    if (!userId || !badgeKey) return res.status(400).json({ message: 'userId and badgeKey are required' });
+
+    const uid = new mongoose.Types.ObjectId(userId);
+    const gp = await ensureProfile(uid);
+
+    gp.badgeCoinLog = Array.isArray(gp.badgeCoinLog) ? gp.badgeCoinLog : [];
+    if (!gp.badgeCoinLog.includes(badgeKey)) {
+      gp.badgeCoinLog.push(badgeKey);
+      gp.coins = (gp.coins || 0) + 100;
+      await gp.save();
+      return res.json({ ok: true, coins: gp.coins, awarded: 100 });
+    }
+    return res.json({ ok: true, coins: gp.coins, awarded: 0 });
+  } catch (e) {
+    console.error('badge coin award error:', e);
+    res.status(500).json({ message: 'Failed to grant badge coins' });
   }
 });
 

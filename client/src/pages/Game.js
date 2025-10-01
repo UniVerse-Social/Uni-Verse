@@ -82,6 +82,14 @@ const TabButton = styled.button`
 
 const BarSeparator = styled.div` height: 10px; pointer-events: none; `;
 
+const FlexGrow = styled.div` flex: 1; `;
+const CoinStat = styled.div`
+  display:flex; align-items:center; gap:8px;
+  margin-left:auto; padding:6px 10px;
+  border:1px solid var(--border-color); background:#fff; border-radius:999px;
+  font-weight:900; font-size:13px;
+`;
+
 /* ------------------- Cards & Grids ------------------- */
 const Row = styled.div`
   display:grid; grid-template-columns: 360px 1fr; gap:16px; align-items:start;
@@ -399,7 +407,16 @@ export default function Games() {
             {g.name}
           </TabButton>
         ))}
+
+        <FlexGrow />
+        <CoinStat title="Your coin balance">
+          <span aria-hidden>🪙</span>
+          <span>Coins</span>
+          <span style={{opacity:.6}}>·</span>
+          <span>{(stats.coins ?? 0).toLocaleString()}</span>
+        </CoinStat>
       </TopBar>
+
       <BarSeparator />
       {view === 'home' ? Home : GameView}
     </Page>
