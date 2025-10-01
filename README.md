@@ -50,6 +50,7 @@ MONGO_URI=mongodb://127.0.0.1:27017/fullerton-connect
 # from the repo root
 cd server && npm install
 cd ../client && npm install
+npm i redis @socket.io/redis-adapter
 ```
 
 Start the API:
