@@ -13,5 +13,6 @@
 
 - [ ] add count next to comments
 
+- [ ] Add dm button to every screen aside from home screen: TitanTap, Clubs, Games, Profile
 
 Done
