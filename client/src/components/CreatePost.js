@@ -22,7 +22,7 @@ const TextArea = styled.textarea`
   border-radius: 10px;
   padding: 12px;
   font-size: 16px;
-  resize: vertical;
+  resize: none;
   margin-bottom: 12px;
   background: #fff;
   color: #111;
@@ -168,6 +168,7 @@ const CreatePost = ({ onPostCreated }) => {
           placeholder={`What's on your mind, ${user.username}?`}
           value={textContent}
           onChange={(e) => setTextContent(e.target.value)}
+          maxLength={280}
         />
         <Actions>
           <PostButton type="submit" disabled={busy}>
