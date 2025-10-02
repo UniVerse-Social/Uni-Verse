@@ -27,4 +27,6 @@
 
 - [ ] remove the "Add Photo" button from the top of posts and then add a small button next to the "Post" button instead
 
+- [ ] add a character limit countdown when you only have 30 characters left to use on your post
+
 Done
