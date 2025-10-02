@@ -21,7 +21,7 @@
 
 - [ ] fix edit profile save button
 
-- [ ] Remove the stretching of the post area
+- [✅] Remove the stretching of the post area
 
 - [✅] make a max word count for posts
 
