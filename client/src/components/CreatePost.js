@@ -23,7 +23,7 @@ const TextArea = styled.textarea`
   padding: 12px;
   font-size: 16px;
   resize: none;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   background: #fff;
   color: #111;
 `;
@@ -36,7 +36,7 @@ const Toolbar = styled.div`
 `;
 
 const AttachBtn = styled.label`
-  padding: 8px 12px;
+  padding: 10px 18px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
   background: #fff;
@@ -73,6 +73,8 @@ const Thumb = styled.div`
 const Actions = styled.div`
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 `;
 
 const PostButton = styled.button`
@@ -148,11 +150,6 @@ const CreatePost = ({ onPostCreated }) => {
   return (
     <CreatePostContainer className="surface">
       <form onSubmit={handleSubmit}>
-        <Toolbar>
-          <AttachBtn htmlFor="feed-attach">Add photos</AttachBtn>
-          <HiddenInput id="feed-attach" type="file" accept="image/*" multiple onChange={onPick} />
-        </Toolbar>
-
         {previews.length > 0 && (
           <Grid aria-label="Selected images">
             {previews.map((p, i) => (
@@ -171,6 +168,8 @@ const CreatePost = ({ onPostCreated }) => {
           maxLength={280}
         />
         <Actions>
+          <AttachBtn htmlFor="feed-attach">Add photos</AttachBtn>
+          <HiddenInput id="feed-attach" type="file" accept="image/*" multiple onChange={onPick} />
           <PostButton type="submit" disabled={busy}>
             {busy ? 'Posting…' : 'Post'}
           </PostButton>
