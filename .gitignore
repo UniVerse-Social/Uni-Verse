@@ -34,3 +34,9 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+# --- server runtime uploads (keep folder, ignore contents) ---
+server/uploads/**
+!server/uploads/.gitkeep
+
+# --- Windows ADS sidecar files that can appear when copying from Windows ---
+*:[Zz]one.Identifier
