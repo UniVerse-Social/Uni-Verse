@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate } from 'r
 import { createGlobalStyle } from 'styled-components';
 
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Home from './pages/Home';
 import Profile from './pages/Profile';
 import Signup from './pages/Signup';
@@ -12,22 +13,23 @@ import TitanTap from './pages/TitanTap';
 import './App.css';
 import DMPage from './pages/DMs';
 import Games from './pages/Game';
+import LegalDocPage from './pages/LegalDocPage';
 
 // ---------- Global username click handler ----------
 function GlobalUsernameLinker() {
   const navigate = useNavigate();
   useEffect(() => {
     const handler = (e) => {
-      const el = e.target.closest?.("[data-username-link]");
+      const el = e.target.closest?.('[data-username-link]');
       if (!el) return;
-      const uname = el.getAttribute("data-username-link");
+      const uname = el.getAttribute('data-username-link');
       if (uname) {
         e.preventDefault();
         navigate(`/profile/${encodeURIComponent(uname)}`);
       }
     };
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
   }, [navigate]);
   return null;
 }
@@ -41,15 +43,11 @@ const GlobalTheme = createGlobalStyle`
     background: var(--background-grey) !important;
     color: var(--text-color) !important;
   }
-
-  /* Generic surfaces pick up theme variables */
   nav, header, footer,
   .card, .panel, .sheet, .menu, .dropdown, .drawer, .modal,
   .container, .content, main, .screen, .page, .App {
     color: var(--text-color);
   }
-
-  /* Opt-in class for any component that should look like a card/sheet */
   .surface {
     background: var(--container-white) !important;
     color: var(--text-color) !important;
@@ -80,9 +78,7 @@ function App() {
 
   return (
     <AuthContext.Provider value={{ user, login, logout }}>
-      {/* Global theme styles always applied */}
       <GlobalTheme />
-
       <Router>
         {user ? (
           <>
@@ -102,15 +98,31 @@ function App() {
               />
               <Route path="/games" element={<Games />} />
               <Route path="/dms" element={<DMPage />} />
+
+              {/* Legal pages available while logged in */}
+              <Route path="/terms" element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />} />
+              <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
+              <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
+
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
+            <Footer />
           </>
         ) : (
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="*" element={<Navigate to="/login" />} />
-          </Routes>
+          <>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+
+              {/* Public legal pages */}
+              <Route path="/terms" element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />} />
+              <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
+              <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
+
+              <Route path="*" element={<Navigate to="/login" />} />
+            </Routes>
+            <Footer />
+          </>
         )}
       </Router>
     </AuthContext.Provider>

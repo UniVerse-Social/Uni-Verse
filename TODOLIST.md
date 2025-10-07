@@ -1,5 +1,12 @@
 # To Do
-- [ ] Terms and conditions — Add terms and conditions so users are allowed to know what the website is allowed to use data wise and that the user agrees to these terms to avoid legality. Also, make sure to put a *Not affiliated with Cal State Fullerton* notice to avoid any conflict with the school.
+- [✅] Terms of Service — Add terms of service so users are allowed to know what the website is allowed to use data wise and that the user agrees to these terms to avoid legality. Include in User signup. Also, make sure to put a *Not affiliated with Cal State Fullerton* notice to avoid any conflict with the school.
+
+- [✅] Add footer linking to Terms of Service, Privacy Policy, Community Guidelines
+
+
+- [ ] Add support emails and contacts to the Terms of Service, Privacy Policy, and Community Guidelines pages, + clean up formatting of the legal docs to be consistent across all 3 of them.
+
+- [ ] Add versioning for Terms of Service to indicate when the user last accepted Terms so that if they're not up to date, they must accept Terms and Service upon login to continue using the site.
 
 - [✅] Put the logo, navlink buttons, and dm button in certain positions for every screen: (Logo at the top left) (navblink buttons in the top center) (dm button in the top right)
 

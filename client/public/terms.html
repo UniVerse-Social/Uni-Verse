@@ -1,0 +1,391 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fullerton Connect — Terms of Service</title>
+  <meta name="robots" content="noindex" />
+  <style>
+    :root{
+      --fg:#111827;
+      --muted:#4b5563;
+      --bg:#ffffff;
+      --card:#f9fafb;
+      --link:#0ea5e9;
+      --border:#e5e7eb;
+      --pill-bg:#eef2ff;   /* subtle indigo tint */
+      --pill-fg:#111827;   /* force dark text inside pills */
+    }
+
+    html,body{
+      margin:0;padding:0;background:var(--bg);color:var(--fg);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial,'Noto Sans',sans-serif;
+      line-height:1.6;
+    }
+
+    .container{max-width:980px;margin:0 auto;padding:48px 20px;}
+
+    /* Headings: force dark text (even if nested elements tried to set white) */
+    header h1, h1, h2, h3, h4, h5, h6{ color:var(--fg) !important; }
+    header h1 *, h1 *, h2 *, h3 *, h4 *, h5 *, h6 *{ color:inherit !important; }
+
+    header h1{font-size:2rem;margin:0 0 4px 0;}
+    header p{margin:0;color:var(--muted);}
+    .notice{font-size:.95rem;color:var(--muted);margin-top:12px;}
+
+    nav.toc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin:28px 0;}
+    nav.toc h2{font-size:1rem;margin:0 0 8px 0;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+    nav.toc ol, nav.toc ul{margin:0;padding-left:18px;}
+    nav.toc a{color:var(--link);text-decoration:none;}
+
+    section{margin:26px 0;padding-top:6px;}
+    h2{margin:22px 0 8px 0;font-size:1.25rem;}
+    h3{margin:18px 0 6px 0;font-size:1.05rem;}
+    ul{padding-left:22px;margin:8px 0;}
+    li{margin:6px 0;}
+    a{color:var(--link);}
+
+    code,kbd{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size:.95em;background:#f3f4f6;padding:.1em .3em;border-radius:6px;
+    }
+
+    .foot{margin-top:48px;border-top:1px solid var(--border);padding-top:16px;color:var(--muted);font-size:.9rem;}
+
+    /* “Pill/label/badge/mark” elements: keep background but ensure DARK text */
+    .tag, .pill, .badge, .label, mark{
+      display:inline-block;
+      font-size:.82rem;
+      background:var(--pill-bg);
+      color:var(--pill-fg) !important;   /* <-- key: stop white text */
+      border-radius:6px;
+      padding:2px 8px;
+      vertical-align:middle;
+      font-weight:700;
+    }
+
+    /* If you want the pill look only on Appendix labels (e.g., “A1.” headings),
+       keep as-is. If you’d rather remove the pill background entirely in headings,
+       uncomment below:
+    */
+    /* h2 .pill, h3 .pill, h2 mark, h3 mark {
+      background:transparent !important;
+      padding:0 !important;
+      border-radius:0 !important;
+      font-weight:700;
+    } */
+
+    /* Print */
+    @media print{
+      nav.toc{break-inside:avoid;}
+      .container{padding:0;}
+      a{color:black;text-decoration:underline;}
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Keep this as the legal source of truth -->
+  <div class="container">
+    <header>
+      <h1>Fullerton Connect — Terms of Service</h1>
+      <span class="tag">Last updated: October 2, 2025</span>
+      <p class="notice">These Terms are a legally binding agreement between you and Fullerton Connect (a student-run, unaffiliated project; not endorsed by or affiliated with California State University, Fullerton (CSUF)). By creating an account, accessing, or using the Services, you agree to these Terms and to our 
+      <a href="/privacy" data-legal-doc="privacy">Privacy Policy</a>
+       and
+      <a href="/guidelines" data-legal-doc="guidelines">Community Guidelines</a>.
+
+
+      <p><em>Independent website — not affiliated with CSUF</em></p>
+    </header>
+
+    <nav class="toc" aria-label="Table of contents">
+    <h2>Contents</h2>
+        <ol>
+            <li><a href="#eligibility">Eligibility</a></li>
+            <li><a href="#no-university-affiliation">No University Affiliation or Control</a></li>
+            <li><a href="#account">Account Registration and Security</a></li>
+            <li><a href="#your-content">Your Content</a></li>
+            <li><a href="#community">Community Standards &amp; Prohibited Content</a></li>
+            <li><a href="#safety">Safety Tools and Reporting</a></li>
+            <li><a href="#messaging">Messaging and Communications</a></li>
+            <li><a href="#feature-terms">Feature-Specific Terms</a></li>
+            <li><a href="#ip">Intellectual Property</a></li>
+            <li><a href="#third-party">Third-Party Services and Content</a></li>
+            <li><a href="#purchases">In-App Purchases / Subscriptions / Credits</a></li>
+            <li><a href="#privacy">Privacy</a></li>
+            <li><a href="#data-processing">Data Processing and International Transfers</a></li>
+            <li><a href="#app-store">App Store Terms</a></li>
+            <li><a href="#changes-services">Changes to the Services</a></li>
+            <li><a href="#disclaimers">Disclaimers</a></li>
+            <li><a href="#limitation">Limitation of Liability</a></li>
+            <li><a href="#indemnification">Indemnification</a></li>
+            <li><a href="#termination">Termination and Account Closure</a></li>
+            <li><a href="#governing-law">Governing Law; Dispute Resolution</a></li>
+            <li><a href="#changes-terms">Changes to These Terms</a></li>
+            <li><a href="#misc">Miscellaneous</a></li>
+            <li><a href="#contact">Contact</a></li>
+            <li><a href="#appendix">Appendix A — Detailed Provisions (California &amp; Local)</a></li>
+            <li><a href="#enforcement">Enforcement Policy (How We Moderate)</a></li>
+            <li><a href="#marketplace-rules">Marketplace Rules (Summary)</a></li>
+            <li><a href="#events-clubs">Events &amp; Clubs (Summary)</a></li>
+            <li><a href="#data-permissions">Data &amp; Permissions (Feature Notes)</a></li>
+            <li><a href="#safety-tips">Safety Tips</a></li>
+        </ol>
+    </nav>
+
+
+    <main>
+      <section id="eligibility">
+        <h2>1. Eligibility</h2>
+        <p>You must be at least the age of digital consent in your jurisdiction (13+ in the U.S.). The Services are not for children under 13.</p>
+        <p>The Services are intended for college students in the Fullerton, California community. We are not affiliated with CSUF and use of the Services does not imply any endorsement by CSUF.</p>
+        <p><strong>U.S. residents only.</strong> The Services are offered solely in the United States. You represent that you reside in the U.S. and will not access the Services from outside the U.S.</p>
+        <p>You may not use the Services if you are prohibited from doing so under applicable laws or if your account was previously suspended or terminated by us.</p>
+        <p>You represent that the information you provide to us is accurate and that you will keep it up to date.</p>
+      </section>
+
+      <section id="no-university-affiliation">
+        <h2>2. No University Affiliation or Control</h2>
+        <p>Fullerton Connect is an independent, student-run project. California State University, Fullerton (CSUF) does not operate, control, moderate, sponsor, or endorse the Services and has no administrative or moderation access to them. CSUF is not responsible for our policies, content, data handling, or user disputes. Any references to CSUF or the Fullerton community are for descriptive purposes only. Your use of the Services does not create any relationship with CSUF. If you organize activities on campus or use CSUF resources, you are responsible for complying with CSUF policies separately from these Terms. We may respond to valid legal requests from law enforcement (including CSUF Police Department) as required by law.</p>
+      </section>
+
+      <section id="account">
+        <h2>3. Account Registration and Security</h2>
+        <p>You may need to register for an account to access some or all of the Services. You agree to keep your login credentials confidential and are responsible for all activity under your account.</p>
+        <p><strong>Verification.</strong> To keep the community safer, we may verify accounts using personal email and SMS text codes. By registering, you consent to receive one-time verification texts and emails (standard carrier rates apply). You can opt out of non-essential communications in settings.</p>
+        <p>You must notify us immediately at <em>[support email]</em> of any unauthorized use or suspected security breach.</p>
+        <p>We may offer verified accounts or similar features subject to additional requirements.</p>
+      </section>
+
+      <section id="your-content">
+        <h2>4. Your Content</h2>
+        <p><strong>Ownership.</strong> You retain ownership of any content (e.g., posts, photos, videos, audio, messages, comments, reactions, profile information) you submit, post, upload, or otherwise make available via the Services ("User Content").</p>
+        <p><strong>License to Fullerton Connect.</strong> To operate, improve, and promote the Services, you grant us a worldwide, non-exclusive, royalty-free, transferable, and sublicensable license to host, store, use, reproduce, modify, adapt, create derivative works (such as format transformations or translations), publish, publicly perform, publicly display, and distribute your User Content only as necessary to provide the Services and as described in these Terms, our Privacy Policy, and product features you use. This license ends when you delete your User Content from the Services, except: (i) to the extent your content has been shared with others and they have not deleted it; (ii) for reasonable backup and archival copies retained for a limited period; and (iii) as required by law, dispute resolution, or to enforce our Terms.</p>
+        <p><strong>Feedback.</strong> If you provide ideas, suggestions, or feedback, you grant us a perpetual, irrevocable license to use them without restriction or compensation.</p>
+        <p><strong>Your Responsibilities.</strong> You are responsible for your User Content and represent that you have the necessary rights to grant the above licenses and that your content complies with these Terms and applicable laws.</p>
+      </section>
+
+      <section id="community">
+        <h2>5. Community Standards &amp; Prohibited Content</h2>
+        <p>You agree to follow our Community Guidelines. Without limitation, you may not post, share, or engage in:</p>
+        <ul>
+          <li>Illegal content or activity, including content that facilitates crime.</li>
+          <li>Child sexual exploitation or endangerment of minors, or any sexualized content involving minors.</li>
+          <li>Harassment, bullying, threats, or incitement of violence; hate speech targeting protected classes; extremist or terrorist propaganda.</li>
+          <li>Graphic violence, gore, or content intended to shock without context or warning.</li>
+          <li>Suicide or self-harm promotion; we may surface crisis resources where appropriate.</li>
+          <li>Non-consensual intimate imagery, doxxing, or invasion of privacy.</li>
+          <li>Spam, scams, deceptive practices, or inauthentic behavior (including fake engagement, botting, or impersonation).</li>
+          <li>Malware, phishing, or security exploits; attempts to access the Services or user data without authorization.</li>
+          <li>IP infringement, including unauthorized use of copyrighted material, trademarks, or rights of publicity.</li>
+        </ul>
+        <p>We may remove or restrict content or features, suspend or terminate accounts, and report content to law enforcement where legally required or appropriate.</p>
+      </section>
+
+      <section id="safety">
+        <h2>7. Safety Tools and Reporting</h2>
+        <p>We provide tools to report content or users, block accounts, and control who can interact with you. Use in-app reporting or contact us at <em>[abuse@fullertonconnect.com]</em>. We may not respond to every report but will act in accordance with these Terms and applicable laws.</p>
+      </section>
+
+      <section id="messaging">
+        <h2>7. Messaging and Communications</h2>
+        <p>Direct messages and in-app communications may be available to participants and to us for safety, moderation, or legal compliance purposes as described in our Privacy Policy. We may send you service, security, and administrative messages; you can manage some notification settings in the app.</p>
+      </section>
+
+      <section id="feature-terms">
+        <h2>8. Feature-Specific Terms</h2>
+        <h3>Swipe/Match Feature (Profile Photos)</h3>
+        <p>To use swipe/match features, you allow us to display your profile photo to other users. You represent that you own or have permission to use any photo you upload, and that it does not infringe the privacy, publicity, or IP rights of others. We do not use facial recognition or biometric templates.</p>
+        <h3>Clubs &amp; Events</h3>
+        <p>Club and event listings are provided by users. You are responsible for verifying details (location, time, host). We may remove listings that violate our Terms or community guidelines.</p>
+        <h3>Marketplace</h3>
+        <p>Listings and transactions are between users, not with Fullerton Connect. We do not screen listings, take possession of items, or process payments. Prohibited listings include: illegal items; weapons; drugs; stolen property; counterfeit goods; adult content; and any item banned by campus or local policies. Use common sense—meet in public places and comply with the law. We are not liable for user-to-user transactions.</p>
+        <h3>Live Multiplayer Games</h3>
+        <p>Game outcomes and rankings may be affected by network conditions and anti-cheat protections. We may restrict access or reset scores for suspected abuse.</p>
+      </section>
+
+      <section id="ip">
+        <h2>9. Intellectual Property</h2>
+        <p>The Services, including software, graphics, logos, trademarks (including Fullerton Connect and associated marks), and content provided by us, are protected by intellectual property laws. Except for your User Content and as expressly permitted, you may not copy, modify, distribute, sell, or lease any part of the Services, nor reverse engineer or attempt to extract source code, unless laws prohibit such restrictions or we give you written permission.</p>
+        <p><strong>University Marks.</strong> CSUF, California State University, Fullerton, Titans, and related names, logos, and marks are the property of their respective owners. Fullerton Connect is not affiliated with, sponsored by, or endorsed by CSUF. Do not use university or third-party trademarks without permission.</p>
+      </section>
+
+      <section id="third-party">
+        <h2>10. Third-Party Services and Content</h2>
+        <p>The Services may link to or integrate with third-party websites, apps, SDKs, analytics providers, or advertising partners ("Third-Party Services"). We are not responsible for Third-Party Services and your use may be subject to their terms and privacy policies. You control whether to enable or disable certain integrations where offered.</p>
+        <p><strong>Advertising (Google Ads).</strong> The Services display Google Ads in sidebars and other placements. Ad partners may set cookies or similar technologies to measure and personalize ads. See our Privacy Policy for details and controls, including any “Do Not Sell or Share My Personal Information” options required by California law.</p>
+      </section>
+
+      <section id="purchases">
+        <h2>11. In-App Purchases, Subscriptions, and Credits (If Applicable)</h2>
+        <p><strong>Coins.</strong> We may offer coins or similar virtual currency for use in the Services (e.g., boosts, game perks). Coins are licensed, not sold, have no real-world value, are non-transferable, and are non-refundable except where required by law. We may change coin pricing and availability at any time.</p>
+        <p><strong>Billing &amp; Auto-Renewal.</strong> If we later offer subscriptions, they will auto-renew unless you cancel. We will disclose pricing, term length, and renewal details at purchase.</p>
+        <p><strong>Free Trials.</strong> If offered, trials convert to a paid plan unless you cancel before the trial ends.</p>
+        <p><strong>Cancellations &amp; Refunds.</strong> Cancellation takes effect at the end of the current billing period. Refunds are provided as required by law and, for purchases through app stores, are typically handled by the App Store or Google Play. See platform policies.</p>
+        <p>Additional terms may apply and will be presented at the time of purchase.</p>
+      </section>
+
+      <section id="privacy">
+        <h2>12. Privacy</h2>
+        <p>Your privacy matters. Please review our Privacy Policy to understand what information we collect, how we use and share it, and your rights and choices. Certain features (e.g., camera, microphone, push notifications) require your permission in your device settings. We do not collect precise geolocation. Some location-aware features may assume Fullerton, CA as a default for convenience.</p>
+      </section>
+
+      <section id="data-processing">
+        <h2>13. Data Processing and International Transfers</h2>
+        <p>We may process and store information in the United States and other countries where we or our service providers operate. Where required by law (e.g., GDPR), we will rely on appropriate legal bases, standard contractual clauses, or other transfer mechanisms. We may offer a Data Processing Addendum (DPA) for enterprise/business features upon request.</p>
+      </section>
+
+      <section id="app-store">
+        <h2>14. App Store Terms</h2>
+        <p>If you download the app from the Apple App Store or Google Play:</p>
+        <ul>
+          <li>These Terms are between you and Fullerton Connect only, not Apple or Google. Apple and Google are not responsible for the Services or their content.</li>
+          <li>Apple/Google have no obligation to furnish support or maintenance. If the app fails to conform to any applicable warranty, you may notify the store, and they may refund the purchase price (if any). To the maximum extent permitted by law, Apple/Google have no other warranty obligations.</li>
+          <li>You must comply with applicable App Store/Play terms. Your license to use the app is limited to a non-transferable license on devices you own or control, per platform rules.</li>
+          <li>You represent and warrant that you are not located in a country subject to U.S. government embargo or designated as a “terrorist supporting” country and are not listed on any U.S. government list of prohibited or restricted parties.</li>
+        </ul>
+      </section>
+
+      <section id="changes-services">
+        <h2>15. Changes to the Services</h2>
+        <p>We may modify, suspend, or discontinue all or part of the Services at any time, with or without notice, and without liability to you. When we make material changes, we will take reasonable steps to notify you (e.g., by in-app notice or email).</p>
+      </section>
+
+      <section id="disclaimers">
+        <h2>16. Disclaimers</h2>
+        <p>The Services are provided on an “AS IS” and “AS AVAILABLE” basis. To the fullest extent permitted by law, we disclaim all warranties, express or implied, including merchantability, fitness for a particular purpose, quiet enjoyment, and non-infringement. We do not warrant that the Services will be uninterrupted, error-free, secure, or free of harmful components, or that content will be accurate or complete.</p>
+      </section>
+
+      <section id="limitation">
+        <h2>17. Limitation of Liability</h2>
+        <p>To the fullest extent permitted by law, Fullerton Connect and our affiliates, officers, employees, agents, partners, and licensors will not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for any loss of profits, revenues, data, goodwill, or other intangible losses, arising out of or related to your use of the Services.</p>
+        <p>Our aggregate liability for all claims relating to the Services will not exceed the greater of: (a) US $100, or (b) the amount you paid to us (if any) for the Services that gave rise to the claim in the twelve (12) months preceding the event giving rise to liability.</p>
+        <p>Some jurisdictions do not allow certain limitations of liability, so some of the above may not apply to you.</p>
+      </section>
+
+      <section id="indemnification">
+        <h2>18. Indemnification</h2>
+        <p>You agree to defend, indemnify, and hold harmless Fullerton Connect and our affiliates, officers, employees, agents, partners, and licensors from any claims, liabilities, damages, losses, and expenses (including reasonable attorneys’ fees) arising out of or related to: (a) your User Content; (b) your use of the Services; (c) your violation of these Terms or applicable law; or (d) your violation of any rights of a third party.</p>
+      </section>
+
+      <section id="termination">
+        <h2>19. Termination and Account Closure</h2>
+        <p>We may suspend or terminate your access to the Services at any time, including for violations of these Terms, risk to other users, legal compliance, or inactivity. You may stop using the Services at any time and may request account deletion via in-app controls or by contacting <em>[support email]</em>. Some information may persist for a limited time in backups, logs, or as required by law.</p>
+      </section>
+
+      <section id="governing-law">
+        <h2>20. Governing Law; Dispute Resolution</h2>
+        <p>These Terms are governed by the laws of the State of California, without regard to conflict-of-laws provisions. You and Fullerton Connect agree to the exclusive jurisdiction and venue of the state and federal courts located in Orange County, California. Either party may seek injunctive relief in court for alleged misuse of intellectual property or unauthorized access to the Services.</p>
+      </section>
+
+      <section id="changes-terms">
+        <h2>21. Changes to These Terms</h2>
+        <p>We may update these Terms from time to time. If changes are material, we will notify you (e.g., by email or in-app notice) and, where required, obtain your consent. The updated Terms are effective when posted unless otherwise stated. If you continue to use the Services after the changes take effect, you accept the updated Terms.</p>
+      </section>
+
+      <section id="misc">
+        <h2>22. Miscellaneous</h2>
+        <ul>
+          <li><strong>Entire Agreement.</strong> These Terms, the Privacy Policy, Community Guidelines, and any feature-specific terms are the entire agreement between you and us.</li>
+          <li><strong>Assignment.</strong> You may not assign or transfer these Terms; we may assign them in connection with a merger, acquisition, or sale of assets.</li>
+          <li><strong>Severability.</strong> If any provision is found unenforceable, the remaining provisions will remain in full force and effect.</li>
+          <li><strong>No Waiver.</strong> Our failure to enforce any right or provision is not a waiver of such right or provision.</li>
+          <li><strong>Force Majeure.</strong> We are not liable for delays or failures due to causes beyond our reasonable control.</li>
+          <li><strong>Export &amp; Sanctions.</strong> You must comply with applicable export control and sanctions laws.</li>
+          <li><strong>Headings.</strong> Headings are for convenience only and do not affect interpretation.</li>
+        </ul>
+      </section>
+
+      <section id="contact">
+        <h2>23. Contact</h2>
+        <address>
+          <strong>[Full Legal Entity Name]</strong><br>
+          Address: [Registered address]<br>
+          Support: <a href="mailto:support@fullertonconnect.com">support@fullertonconnect.com</a><br>
+          Legal: <a href="mailto:legal@fullertonconnect.com">legal@fullertonconnect.com</a><br>
+          DMCA/Abuse: <a href="mailto:abuse@fullertonconnect.com">abuse@fullertonconnect.com</a>
+        </address>
+        <p><strong>California User Notice.</strong> Under California Civil Code § 1789.3, you may report complaints to the Complaint Assistance Unit of the California Department of Consumer Affairs, 1625 North Market Blvd., Suite N-112, Sacramento, CA 95834, or by phone at (800) 952-5210.</p>
+      </section>
+
+      <section id="appendix">
+        <h2>24. Appendix A — Detailed Provisions (California &amp; Local)</h2>
+        <h3>A1. California Privacy Rights (CPRA)</h3>
+        <p>If we engage in cross-context behavioral advertising (e.g., through Google Ads), California residents may have the right to opt out of “sale” or “sharing” of personal information and to limit the use of sensitive personal information. We will provide a “Do Not Sell or Share My Personal Information” link and explain choices in the Privacy Policy.</p>
+        <h3>A2. California Minors</h3>
+        <p>If we permit users aged 13–17, California’s “minor eraser” rules allow minors to request removal of their own content (with some exceptions). See the Privacy Policy for how to submit requests.</p>
+        <h3>A3. Automatic Renewal Disclosures</h3>
+        <p>If we later add auto-renewing subscriptions, California’s Automatic Renewal Law requires clear, conspicuous terms, affirmative consent, post-purchase acknowledgement, and easy web cancellation. We will update these Terms and in-app flows before enabling subscriptions.</p>
+        <h3>A4. Not an Emergency Service</h3>
+        <p>The Services are not a substitute for calling 911 or contacting campus security. If you or someone else is in danger, contact emergency services immediately.</p>
+        <h3>A5. Campus Use</h3>
+        <p>Hosting activities on or near the CSUF campus may be subject to university policies and local laws. You are solely responsible for compliance. We are not affiliated with CSUF and cannot grant access to university resources.</p>
+        <h3>A6. U.S.-Only Access and Export Compliance</h3>
+        <p>You represent you are a U.S. resident using the Services from the U.S. You agree to comply with U.S. export and sanctions laws. We may restrict access by IP, phone, or payment method.</p>
+        <h3>A7. DMCA / IP Takedowns</h3>
+        <p>If you believe content infringes your copyright, submit a DMCA Notice to our Designated Agent:</p>
+        <address>
+          Agent: [Name]<br>
+          Email: <a href="mailto:dmca@fullertonconnect.com">dmca@fullertonconnect.com</a><br>
+          Address: [Postal address]<br>
+          Phone: [Number]
+        </address>
+        <p>Counter-notices should be sent to the same agent. We may remove repeat infringers.</p>
+        <h3>A8. Advertisements and Endorsements</h3>
+        <p>Ads and sponsored content may appear in the Services. We do not endorse any third-party products or services. Creators must disclose paid partnerships where applicable and comply with platform and legal disclosure rules.</p>
+        <h3>A9. Security; Responsible Disclosure</h3>
+        <p>If you discover a vulnerability, report it to <a href="mailto:security@fullertonconnect.com">security@fullertonconnect.com</a>. Don’t exploit or publicly disclose before we’ve had a reasonable chance to remediate. Rewards, if any, are at our discretion.</p>
+        <h3>A10. Accessibility</h3>
+        <p>We aim to improve accessibility. If you encounter barriers, contact <em>[support email]</em> with “Accessibility” in the subject.</p>
+        <h3>A11. Arbitration (Not Currently Required)</h3>
+        <p>Disputes are currently handled in Orange County, CA courts. If we later adopt arbitration, we will provide notice and an opt-out mechanism.</p>
+      </section>
+
+      <section id="enforcement">
+        <h2>25. Enforcement Policy (How We Moderate)</h2>
+        <p>We use a mix of automation and human review. Violations can result in:</p>
+        <ul>
+          <li><strong>Content actions:</strong> label, blur, age-gate, downrank, or remove content.</li>
+          <li><strong>Feature limits:</strong> temporary restrictions (e.g., posting, DMs, marketplace, events, games).</li>
+          <li><strong>Account actions:</strong> warnings, strikes, temporary suspension, or permanent ban.</li>
+          <li><strong>Device/number blocks</strong> for severe or repeated abuse.</li>
+        </ul>
+        <p>You may appeal certain enforcement decisions through in-app tools. We may notify law enforcement where required or appropriate.</p>
+      </section>
+
+      <section id="marketplace-rules">
+        <h2>26. Marketplace Rules (Summary)</h2>
+        <p>Prohibited items include: weapons, ammunition, explosives; drugs, paraphernalia, or prescriptions; counterfeit or stolen goods; human/animal parts; adult sexual content; alcohol or tobacco; recalled or unsafe items; financial instruments or personal data; academic dishonesty materials; items violating campus housing policies; and anything illegal. Listings must be accurate, priced in U.S. dollars, and local to Fullerton, CA where feasible. Transactions are between users; meet in public, verify items, and keep proof of payment. We are not a party to transactions, do not offer buyer/seller protection, and do not warehouse goods.</p>
+      </section>
+
+      <section id="events-clubs">
+        <h2>27. Events &amp; Clubs (Summary)</h2>
+        <p>Event organizers must provide accurate details, designate a responsible contact, and comply with venue rules, permits, and noise/curfew laws. Do not imply CSUF sponsorship unless you have written authorization. We may remove events for safety, legality, or policy concerns.</p>
+      </section>
+
+      <section id="data-permissions">
+        <h2>28. Data &amp; Permissions (Feature Notes)</h2>
+        <ul>
+          <li>No precise geolocation collected; certain features may assume Fullerton, CA by default.</li>
+          <li>Profile photos are used for swipe/match and may be displayed to other users.</li>
+          <li>Verification uses email/SMS one-time codes.</li>
+          <li>Ads may use cookies/identifiers; see the Privacy Policy for choices.</li>
+          <li>Coins are virtual items with no real-world value and are non-refundable except where required by law.</li>
+        </ul>
+      </section>
+
+      <section id="safety-tips">
+        <h2>29. Safety Tips</h2>
+        <p>Meet in public, well-lit places; tell a friend; use in-app messaging; report suspicious behavior; never share passwords or verification codes; and trust your instincts.</p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>&copy; <span id="year"></span> Fullerton Connect. All rights reserved.</p>
+      <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+    </footer>
+  </div>
+</body>
+</html>
