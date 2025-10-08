@@ -21,6 +21,8 @@
 - [ ] add count next to comments
 
 - [✅] Add dm button to every screen aside from home screen: TitanTap, Clubs, Games, Profile
+  
+- [ ] Fix 'Unfollow User' button
 
 - [ ] Fix DM Search bar
 
