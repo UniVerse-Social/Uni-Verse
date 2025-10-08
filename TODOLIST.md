@@ -3,7 +3,6 @@
 
 - [✅] Add footer linking to Terms of Service, Privacy Policy, Community Guidelines
 
-
 - [ ] Add support emails and contacts to the Terms of Service, Privacy Policy, and Community Guidelines pages, + clean up formatting of the legal docs to be consistent across all 3 of them.
 
 - [ ] Add versioning for Terms of Service to indicate when the user last accepted Terms so that if they're not up to date, they must accept Terms and Service upon login to continue using the site.
@@ -28,7 +27,9 @@
 
 - [ ] Live update follower/following count in profile
 
-- [ ] fix edit profile save button
+- [ ] separate edit profile section from change password section in the 'edit profile' modal?
+
+- [ ] Add 'discover' tab to search/swipe page? (able to see posts from entire server/users you aren't following)
 
 - [✅] Remove the stretching of the post area
 
