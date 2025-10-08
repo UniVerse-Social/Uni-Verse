@@ -408,7 +408,7 @@ export default function ChessArena() {
     }
   }, [fen]);
 
-  // NEW: end-of-game modal & naming
+  // end-of-game modal & naming
   const [resultModal, setResultModal] = useState(null); // { didWin, resultText, trophies, rank, place }
   const [oppName, setOppName] = useState('');
   const myColor = useCallback(
@@ -515,7 +515,6 @@ export default function ChessArena() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [premove, mode, botProfile, roomId, sfRef, readyRef, withSFLock, myColor]);
 
-  /* Safer SF best move with MultiPV + anti-back-and-forth */
   const fastBestMove = useCallback(async (fenStr, p) => {
     // If SF not ready, fall back to JS search
     if (!sfRef.current || !readyRef.current) {
@@ -605,7 +604,7 @@ export default function ChessArena() {
     }
   }, [user?._id]);
 
-  // NEW: overall leaderboard place for the modal
+  // overall leaderboard place for the modal
   const fetchMyOverallPlace = useCallback(async () => {
     if (!user?._id) return null;
     try {
