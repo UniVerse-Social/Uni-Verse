@@ -1,4 +1,3 @@
-// client/src/games/StableChessBoard.jsx
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 
@@ -17,7 +16,7 @@ function useResizeWidth(ref, initial = 480) {
     });
     ro.observe(ref.current);
     return () => ro.disconnect();
-  }, []);
+  },);
   return w;
 }
 

@@ -29,7 +29,12 @@ import MemberDrawer from '../components/MemberDrawer';
 import Marketplace from './Marketplace';
 
 // ---------- layout ----------
-const Shell = styled.div`max-width:1200px; margin:0 auto; padding:16px; min-height: calc(100vh - 101px);`;
+// Lock to viewport height (minus navbar), so inner panels can scroll.
+const Shell = styled.div`
+  max-width:1200px; margin:0 auto; padding:12px;
+  height: calc(98vh - 101px);
+  display:flex; flex-direction:column;
+`;
 const Subbar = styled.div`
   display:flex; gap:10px; margin-bottom:12px;
   & > button{
@@ -41,14 +46,21 @@ const Subbar = styled.div`
 `;
 const Page = styled.div`
   display:grid; gap:16px; grid-template-columns: 280px 1fr 320px;
+  flex:1; overflow:hidden;     /* grid never exceeds viewport */
 `;
 const Col = styled.div`
-  background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.1); overflow:hidden;
+  background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.1);
+  display:flex; flex-direction:column; min-height:0; overflow:hidden;
 `;
 const Head = styled.div`
   padding:12px 14px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:8px; font-weight:700;
 `;
-const Body = styled.div`padding:12px;`;
+const Body = styled.div`
+  padding:12px;
+  min-height:0;
+  overflow:${p => (p.$scroll ? 'auto' : 'visible')};
+  flex:${p => (p.$scroll ? 1 : 'initial')};
+`;
 const Row = styled.div`
   display:flex; align-items:center; gap:10px; padding:8px; border-radius:8px; cursor:pointer; &:hover{background:#f7f7f7;}
 `;
@@ -56,7 +68,10 @@ const Title = styled.div`font-weight:700;`;
 const Sub = styled.div`font-size:12px; color:#666;`;
 const Btn = styled.button`padding:8px 10px; border-radius:10px; border:1px solid #111; background:#111; color:#fff; cursor:pointer;`;
 const Ghost = styled(Btn)`background:#fff; color:#111;`;
-const Chips = styled.div`display:flex; flex-wrap:wrap; gap:8px; padding:10px; border-bottom:1px solid #eee;`;
+const Chips = styled.div`
+  display:flex; flex-wrap:wrap; gap:8px; padding:10px; border-bottom:1px solid #eee;
+  overflow-x:auto;
+`;
 const Chip = styled.button`
   padding:6px 10px; border-radius:999px; border:1px solid ${p=>p.$active?'#111':'#e5e5e5'};
   background:${p=>p.$active?'#111':'#fff'}; color:${p=>p.$active?'#fff':'#111'}; cursor:pointer;
@@ -101,7 +116,7 @@ function EventsPanel(){
   return (
     <Col style={{gridColumn:'1 / span 3'}}>
       <Head><FaBullhorn/> Events & Announcements</Head>
-      <Body>
+      <Body $scroll>
         {canPost && (
           <ComposerBox>
             <Input placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)} />
@@ -159,6 +174,7 @@ export default function Clubs(){
   }, [api.clubs, user._id]);
 
   const searchClubs = useCallback(async () => {
+    // keep original, working endpoint: GET /api/clubs?q=...&viewer=...
     const res = await axios.get(`${api.clubs}`, { params: { q, viewer: user._id } });
     setExplore(res.data || []);
   }, [api.clubs, q, user._id]);
@@ -171,6 +187,7 @@ export default function Clubs(){
 
   const loadPosts = useCallback(async () => {
     if (!selected) return;
+    // keep original, working params: channel + optional sideId
     const params = active.type === 'main'
       ? { channel: 'main' }
       : { channel: 'side', sideId: active.sideId };
@@ -193,8 +210,10 @@ export default function Clubs(){
     refreshMine(); searchClubs();
   };
 
+  // keep original PUT endpoints for join/leave
   const join = async (clubId) => { await axios.put(`${api.clubs}/${clubId}/join`, { userId: user._id }); await loadClub(clubId); refreshMine(); searchClubs(); };
   const leave = async (clubId) => { if(!window.confirm('Leave this club?')) return; await axios.put(`${api.clubs}/${clubId}/leave`, { userId: user._id }); setSelected(null); refreshMine(); searchClubs(); };
+
   const newSideChannel = async ()=>{
     const name = prompt('Side channel name?'); if (!name) return;
     await axios.post(`${api.clubs}/${selected._id}/side-channels`, { actorId: user._id, name });
@@ -233,7 +252,8 @@ export default function Clubs(){
           {/* Left: My Clubs & Explore */}
           <Col>
             <Head><FaUsers/> My Clubs</Head>
-            <Body>
+            {/* scrollable list */}
+            <Body $scroll>
               {myClubs.length === 0 && <Sub>You haven’t joined any clubs yet.</Sub>}
               {myClubs.map(c => (
                 <Row key={c._id} onClick={() => loadClub(c._id)}>
@@ -250,12 +270,14 @@ export default function Clubs(){
                 </Row>
               ))}
             </Body>
+            {/* small non-scroll action area */}
             <Body>
               <Btn onClick={createClub}><FaPaperPlane style={{marginRight:6}}/> Create a Club</Btn>
             </Body>
 
             <Head><FaSearch/> Explore</Head>
-            <Body>
+            {/* scrollable explore results */}
+            <Body $scroll>
               <div style={{display:'flex', gap:8}}>
                 <input style={{flex:1, padding:8, border:'1px solid #eee', borderRadius:8}} placeholder="Search clubs…" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter' && searchClubs()} />
                 <Ghost onClick={searchClubs}>Search</Ghost>
@@ -284,7 +306,7 @@ export default function Clubs(){
           {/* Middle: Club view */}
           <Col style={{gridColumn:'span 1'}}>
             {!selected ? (
-              <Body><Sub>Select a club to view its feeds.</Sub></Body>
+              <Body $scroll><Sub>Select a club to view its feeds.</Sub></Body>
             ) : (
               <>
                 <Head>
@@ -321,7 +343,8 @@ export default function Clubs(){
                   )}
                 </Chips>
 
-                <Body>
+                {/* posts area scrolls */}
+                <Body $scroll>
                   {isMember && (
                     <ClubComposer
                       club={selected}
@@ -344,11 +367,11 @@ export default function Clubs(){
           {/* Right: About */}
           <Col>
             {!selected ? (
-              <Body><Sub>Tips: Create channels for different teams (e.g., “Recruitment”, “Events”). Each channel can have a Director.</Sub></Body>
+              <Body $scroll><Sub>Tips: Create channels for different teams (e.g., “Recruitment”, “Events”). Each channel can have a Director.</Sub></Body>
             ) : (
               <>
                 <Head>About</Head>
-                <Body>
+                <Body $scroll>
                   <div style={{marginBottom:8}}>{selected.description || 'No description yet.'}</div>
                   <div><b>Members:</b> {(selected.members||[]).length}</div>
                   <div><b>Channels:</b> {(selected.sideChannels||[]).length} side</div>

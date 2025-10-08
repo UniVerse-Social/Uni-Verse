@@ -1,4 +1,3 @@
-// src/pages/ChessArena.jsx
 import React, { useCallback, useEffect, useRef, useState, useContext } from 'react';
 import styled from 'styled-components';
 import { Chess } from 'chess.js';
@@ -32,14 +31,14 @@ const Modal = styled.div`
 `;
 const ModalGrid = styled.div`display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px;`;
 
-/* Bot presets — tuned for ≤1s response */
+/* Bot presets — made stronger across the board */
 const BOT_PRESETS = {
-  tutorial:  { label: 'Tutorial', status: 'Tutorial bot: explains moves clearly.', useSF: true,  sf: { movetime: 250, depth: 12, multipv: 1 }, explain:true, thinkMs: 150 },
-  easy:      { label: 'Easy (500)',   useSF: false, timeMs: 220, maxDepth: 2, randomness: 0.35, blunder: 0.10, thinkMs: 120 },
-  medium:    { label: 'Medium (900)', useSF: false, timeMs: 280, maxDepth: 3, randomness: 0.18, blunder: 0.05, thinkMs: 140 },
-  hard:      { label: 'Hard (1300)',  useSF: false, timeMs: 420, maxDepth: 4, randomness: 0.10, blunder: 0.02, thinkMs: 160 },
-  elite:     { label: 'Elite (1700)', useSF: true,  sf: { movetime: 420, depth: 14 }, randomness: 0.02, thinkMs: 180 },
-  gm:        { label: 'Grandmaster (2000+)', useSF: true, sf: { movetime: 520, depth: 20 }, randomness: 0.0, thinkMs: 200 },
+  tutorial:  { label: 'Tutorial', status: 'Tutorial bot: explains moves clearly.', useSF: true,  sf: { movetime: 280, depth: 12, multipv: 1 }, explain:true, thinkMs: 150 },
+  easy:      { label: 'Easy (700)',    useSF: false, timeMs: 300, maxDepth: 3, randomness: 0.30, blunder: 0.08, thinkMs: 120 },
+  medium:    { label: 'Medium (1000)', useSF: false, timeMs: 420, maxDepth: 4, randomness: 0.16, blunder: 0.04, thinkMs: 140 },
+  hard:      { label: 'Hard (1500)',   useSF: false, timeMs: 700, maxDepth: 5, randomness: 0.08, blunder: 0.015, thinkMs: 160 },
+  elite:     { label: 'Elite (2000)',  useSF: true,  sf: { movetime: 900, depth: 20 }, randomness: 0.01, thinkMs: 180 },
+  gm:        { label: 'Grandmaster (2200+)', useSF: true, sf: { movetime: 1200, depth: 22 }, randomness: 0.0, thinkMs: 200 },
 };
 
 /* Rank helper used for modal badge (mirror Games page thresholds) */
@@ -218,8 +217,7 @@ function searchBestMove(chess, { timeMs=250, maxDepth=3, randomness=0, pruneAggr
     if (shouldStop()) return { score: 0, abort:true };
     if (depth === 0) return qsearch(alpha, beta);
 
-    const ttK = ttKey(chess, depth);
-    const cached = TT.get(ttK);
+    const cached = TT.get(ttKey(chess, depth));
     if (cached && cached.bestUci) {
       history.set(cached.bestUci, (history.get(cached.bestUci) || 0) + depth*depth);
     }
@@ -261,7 +259,7 @@ function searchBestMove(chess, { timeMs=250, maxDepth=3, randomness=0, pruneAggr
 
     if (bestLocal) {
       const uci = `${bestLocal.from}${bestLocal.to}${bestLocal.promotion || ''}`;
-      TT.set(ttK, { score: best, bestUci: uci });
+      TT.set(ttKey(chess, depth), { score: best, bestUci: uci });
     }
     return { score: best, best: bestLocal };
   }
@@ -279,7 +277,7 @@ function searchBestMove(chess, { timeMs=250, maxDepth=3, randomness=0, pruneAggr
   if (!bestMove) {
     const moves = chess.moves({ verbose:true });
     if (moves.length === 0) return { move: null, score: 0 };
-    orderMoves(moves);
+    // avoid immediate backtrack
     const filtered = moves.filter(m => !isBacktrackMove(chess, m));
     bestMove = (filtered[0] || moves[0]);
   }
@@ -319,7 +317,8 @@ function useStockfish() {
         sfRef.current = sf;
         setSfStatus('Initializing…');
 
-        await sf.init({ hash: 64, threads: 1, contempt: 0, multipv: 1 });
+        // Use MultiPV for tutorial/analysis; modes can override
+        await sf.init({ hash: 64, threads: 1, contempt: 0, multipv: 3 });
         if (!mounted) return;
         readyRef.current = true;
         setSfStatus('Ready');
@@ -343,14 +342,14 @@ async function gradeWithStockfish(sfRef, readyRef, withSFLock, fen, uciPlayed) {
     if (!sf || !readyRef.current) return '';
 
     const linesBefore = await withSFLock(() =>
-      sf.analyze({ fen, movetime: 140, depth: 10, multipv: 1, hardLimitMs: 450 })
+      sf.analyze({ fen, movetime: 160, depth: 10, multipv: 1, hardLimitMs: 500 })
     );
     const beforeScore = linesBefore?.[0]?.scoreCp ?? 0;
 
     const after = new Chess(fen);
     after.move({ from: uciPlayed.slice(0,2), to: uciPlayed.slice(2,4), promotion: uciPlayed.slice(4) || 'q' });
     const linesAfter = await withSFLock(() =>
-      sf.analyze({ fen: after.fen(), movetime: 140, depth: 10, multipv: 1, hardLimitMs: 450 })
+      sf.analyze({ fen: after.fen(), movetime: 160, depth: 10, multipv: 1, hardLimitMs: 500 })
     );
     const afterScoreOpp = linesAfter?.[0]?.scoreCp ?? 0;
     const delta = (-afterScoreOpp) - beforeScore;
@@ -396,8 +395,21 @@ export default function ChessArena() {
   const awardedRef = useRef(false);
   const noticeTimer = useRef(null);
 
+  // Track my color for online in a ref to avoid stale closures
+  const colorRef = useRef('w'); // 'w' | 'b'
+
+  // Track recent FENs to avoid immediate repetition / rook shuffle with SF
+  const recentFensRef = useRef([]);
+  useEffect(() => {
+    const arr = recentFensRef.current;
+    if (arr[arr.length - 1] !== fen) {
+      arr.push(fen);
+      if (arr.length > 6) arr.shift();
+    }
+  }, [fen]);
+
   // NEW: end-of-game modal & naming
-  const [resultModal, setResultModal] = useState(null); // { didWin, resultText, trophies, rank }
+  const [resultModal, setResultModal] = useState(null); // { didWin, resultText, trophies, rank, place }
   const [oppName, setOppName] = useState('');
   const myColor = useCallback(
     () => (orientation === 'white' ? 'w' : 'b'),
@@ -443,6 +455,7 @@ export default function ChessArena() {
     setTips([]);
     setPremove(null);
     setDragFrom(null);
+    recentFensRef.current = [chessRef.current.fen()];
   }, [clearNotice]);
 
   const openBotPicker = () => {
@@ -502,22 +515,82 @@ export default function ChessArena() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [premove, mode, botProfile, roomId, sfRef, readyRef, withSFLock, myColor]);
 
-  /* Safer SF best move with fallback (prevents GM crash) */
+  /* Safer SF best move with MultiPV + anti-back-and-forth */
   const fastBestMove = useCallback(async (fenStr, p) => {
+    // If SF not ready, fall back to JS search
     if (!sfRef.current || !readyRef.current) {
       const clone = new Chess(fenStr);
-      const { move } = searchBestMove(clone, { timeMs: 240, maxDepth: 3, randomness: p.randomness || 0 });
+      const { move } = searchBestMove(clone, { timeMs: 320, maxDepth: 3, randomness: p.randomness || 0 });
       return move ? `${move.from}${move.to}${move.promotion || ''}` : null;
     }
-    const sfParams = { fen: fenStr, movetime: p.sf?.movetime ?? 520, depth: p.sf?.depth, hardLimitMs: Math.min(1100, (p.sf?.movetime ?? 520) + 400) };
+
+    // Ask for multiple lines, then post-filter to avoid immediate repetition shuffles.
+    const depth = p.sf?.depth;
+    const movetime = p.sf?.movetime ?? 900;
+    const multipv = 4;
+    const hardLimitMs = Math.min(1600, movetime + 500);
+
     try {
-      const uci = await withSFLock(() => sfRef.current.bestMove(sfParams));
-      if (typeof uci !== 'string' || uci.length < 4) throw new Error('bad uci');
-      return uci;
+      const lines = await withSFLock(() =>
+        sfRef.current.analyze({ fen: fenStr, movetime, depth, multipv, hardLimitMs })
+      );
+
+      // Parse first-move UCI for each PV
+      const candidates = (lines || [])
+        .map((l) => ({ uci: (l.pv || '').split(/\s+/)[0] || null, cp: l.scoreCp ?? 0 }))
+        .filter(x => x.uci && x.uci.length >= 4);
+
+      if (candidates.length === 0) {
+        // Fallback to direct bestMove (will return null on (none))
+        return await withSFLock(() => sfRef.current.bestMove({ fen: fenStr, movetime, depth, hardLimitMs }));
+      }
+
+      const chessNow = chessRef.current;
+      const last = chessNow.history({ verbose:true }).slice(-1)[0];
+      const lastFrom = last?.from, lastTo = last?.to;
+      const recent = new Set(recentFensRef.current);
+
+      const deltaCp = (p.key === 'gm' || p.key === 'elite') ? 10 : 18;
+
+      // score-best first already; just scan for a non-repeating sensible move
+      const bestCp = candidates[0].cp;
+      for (let i = 0; i < candidates.length; i++) {
+        const cand = candidates[i];
+        const altWithin = Math.abs(bestCp - cand.cp) <= deltaCp;
+
+        // Simulate candidate to detect repetition/backtrack
+        const probe = new Chess(fenStr);
+        const mv = { from: cand.uci.slice(0,2), to: cand.uci.slice(2,4), promotion: cand.uci.slice(4) || 'q' };
+        const moved = probe.move(mv);
+        if (!moved) continue; // invalid suggestion; skip
+
+        const repeats = recent.has(probe.fen());
+        const isBacktrack = (!!lastFrom && !!lastTo && lastFrom === mv.to && lastTo === mv.from && !moved.flags.includes('c'));
+        const isRookShuffle = (moved.piece === 'r' && !moved.flags.includes('c') && isBacktrack);
+
+        if (i === 0 && (repeats || isBacktrack || isRookShuffle)) {
+          // Try to pick the next line if it's close in value
+          continue; // examine next candidate
+        }
+        if (i > 0 && (repeats || isBacktrack || isRookShuffle) && altWithin) {
+          // skip bad oscillatory alternative if it's just as good; keep scanning
+          continue;
+        }
+        return cand.uci; // good candidate
+      }
+
+      // If all candidates repeat or backtrack, just return the top PV anyway
+      return candidates[0].uci || null;
     } catch {
-      const clone = new Chess(fenStr);
-      const { move } = searchBestMove(clone, { timeMs: 260, maxDepth: 3, randomness: p.randomness || 0 });
-      return move ? `${move.from}${move.to}${move.promotion || ''}` : null;
+      // Fallback path
+      try {
+        const uci = await withSFLock(() => sfRef.current.bestMove({ fen: fenStr, movetime, depth, hardLimitMs }));
+        return (uci && uci !== '(none)') ? uci : null;
+      } catch {
+        const clone = new Chess(fenStr);
+        const { move } = searchBestMove(clone, { timeMs: 320, maxDepth: 3, randomness: p.randomness || 0 });
+        return move ? `${move.from}${move.to}${move.promotion || ''}` : null;
+      }
     }
   }, [sfRef, readyRef, withSFLock]);
 
@@ -532,14 +605,28 @@ export default function ChessArena() {
     }
   }, [user?._id]);
 
-  const openResultModal = useCallback(async (resultText) => {
+  // NEW: overall leaderboard place for the modal
+  const fetchMyOverallPlace = useCallback(async () => {
+    if (!user?._id) return null;
+    try {
+      const q = new URLSearchParams({ limit: '100', userId: user._id });
+      const { data } = await axios.get(`${API_BASE_URL}/api/games/leaderboard/overall?${q.toString()}`);
+      return data?.me?.rank ?? null;
+    } catch {
+      return null;
+    }
+  }, [user?._id]);
+
+  // Accept an optional override of trophies (to ensure post-write freshness)
+  const openResultModal = useCallback(async (resultText, trophiesOverride = null) => {
     const isDraw = /draw/i.test(resultText);
     const winner = /white wins/i.test(resultText) ? 'w'
                   : (/black wins/i.test(resultText) ? 'b' : null);
     const didWin = !isDraw && winner && (winner === myColor());
-    const trophies = await fetchMyChessTrophies();
-    setResultModal({ didWin, resultText, trophies, rank: perGameRank(trophies) });
-  }, [fetchMyChessTrophies, myColor]);
+    const trophies = trophiesOverride ?? (await fetchMyChessTrophies());
+    const place = await fetchMyOverallPlace();
+    setResultModal({ didWin, resultText, trophies, rank: perGameRank(trophies), place });
+  }, [fetchMyChessTrophies, myColor, fetchMyOverallPlace]);
 
   /* Bot move */
   const botMove = useCallback(async () => {
@@ -556,7 +643,13 @@ export default function ChessArena() {
 
       if (p.useSF) {
         const uciMove = await fastBestMove(beforeFen, p);
-        if (!uciMove) { setBusy(false); return; }
+        if (!uciMove) {
+          // Terminal position — no move; declare result without throwing UI errors
+          const txt = endMessage(chess);
+          setStatus(txt);
+          openResultModal(txt);
+          return;
+        }
         chess.move({ from: uciMove.slice(0,2), to: uciMove.slice(2,4), promotion: uciMove.slice(4) || 'q' });
         setFen(chess.fen());
 
@@ -579,7 +672,12 @@ export default function ChessArena() {
         const m = res.move;
         if (!m) {
           const moves = chess.moves({ verbose:true });
-          if (moves.length === 0) return;
+          if (moves.length === 0) {
+            const txt = endMessage(chess);
+            setStatus(txt);
+            openResultModal(txt);
+            return;
+          }
           chess.move(moves[0]);
         } else {
           chess.move(m);
@@ -601,15 +699,26 @@ export default function ChessArena() {
   }, [botProfile, fastBestMove, tryPremove, appendTip, sfRef, readyRef, withSFLock, openResultModal]);
 
   /* Online mode */
-  const awardWin = useCallback(async () => {
-    if (!user?._id || awardedRef.current) return;
+
+  // Award +8 for win, -8 for loss, 0 for draw — once per game; returns updated trophies.
+  const awardOutcome = useCallback(async (kind) => {
+    if (!user?._id || awardedRef.current) return null;
     try {
+      const delta =
+        kind === 'win'  ?  8 :
+        kind === 'loss' ? -8 : 0;
+      // Post result (server floors at 0)
       await axios.post(`${API_BASE_URL}/api/games/result`, {
-        userId: user._id, gameKey: 'chess', delta: 6, didWin: true,
+        userId: user._id, gameKey: 'chess', delta, didWin: kind === 'win',
       });
       awardedRef.current = true;
-    } catch {}
-  }, [user?._id]);
+      // Read back fresh trophies to ensure UI shows updated total
+      const t = await fetchMyChessTrophies();
+      return t;
+    } catch {
+      return null;
+    }
+  }, [user?._id, fetchMyChessTrophies]);
 
   const connectSocket = useCallback(() => {
     if (socketRef.current) return socketRef.current;
@@ -622,6 +731,7 @@ export default function ChessArena() {
       chessRef.current = new Chess(fen || undefined);
       setFen(chessRef.current.fen());
       setOrientation(color === 'w' ? 'white' : 'black');
+      colorRef.current = color === 'w' ? 'w' : 'b'; // remember my color
       setRoomId(roomId);
       setMode('online');
       awardedRef.current = false;
@@ -629,23 +739,33 @@ export default function ChessArena() {
       setTips([]);
       setOppName(color === 'w' ? (black?.username || 'Black') : (white?.username || 'White'));
       setStatus(`Match found: ${white?.username || 'White'} vs ${black?.username || 'Black'}. You are ${color==='w'?'White':'Black'}.`);
+      recentFensRef.current = [chessRef.current.fen()];
     });
     s.on('chess:state', ({ fen }) => {
       try { chessRef.current.load(fen); setFen(fen); clearNotice(); } catch {}
     });
-    s.on('chess:gameover', ({ result, reason }) => {
+    s.on('chess:gameover', async ({ result, reason }) => {
       const txt = `Game over: ${result} (${reason})`;
       setStatus(txt);
-      if (mode === 'online') {
-        const winColor = /white wins/i.test(result) ? 'w' : (/black wins/i.test(result) ? 'b' : null);
-        if (winColor && myColor() === winColor) awardWin();
+
+      // Determine outcome and award BEFORE opening modal so counts are fresh
+      let trophiesOverride = null;
+      const winColor = /white wins/i.test(result) ? 'w' :
+                       (/black wins/i.test(result) ? 'b' : null);
+      if (winColor) {
+        const mine = colorRef.current;
+        trophiesOverride = await awardOutcome(mine === winColor ? 'win' : 'loss');
+      } else {
+        trophiesOverride = await awardOutcome('draw'); // will no-op but keeps flow consistent
       }
-      openResultModal(txt);
+
+      // Now open the modal with fresh numbers and rank
+      await openResultModal(txt, trophiesOverride);
     });
     s.on('chess:queue-cancelled', () => setStatus('Queue cancelled.'));
     s.on('disconnect', () => setStatus('Disconnected.'));
     return s;
-  }, [mode, awardWin, clearNotice, openResultModal, myColor]);
+  }, [awardOutcome, clearNotice, openResultModal]);
 
   const startOnline = () => {
     setMode('online');
@@ -813,7 +933,7 @@ export default function ChessArena() {
             </div>
           )}
           <div style={{marginTop:12, fontSize:12, color:'#6b7280'}}>
-            Wins vs real players grant <b>+6 trophies</b>. Bot games are unranked.
+            Wins vs real players grant <b>+8 trophies</b>. Bot games are unranked.
           </div>
         </Panel>
       </Wrap>
@@ -858,6 +978,9 @@ export default function ChessArena() {
               <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'#111', color:'#fff'}}>
                 {resultModal.rank}
               </span>
+            </div>
+            <div style={{marginTop:6, fontSize:12, color:'#6b7280'}}>
+              Overall leaderboard place: <b>#{resultModal.place ?? '—'}</b>
             </div>
             <ModalGrid style={{marginTop:12}}>
               <Button onClick={()=>{ setMode(null); setRoomId(null); setResultModal(null); setStatus('Pick a mode to start.'); }}>Back</Button>

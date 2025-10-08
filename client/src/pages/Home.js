@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
 import CreatePost from '../components/CreatePost';
 import Post from '../components/Post';
@@ -14,7 +13,6 @@ const HomeContainer = styled.div`
   justify-content: center;
   padding: 20px;
   min-height: calc(100vh - 101px);
-  /* inherits page background + text from theme */
 `;
 
 const Feed = styled.div`

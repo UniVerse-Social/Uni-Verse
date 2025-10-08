@@ -5,7 +5,7 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const { maskText, enforceNotBanned } = require('../middleware/moderation');
 
-// (rest of your guards unchanged)
+// --- Guards ---
 async function ensureDmParticipant(req, res, next) {
   try {
     const actorId =
@@ -15,6 +15,7 @@ async function ensureDmParticipant(req, res, next) {
 
     if (!actorId) return res.status(401).json({ message: 'Missing user id' });
 
+    // /conversations/:userId
     if (req.params?.userId && !req.params.conversationId) {
       if (String(req.params.userId) !== String(actorId)) {
         return res.status(403).json({ message: 'Forbidden' });
@@ -22,6 +23,7 @@ async function ensureDmParticipant(req, res, next) {
       return next();
     }
 
+    // any route with :conversationId
     if (req.params?.conversationId) {
       const conv = await Conversation.findById(req.params.conversationId)
         .select('participants')
@@ -39,7 +41,7 @@ async function ensureDmParticipant(req, res, next) {
   }
 }
 
-// Unread count (unchanged)
+// --- Unread count ---
 router.get('/unread/:userId', async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.params.userId);
@@ -60,7 +62,7 @@ router.get('/unread/:userId', async (req, res) => {
   }
 });
 
-// List conversations (unchanged logic)
+// --- List conversations (returns title + avatar) ---
 router.get('/conversations/:userId', ensureDmParticipant, async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.params.userId);
@@ -118,7 +120,7 @@ router.get('/conversations/:userId', ensureDmParticipant, async (req, res) => {
   }
 });
 
-// Create conversation (unchanged)
+// --- Create conversation ---
 router.post('/conversation', async (req, res) => {
   try {
     const { creatorId, participants, name } = req.body;
@@ -127,6 +129,7 @@ router.post('/conversation', async (req, res) => {
     );
     const isGroup = ids.length > 2;
 
+    // Reuse existing DM for 2 participants
     if (!isGroup && ids.length === 2) {
       const existing = await Conversation.findOne({
         isGroup: false,
@@ -148,7 +151,29 @@ router.post('/conversation', async (req, res) => {
   }
 });
 
-// Get messages (unchanged)
+// --- Conversation details (participants, name, avatar) ---
+router.get('/conversation/:conversationId', ensureDmParticipant, async (req, res) => {
+  try {
+    const conv = await Conversation.findById(req.params.conversationId)
+      .select('participants isGroup name avatar updatedAt createdAt')
+      .lean();
+
+    if (!conv) return res.status(404).json({ message: 'Conversation not found' });
+
+    res.json({
+      _id: conv._id,
+      isGroup: conv.isGroup,
+      name: conv.name,
+      avatar: conv.avatar,
+      participants: conv.participants
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: 'Failed to load conversation details' });
+  }
+});
+
+// --- Get messages (by conversation) ---
 router.get('/:conversationId', ensureDmParticipant, async (req, res) => {
   try {
     const msgs = await Message.find({ conversationId: req.params.conversationId })
@@ -161,7 +186,7 @@ router.get('/:conversationId', ensureDmParticipant, async (req, res) => {
   }
 });
 
-// Send message (text masked; attachments allowed; banned users blocked)
+// --- Send message ---
 router.post('/:conversationId', enforceNotBanned, async (req, res) => {
   try {
     const { senderId, body, attachments } = req.body;
@@ -180,7 +205,7 @@ router.post('/:conversationId', enforceNotBanned, async (req, res) => {
   }
 });
 
-// Mark read (unchanged)
+// --- Mark read ---
 router.put('/:conversationId/read', async (req, res) => {
   try {
     const { userId } = req.body;
@@ -193,6 +218,49 @@ router.put('/:conversationId/read', async (req, res) => {
     console.error(e);
     res.status(500).json({ message: 'Failed to mark read' });
   }
+});
+
+// --- Rename conversation (groups only) ---
+router.put('/conversation/:conversationId', ensureDmParticipant, async (req, res) => {
+  try {
+    const conv = await Conversation.findById(req.params.conversationId);
+    if (!conv) return res.status(404).json({ message: 'Conversation not found' });
+    if (!conv.isGroup) return res.status(400).json({ message: 'Only groups can be renamed' });
+
+    const raw = (req.body?.name ?? req.body?.title ?? '').toString().trim();
+    if (!raw) return res.status(400).json({ message: 'Missing name' });
+    conv.name = raw.slice(0, 80);
+    await conv.save();
+
+    res.json({ ok: true, _id: conv._id, name: conv.name });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: 'Failed to rename conversation' });
+  }
+});
+
+// Provide BOTH paths so legacy clients or different mounts keep working.
+router.put('/:conversationId/avatar', ensureDmParticipant, async (req, res) => {
+  try {
+    const conv = await Conversation.findById(req.params.conversationId);
+    if (!conv) return res.status(404).json({ message: 'Conversation not found' });
+    if (!conv.isGroup) return res.status(400).json({ message: 'Only groups can have avatars' });
+
+    const url = (req.body?.avatar || '').toString().trim();
+    if (!url) return res.status(400).json({ message: 'Missing avatar URL' });
+
+    conv.avatar = url;
+    await conv.save();
+    res.json({ ok: true, _id: conv._id, avatar: conv.avatar });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: 'Failed to update avatar' });
+  }
+});
+
+router.put('/conversation/:conversationId/avatar', ensureDmParticipant, async (req, res) => {
+  req.url = `/${req.params.conversationId}/avatar`;
+  return router.handle(req, res);
 });
 
 module.exports = router;

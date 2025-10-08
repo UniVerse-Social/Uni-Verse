@@ -1,8 +1,9 @@
 // client/src/components/EditProfileModal.jsx
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';
+import { API_BASE_URL } from '../config';
 
 const Backdrop = styled.div`
   position: fixed; inset: 0;
@@ -88,8 +89,8 @@ const Footer = styled.div`
 
 const Button = styled.button`
   padding: 10px 14px; border-radius: 10px; font-weight: 700; border: 0; cursor: pointer;
-  background: ${p => (p.$primary ? '#e5e7eb' : '#e5e7eb')};
-  color: ${p => (p.$primary ? '#111' : '#111')};
+  background: #e5e7eb;
+  color: #111;
   &:disabled { opacity: .6; cursor: not-allowed; }
 `;
 
@@ -103,11 +104,14 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
-  // --- NEW: derive effective title badge string (read-only, no UI changes) ---
+  // expose the current title badge (no UI change, just kept consistent with the previous code)
   const currentTitleBadge =
     user?.titleBadge ??
     (Array.isArray(user?.badgesEquipped) ? user.badgesEquipped[0] : null) ??
     null;
+
+  // ref to the form so the Save button can submit it even though it's outside the <form>
+  const formRef = useRef(null);
 
   useEffect(() => {
     if (!user) return;
@@ -140,9 +144,9 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
         payload.newPassword = form.newPassword;
       }
 
-      const res = await axios.put(`http://localhost:5000/api/users/${me._id}/account`, payload);
+      const res = await axios.put(`${API_BASE_URL}/api/users/${me._id}/account`, payload);
 
-      // server returns full user (sans password); badges/titleBadge preserved
+      // Update auth/user state and close
       login(res.data);
       onProfileUpdate?.(res.data);
       onClose?.();
@@ -156,14 +160,13 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
 
   return (
     <Backdrop onMouseDown={(e)=>{ if (e.target === e.currentTarget) onClose?.(); }}>
-      {/* Expose current title badge in a non-visual way for consistency/debug */}
-      <Dialog role="dialog" aria-modal="true" data-title-badge={currentTitleBadge || ''}>
+      <Dialog role="dialog" aria-modal="true" data-title-badge={currentTitleBadge || ''} onMouseDown={e => e.stopPropagation()}>
         <Header>
           <h3>Edit profile</h3>
           <button aria-label="Close" onClick={onClose}>×</button>
         </Header>
 
-        <Body onSubmit={submit}>
+        <Body ref={formRef} onSubmit={submit}>
           {/* Hidden field keeps the badge value part of the form (no UI added) */}
           <input type="hidden" name="titleBadge" value={currentTitleBadge || ''} readOnly aria-hidden="true" />
 
@@ -178,6 +181,7 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
             <Input
               value={form.username}
               onChange={e=>change('username', e.target.value)}
+              autoComplete="username"
               required
             />
           </Field>
@@ -188,6 +192,7 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
               type="email"
               value={form.email}
               onChange={e=>change('email', e.target.value)}
+              autoComplete="email"
               required
             />
           </Field>
@@ -209,6 +214,7 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
               type="password"
               value={form.oldPassword}
               onChange={e=>change('oldPassword', e.target.value)}
+              autoComplete="current-password"
             />
           </Field>
 
@@ -218,6 +224,7 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
               type="password"
               value={form.oldPassword2}
               onChange={e=>change('oldPassword2', e.target.value)}
+              autoComplete="current-password"
             />
           </Field>
 
@@ -228,14 +235,20 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
               value={form.newPassword}
               onChange={e=>change('newPassword', e.target.value)}
               placeholder="At least 6 characters"
+              autoComplete="new-password"
             />
           </Field>
         </Body>
 
         <Footer>
           <Button type="button" onClick={onClose}>Cancel</Button>
-          <Button $primary type="submit" formAction="submit" onClick={(e)=>e.currentTarget.form?.dispatchEvent(new Event('submit', {cancelable:true, bubbles:true}))} disabled={saving}>
-            Save
+          {/* Submit the form even though the button is outside the <form> */}
+          <Button
+            type="button"
+            onClick={() => formRef.current?.requestSubmit()}
+            disabled={saving}
+          >
+            {saving ? 'Saving…' : 'Save'}
           </Button>
         </Footer>
       </Dialog>

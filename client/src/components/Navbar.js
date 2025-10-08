@@ -1,9 +1,8 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 import { FaHome, FaSearch, FaUser, FaUsers, FaGamepad } from 'react-icons/fa';
 import { AuthContext } from '../App';
-import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { FaEnvelope } from 'react-icons/fa';
 
@@ -94,7 +93,7 @@ const StyledNavLink = styled(NavLink)`
 `;
 
 const Navbar = () => {
-  const [unread, setUnread] = useState(0);
+  const [unread] = useState(0);
   const { user } = useContext(AuthContext);
   if (!user) return null;
 

@@ -124,20 +124,44 @@ const Small = styled.span`
   color: #6b7280;
 `;
 
+/* =============== helpers =============== */
+
+// Mirror rank thresholds used elsewhere
+const perGameRank = (n) => {
+  if (n >= 1500) return 'Champion';
+  if (n >= 900)  return 'Diamond';
+  if (n >= 600)  return 'Platinum';
+  if (n >= 400)  return 'Gold';
+  if (n >= 250)  return 'Silver';
+  if (n >= 100)  return 'Bronze';
+  return 'Wood';
+};
+
+// Normalize various leaderboard row shapes into { name, trophies, _id }
+function normalizeLeaders(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.map((r, i) => ({
+    _id: r._id || r.userId || `row-${i}`,
+    name: r.name || r.username || r.user || 'Player',
+    trophies: typeof r.trophies === 'number'
+      ? r.trophies
+      : (typeof r.score === 'number' ? r.score : 0),
+  }));
+}
+
 /* =============== component =============== */
 
 export default function GameSidebar({ gameKey, title }) {
   const { user } = useContext(AuthContext);
 
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);       // { rankName, trophies, wins, losses }
-  const [leaders, setLeaders] = useState([]);     // [{ name, trophies, _id }, ...]
-  const [history, setHistory] = useState([]);     // [{ _id, didWin, delta, createdAt }, ...]
+  const [stats, setStats] = useState({ trophies: 0, wins: 0, losses: 0, rankName: '—' });
+  const [leaders, setLeaders] = useState([]); // [{ name, trophies, _id }]
+  const [history, setHistory] = useState([]); // [{ _id, didWin, delta, createdAt }]
 
-  const myScore = useMemo(() => stats?.trophies ?? 0, [stats]);
+  const myScore = useMemo(() => stats.trophies ?? 0, [stats]);
 
   useEffect(() => {
-    // Guard: nothing to load without a user or a game
     if (!user?._id || !gameKey) return;
 
     const controller = new AbortController();
@@ -149,20 +173,32 @@ export default function GameSidebar({ gameKey, title }) {
         const [stRes, lbRes, hiRes] = await Promise.all([
           axios.get(`${API_BASE_URL}/api/games/stats/${user._id}`, { signal: controller.signal }),
           axios.get(`${API_BASE_URL}/api/games/leaderboard/${gameKey}?limit=10`, { signal: controller.signal }),
-          axios.get(`${API_BASE_URL}/api/games/history/${user._id}/${gameKey}?limit=10`, { signal: controller.signal }),
+          axios.get(`${API_BASE_URL}/api/games/history/${user._id}/${gameKey}?limit=100`, { signal: controller.signal }),
         ]);
 
         if (!mounted) return;
 
-        setStats(stRes?.data ?? null);
-        // handle both {leaders: [...]} and [...] shapes
-        const lb = lbRes?.data?.leaders ?? lbRes?.data ?? [];
-        setLeaders(Array.isArray(lb) ? lb : []);
+        // ---- Normalize stats: take per-game trophies from trophiesByGame ----
+        const rawStats = stRes?.data || {};
+        const trophiesByGame = rawStats?.trophiesByGame || {};
+        const t = Number(trophiesByGame?.[gameKey] ?? 0); // server returns map of game trophies
+        const hi = (hiRes?.data?.history ?? hiRes?.data ?? []);
+        const wins = hi.filter(h => !!h.didWin).length;
+        const losses = hi.filter(h => !h.didWin).length;
 
-        const hi = hiRes?.data?.history ?? hiRes?.data ?? [];
+        setStats({
+          trophies: t,
+          wins,
+          losses,
+          rankName: perGameRank(t),
+        });
+
+        // ---- Normalize leaderboard rows (server uses `score` & `username`) ----
+        const lbRaw = lbRes?.data?.leaders ?? lbRes?.data ?? [];
+        setLeaders(normalizeLeaders(lbRaw));
+
         setHistory(Array.isArray(hi) ? hi : []);
       } catch (e) {
-        // ignore request cancellations; surface other errors
         if (e.name !== 'CanceledError' && e.name !== 'AbortError') {
           console.error('GameSidebar load error', e);
         }
@@ -179,9 +215,9 @@ export default function GameSidebar({ gameKey, title }) {
     };
   }, [user?._id, gameKey]);
 
-  const wins = stats?.wins ?? 0;
-  const losses = stats?.losses ?? 0;
-  const rankName = stats?.rankName ?? stats?.rank ?? '—';
+  const wins = stats.wins ?? 0;
+  const losses = stats.losses ?? 0;
+  const rankName = stats.rankName ?? '—';
 
   // top-3 for the podium, rest go to the list
   const podium = leaders.slice(0, 3);

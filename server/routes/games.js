@@ -240,4 +240,51 @@ router.get('/history/:userId/:gameKey', async (req, res) => {
   }
 });
 
+/** NEW: GET overall leaderboard (top N) + optional "me" rank
+ *   /api/games/leaderboard/overall?limit=100&userId=<id>
+ */
+router.get('/leaderboard/overall', async (req, res) => {
+  try {
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '100', 10)));
+    const userIdParam = req.query.userId;
+
+    const leaders = await GameProfile.aggregate([
+      { $project: { userId: 1, score: { $ifNull: ['$totalTrophies', 0] } } },
+      { $match: { score: { $gt: 0 } } },
+      { $sort: { score: -1, _id: 1 } },
+      { $limit: limit },
+      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $project: {
+          _id: 0,
+          userId: '$userId',
+          username: { $ifNull: ['$user.username', 'Player'] },
+          avatarUrl: { $ifNull: ['$user.profilePicture', ''] },
+          score: 1
+      } },
+    ]);
+
+    let me = null;
+    if (userIdParam) {
+      const uid = new mongoose.Types.ObjectId(userIdParam);
+      const gp = await GameProfile.findOne({ userId: uid }).lean();
+      const score = gp?.totalTrophies || 0;
+      const higher = await GameProfile.countDocuments({ totalTrophies: { $gt: score } });
+      const u = await User.findById(uid).select('username profilePicture').lean();
+      me = {
+        userId: uid,
+        username: u?.username || 'You',
+        avatarUrl: u?.profilePicture || '',
+        score,
+        rank: higher + 1,
+      };
+    }
+
+    res.json({ leaders, me });
+  } catch (e) {
+    console.error('overall leaderboard error:', e);
+    res.status(500).json({ message: 'Failed to load overall leaderboard' });
+  }
+});
+
 module.exports = router;

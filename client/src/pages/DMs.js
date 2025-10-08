@@ -1,4 +1,3 @@
-// client/src/pages/DMs.js
 import React, { useEffect, useMemo, useState, useContext, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
@@ -9,38 +8,69 @@ import { API_BASE_URL, toMediaUrl } from '../config';
 const Page = styled.div`max-width: 980px; margin: 0 auto; padding: 16px;`;
 const Title = styled.h2` color: #e5e7eb; margin: 0 0 12px 0; `;
 const Layout = styled.div`
-  display: grid; grid-template-columns: 320px 1fr; gap: 16px; min-height: calc(100vh - 120px);
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  height: calc(100vh - 120px);
+  min-height: 0;
 `;
 const Left = styled.div`
-  border: 1px solid var(--border-color); border-radius: 12px;
-  background: var(--container-white); display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--container-white);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 `;
 const Right = styled.div`
-  border: 1px solid var(--border-color); border-radius: 12px;
-  background: var(--container-white); display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--container-white);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 `;
 const SearchBox = styled.div`
-  padding: 8px; border-bottom: 1px solid var(--border-color); display: grid; grid-template-columns: 1fr auto; gap: 8px;
-  input { padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; }
+  padding: 8px; border-bottom: 1px solid var(--border-color);
+  display: grid; grid-template-columns: 1fr auto; gap: 8px;
+  input { padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; box-sizing: border-box; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid #111; background: #111; color: #fff; cursor: pointer; }
 `;
-const List = styled.div` overflow: auto; padding: 8px; `;
+const List = styled.div`flex: 1; overflow: auto; padding: 8px; min-height: 0;`;
 const Row = styled.button`
   width: 100%; text-align: left; border: none; background: transparent; padding: 10px 8px;
   border-radius: 10px; display: grid; grid-template-columns: 42px 1fr auto; gap: 10px; align-items: center; cursor: pointer;
   &:hover { background: #f3f4f6; }
-  .avatar { width: 42px; height: 42px; border-radius: 50%; overflow: hidden; background: #eef2f7; display: grid; place-items: center; }
-  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .avatar { width: 42px; height: 42px; border-radius: 50%; overflow: hidden; background: #fff; display: grid; place-items: center; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .avatarBtn { all: unset; width: 42px; height: 42px; display: grid; place-items: center; cursor: pointer; }
+  .avatarBtn img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .nameLine { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .name { font-weight: 800; }
   .sub { font-size: 12px; color: #666; }
 `;
 const ThreadHeader = styled.div`
-  padding: 10px 12px; border-bottom: 1px solid var(--border-color); font-weight: 800;
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; border-bottom: 1px solid var(--border-color);
+  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+`;
+const HeaderAvatarBtn = styled.button`
+  border: none; background: transparent; padding: 0; width: 36px; height: 36px; border-radius: 50%;
+  overflow: hidden; cursor: pointer; display:grid; place-items:center;
+  img { width: 100%; height: 100%; object-fit: cover; display:block; }
+`;
+const HeaderTitleButton = styled.button`
+  border: none; background: transparent; font-weight: 800; text-align: left; padding: 0; cursor: pointer;
+  &:hover { text-decoration: underline; }
+`;
+const HeaderActions = styled.div` display: flex; align-items: center; gap: 8px; `;
+const SmallBtn = styled.button`
+  padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border-color); background: #fff; cursor: pointer;
+  &:hover { background:#f8fafc; }
 `;
 const Messages = styled.div`
-  flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px;
+  flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 0;
 `;
 const MsgRow = styled.div`
   display: flex; gap: 8px; align-items: flex-end;
@@ -62,7 +92,7 @@ const Bubble = styled.div`
 `;
 const Compose = styled.form`
   display: grid; grid-template-columns: auto 1fr auto; gap: 8px; padding: 10px; border-top: 1px solid var(--border-color);
-  input[type="text"] { padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; }
+  input[type="text"] { padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; box-sizing: border-box; }
   button { padding: 10px 12px; border-radius: 10px; border: 1px solid #111; background: #111; color: #fff; }
 `;
 const AttachBtn = styled.label`
@@ -71,43 +101,80 @@ const AttachBtn = styled.label`
 `;
 const Hidden = styled.input` display:none; `;
 const Mini = styled.div` font-size: 12px; color: #666; `;
-const TitleBadge = styled.span`
-  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
-  background: #f3f4f6; color: #111; border: 1px solid var(--border-color);
+const SelectedBar = styled.div`
+  padding: 8px; border-bottom: 1px solid var(--border-color);
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  input { padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 10px; box-sizing: border-box; }
 `;
 
-const FALLBACK_AVATAR =
-  'https://www.clipartmax.com/png/middle/72-721825_tuffy-tuffy-the-titan-csuf.png';
+/* modal */
+const ModalBackdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: grid; place-items: center; z-index: 50;
+`;
+const ModalCard = styled.div`
+  width: 560px; max-width: calc(100vw - 40px);
+  background: #fff; border-radius: 14px; border: 1px solid var(--border-color);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  overflow: hidden;
+`;
+const ModalHead = styled.div`
+  padding: 12px 14px; border-bottom: 1px solid var(--border-color); display:flex; align-items:center; justify-content:space-between;
+  h3 { margin: 0; }
+`;
+const ModalBody = styled.div`
+  padding: 12px 14px; max-height: 60vh; overflow-y: auto; overflow-x: hidden;
+  input { width: 100%; box-sizing: border-box; }
+`;
+const ModalFoot = styled.div`
+  padding: 12px 14px; border-top: 1px solid var(--border-color); display:flex; gap:8px; justify-content:flex-end;
+`;
+
+const FALLBACK_AVATAR = 'https://www.clipartmax.com/png/middle/72-721825_tuffy-tuffy-the-titan-csuf.png';
+
+// Utility: always return a valid, absolute URL for media
+const media = (url) => {
+  if (!url) return '';
+  try {
+    // absolute?
+    if (/^https?:\/\//i.test(url)) return url;
+    return toMediaUrl(url); // prefix with API base if needed
+  } catch {
+    return url;
+  }
+};
 
 const DMPage = () => {
   const { user } = useContext(AuthContext);
   const [q, setQ] = useState('');
-  const [, setSearchResults] = useState([]); // value not used in current UI; keep setter for debounce effect
+  const [searchResults, setSearchResults] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [active, setActive] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [participants, setParticipants] = useState({}); // id -> {_id, username, profilePicture, badgesEquipped}
+  const [participants, setParticipants] = useState({});
   const [text, setText] = useState('');
   const [file, setFile] = useState(null);
   const [selecting, setSelecting] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [groupName, setGroupName] = useState('');
   const [err, setErr] = useState('');
+  const [showMembers, setShowMembers] = useState(false);
+  const [showRename, setShowRename] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
   const messagesRef = useRef(null);
 
+  // group avatar modal state
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [avatarForConv, setAvatarForConv] = useState(null);
+
   const isGroup = useMemo(() => active?.isGroup, [active]);
-  const getConvTitleBadge = (conv) =>
-    conv?.titleBadge ??
-    conv?.otherUser?.titleBadge ??
-    (Array.isArray(conv?.otherUser?.badgesEquipped) ? conv.otherUser.badgesEquipped[0] : null) ??
-    (Array.isArray(conv?.badgesEquipped) ? conv.badgesEquipped[0] : null) ?? '';
 
   useEffect(() => {
     if (!messagesRef.current) return;
     messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
   }, [messages]);
 
-  // Compact user loader (batch)
   const ensureUsers = useCallback(async (ids) => {
     const need = (ids || [])
       .map((x) => (x && typeof x === 'object' ? (x._id || x.id || x.userId) : x))
@@ -121,18 +188,33 @@ const DMPage = () => {
       const map = {};
       (res.data || []).forEach(u => { map[String(u._id)] = u; });
       setParticipants(prev => ({ ...prev, ...map }));
-    } catch { /* ignore */ }
+    } catch {}
   }, [participants]);
 
-  // Conversations list loader
   const loadConversations = useCallback(async () => {
     if (!user?._id) return;
     try {
       const res = await axios.get(`${API_BASE_URL}/api/messages/conversations/${user._id}`, { params: { userId: user._id } });
       setConversations(res.data || []);
       setErr('');
-    } catch (e) { console.error(e); setErr('Failed to load conversations'); }
+    } catch (e) {
+      console.error(e);
+      setErr('Failed to load conversations');
+    }
   }, [user?._id]);
+
+  const fetchConversationDetails = useCallback(async (convId) => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/messages/conversation/${convId}`, { params: { userId: user._id } });
+      const data = res.data || {};
+      if (Array.isArray(data.participants) && data.participants.length) {
+        await ensureUsers(data.participants);
+        setActive(prev => prev && prev._id === convId
+          ? { ...prev, participants: data.participants, title: data.name || prev.title, avatar: data.avatar || prev.avatar }
+          : prev);
+      }
+    } catch {}
+  }, [ensureUsers, user?._id]);
 
   const loadMessages = useCallback(async (convId) => {
     if (!user?._id || !convId) return;
@@ -142,10 +224,12 @@ const DMPage = () => {
       await axios.put(`${API_BASE_URL}/api/messages/${convId}/read`, { userId: user._id });
       await loadConversations();
       setErr('');
-    } catch (e) { console.error(e); setErr('Failed to load messages'); }
-  }, [user?._id, loadConversations]); // ✅ no duplicate deps
+    } catch (e) {
+      console.error(e);
+      setErr('Failed to load messages');
+    }
+  }, [user?._id, loadConversations]);
 
-  // initial load + poll
   useEffect(() => {
     if (!user?._id) return;
     loadConversations();
@@ -153,7 +237,6 @@ const DMPage = () => {
     return () => clearInterval(t);
   }, [user?._id, loadConversations]);
 
-  // auto-open a conversation
   useEffect(() => {
     if (!conversations.length) return;
     const last = localStorage.getItem('lastConv');
@@ -169,23 +252,18 @@ const DMPage = () => {
     if (!conv) return;
     setActive(conv);
     localStorage.setItem('lastConv', conv._id);
-
-    // seed with me
     setParticipants(prev => ({ ...prev, [user._id]: { _id: user._id, username: user.username, profilePicture: user.profilePicture, badgesEquipped: user.badgesEquipped } }));
-
-    // proactively hydrate group members from conv.participants if present
     if (Array.isArray(conv.participants) && conv.participants.length) {
       ensureUsers(conv.participants);
+    } else if (conv.isGroup) {
+      await fetchConversationDetails(conv._id);
     }
-
     await loadMessages(conv._id);
   };
 
-  // when messages change, resolve unknown senders (covers group DMs)
   useEffect(() => {
     if (!messages.length) return;
-    const ids = messages.map(m => m.senderId);
-    ensureUsers(ids);
+    ensureUsers(messages.map(m => m.senderId));
   }, [messages, ensureUsers]);
 
   const createConversation = async (participantIds, name) => {
@@ -198,9 +276,27 @@ const DMPage = () => {
       await loadConversations();
       await openConversation(res.data);
       setSelecting(false); setSelectedUsers([]); setGroupName(''); setQ(''); setSearchResults([]);
-    } catch (e) { console.error(e); alert('Failed to start conversation'); }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to start conversation');
+    }
   };
 
+  const renameConversation = async (newName) => {
+    if (!active?._id) return false;
+    try {
+      await axios.put(`${API_BASE_URL}/api/messages/conversation/${active._id}`, { name: newName, userId: user._id });
+      await fetchConversationDetails(active._id);
+      await loadConversations();
+      setActive(prev => (prev ? { ...prev, title: newName } : prev));
+      return true;
+    } catch (e) {
+      console.error('Rename failed', e);
+      return false;
+    }
+  };
+
+  // Upload helpers
   const uploadImage = async () => {
     if (!file) return null;
     const fd = new FormData(); fd.append('file', file);
@@ -208,6 +304,26 @@ const DMPage = () => {
       headers: { 'Content-Type': 'multipart/form-data', 'x-user-id': user._id }
     });
     return res.data;
+  };
+  const uploadImageFile = async (f) => {
+    if (!f) return null;
+    const fd = new FormData(); fd.append('file', f);
+    const res = await axios.post(`${API_BASE_URL}/api/uploads/image`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data', 'x-user-id': user._id }
+    });
+    return res.data;
+  };
+
+  const updateGroupAvatar = async (convId, avatarUrl) => {
+    // Try /:id/avatar first; fall back to /conversation/:id/avatar
+    try {
+      await axios.put(`${API_BASE_URL}/api/messages/${convId}/avatar`, { avatar: avatarUrl, userId: user._id });
+    } catch {
+      await axios.put(`${API_BASE_URL}/api/messages/conversation/${convId}/avatar`, { avatar: avatarUrl, userId: user._id });
+    }
+    await fetchConversationDetails(convId);
+    await loadConversations();
+    setActive(prev => (prev ? { ...prev, avatar: avatarUrl } : prev));
   };
 
   const handleSend = async (e) => {
@@ -228,53 +344,63 @@ const DMPage = () => {
     } catch (e) { console.error(e); }
   };
 
-  // search people to start a chat (kept for future “New chat” UI)
+  // Search people (for New chat)
   useEffect(() => {
     const t = setTimeout(async () => {
       if (!q.trim()) { setSearchResults([]); return; }
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/users/search?q=${encodeURIComponent(q)}&userId=${user._id}`);
+        const res = await axios.get(`${API_BASE_URL}/api/users/search`, {
+          params: { q: q.trim(), userId: user._id }
+        });
         setSearchResults(res.data || []);
-      } catch (e) { console.error(e); }
-    }, 300);
+      } catch (e) {
+        console.error(e);
+        setSearchResults([]);
+      }
+    }, 250);
     return () => clearTimeout(t);
   }, [q, user._id]);
 
-  const titleBadge = getConvTitleBadge(active);
-
-  const nameFromMessage = (m) => {
-    const mine = m.senderId === user._id;
-    if (mine) return user.username;
-    if (!isGroup && active?.title) return active.title; // 1-1 fallback
-    return (
-      participants[m.senderId]?.username ||
-      m.sender?.username ||
-      m.senderUsername ||
-      m.username ||
-      'Unknown'
-    );
+  const toggleSelectUser = (u) => {
+    setSelectedUsers(prev => {
+      const exists = prev.some(x => x._id === u._id);
+      return exists ? prev.filter(x => x._id !== u._id) : [...prev, u];
+    });
   };
 
-  const avatarFromMessage = (m) => {
-    const mine = m.senderId === user._id;
-    if (mine) return user.profilePicture || FALLBACK_AVATAR;
-    return (
-      participants[m.senderId]?.profilePicture ||
-      (isGroup ? null : active?.avatar) ||
-      FALLBACK_AVATAR
-    );
+  const handleStartClick = () => {
+    if (selectedUsers.length === 0) {
+      setSelecting(false);
+      setQ(''); setSearchResults([]); setSelectedUsers([]); setGroupName('');
+      return;
+    }
+    if (selectedUsers.length === 1) {
+      createConversation([selectedUsers[0]._id]);
+    } else {
+      createConversation(selectedUsers.map(u => u._id), groupName || 'Group chat');
+    }
+  };
+
+  const openAvatarModal = (conv) => {
+    setAvatarForConv(conv);
+    setAvatarFile(null);
+    setAvatarPreview(conv?.avatar ? media(conv.avatar) : '');
+    setShowAvatarModal(true);
   };
 
   const renderMessage = (m) => {
     const mine = m.senderId === user._id;
-    const senderUsername = nameFromMessage(m);
-    const senderAvatar = avatarFromMessage(m);
+    const sender = mine
+      ? { username: user.username, profilePicture: user.profilePicture }
+      : (participants[m.senderId] || m.sender || {});
+    const senderAvatar = (sender.profilePicture || (isGroup ? null : (active?.avatar && media(active.avatar))) || FALLBACK_AVATAR);
+    const senderUsername = sender.username || m.senderUsername || m.username || 'Unknown';
 
     return (
       <MsgRow key={m._id} $mine={mine}>
         {!mine && (
           <MsgAvatar aria-hidden>
-            <img src={senderAvatar || FALLBACK_AVATAR} alt="" />
+            <img src={senderAvatar} alt="" />
           </MsgAvatar>
         )}
         <MsgContent>
@@ -306,20 +432,82 @@ const DMPage = () => {
       <Layout>
         <Left>
           <SearchBox>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={selecting ? 'Search people to add…' : 'Search people to DM…'} />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={selecting ? 'Search people to add…' : 'Search people to DM…'}
+            />
             {!selecting ? (
               <button onClick={() => setSelecting(true)} type="button">New chat</button>
             ) : (
-              <button
-                onClick={() => {
-                  if (selectedUsers.length === 1) createConversation([selectedUsers[0]._id]);
-                  else if (selectedUsers.length >= 2) createConversation(selectedUsers.map(u => u._id), groupName || 'Group chat');
-                  else setSelecting(false);
-                }}
-                type="button"
-              >Start</button>
+              <button onClick={handleStartClick} type="button">Start</button>
             )}
           </SearchBox>
+
+          {selecting && (
+            <>
+              <SelectedBar>
+                {selectedUsers.map(u => (
+                  <button
+                    key={u._id}
+                    onClick={() => toggleSelectUser(u)}
+                    style={{
+                      border: '1px solid var(--border-color)',
+                      background: '#f3f4f6',
+                      color: '#111',
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                      <img src={media(u.profilePicture) || FALLBACK_AVATAR} alt="" style={{width:20, height:20, borderRadius:'50%', objectFit:'cover'}} />
+                      {u.username}
+                    </span>
+                    <span style={{fontWeight:800}}>×</span>
+                  </button>
+                ))}
+                {selectedUsers.length >= 2 && (
+                  <input
+                    value={groupName}
+                    onChange={e => setGroupName(e.target.value)}
+                    placeholder="Group name (optional)"
+                  />
+                )}
+              </SelectedBar>
+
+              <List>
+                {!q.trim() && <Mini style={{ padding: 8 }}>Type to search for people…</Mini>}
+                {q.trim() && searchResults.length === 0 && <Mini style={{ padding: 8 }}>No users found.</Mini>}
+                {searchResults
+                  .filter(u => String(u._id) !== String(user._id))
+                  .map(r => {
+                    const isSelected = selectedUsers.some(u => u._id === r._id);
+                    return (
+                      <Row
+                        key={r._id}
+                        onClick={() => toggleSelectUser(r)}
+                        title={isSelected ? 'Remove' : 'Add'}
+                      >
+                        <div className="avatar">
+                          <img src={media(r.profilePicture) || FALLBACK_AVATAR} alt={r.username} />
+                        </div>
+                        <div>
+                          <div className="nameLine">
+                            <div className="name">{r.username}</div>
+                          </div>
+                          {r.fullName && <div className="sub">{r.fullName}</div>}
+                        </div>
+                        <div>{isSelected ? '✓' : '+'}</div>
+                      </Row>
+                    );
+                  })}
+              </List>
+            </>
+          )}
 
           {!selecting && (
             <List>
@@ -328,12 +516,27 @@ const DMPage = () => {
               {conversations.map(c => (
                 <Row key={c._id} onClick={() => openConversation(c)}>
                   <div className="avatar">
-                    {c.avatar ? <img src={c.avatar} alt={c.title} /> : <span>{c.title?.[0]?.toUpperCase() || '?'}</span>}
+                    {c.isGroup ? (
+                      <button
+                        className="avatarBtn"
+                        title="Edit group photo"
+                        onClick={(e) => { e.stopPropagation(); openAvatarModal(c); }}
+                      >
+                        {c.avatar
+                          ? <img src={media(c.avatar)} alt={c.title} />
+                          : <img src={FALLBACK_AVATAR} alt="" />}
+                      </button>
+                    ) : (
+                      <>
+                        {c.avatar
+                          ? <img src={media(c.avatar)} alt={c.title} />
+                          : <img src={FALLBACK_AVATAR} alt="" />}
+                      </>
+                    )}
                   </div>
                   <div>
                     <div className="nameLine">
                       <div className="name">{c.title}</div>
-                      {!!getConvTitleBadge(c) && <TitleBadge>{getConvTitleBadge(c)}</TitleBadge>}
                     </div>
                     <div className="sub">{c.last?.body || 'No messages yet'}</div>
                   </div>
@@ -356,11 +559,32 @@ const DMPage = () => {
           ) : (
             <>
               {isGroup ? (
-                <ThreadHeader>{active.title}</ThreadHeader>
+                <ThreadHeader>
+                  {/* Avatar in header – click to edit */}
+                  <HeaderAvatarBtn
+                    title="Edit group photo"
+                    onClick={() => openAvatarModal(active)}
+                  >
+                    {active.avatar
+                      ? <img src={media(active.avatar)} alt={active.title || 'Group'} />
+                      : <img src={FALLBACK_AVATAR} alt="" />}
+                  </HeaderAvatarBtn>
+
+                  <HeaderTitleButton onClick={() => setShowMembers(true)} title="Show members">
+                    {active.title || 'Group chat'}
+                  </HeaderTitleButton>
+
+                  <HeaderActions>
+                    <SmallBtn onClick={() => { setRenameValue(active.title || ''); setShowRename(true); }}>Rename</SmallBtn>
+                  </HeaderActions>
+                </ThreadHeader>
               ) : (
                 <ThreadHeader>
-                  <UserLink username={active.title}>{active.title}</UserLink>
-                  {!!titleBadge && <TitleBadge>{titleBadge}</TitleBadge>}
+                  <div />
+                  <div style={{ fontWeight: 800 }}>
+                    <UserLink username={active.title}>{active.title}</UserLink>
+                  </div>
+                  <div />
                 </ThreadHeader>
               )}
 
@@ -378,6 +602,128 @@ const DMPage = () => {
           )}
         </Right>
       </Layout>
+
+      {/* Edit group photo modal */}
+      {showAvatarModal && (
+        <ModalBackdrop onClick={() => setShowAvatarModal(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalHead>
+              <h3>Edit group photo</h3>
+              <SmallBtn onClick={() => setShowAvatarModal(false)}>Close</SmallBtn>
+            </ModalHead>
+            <ModalBody>
+              {avatarPreview ? (
+                <div style={{display:'grid', placeItems:'center', marginBottom:12}}>
+                  <img
+                    src={avatarPreview}
+                    alt="Preview"
+                    style={{ width:140, height:140, borderRadius:'50%', objectFit:'cover', border:'1px solid var(--border-color)' }}
+                  />
+                </div>
+              ) : (
+                <Mini style={{marginBottom:12}}>No image selected.</Mini>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  setAvatarFile(f || null);
+                  setAvatarPreview(f ? URL.createObjectURL(f) : (avatarForConv?.avatar ? media(avatarForConv.avatar) : ''));
+                }}
+              />
+            </ModalBody>
+            <ModalFoot>
+              <SmallBtn onClick={() => setShowAvatarModal(false)}>Cancel</SmallBtn>
+              <SmallBtn
+                onClick={async () => {
+                  if (!avatarForConv) return;
+                  if (!avatarFile && !avatarPreview) { setShowAvatarModal(false); return; }
+                  let url = avatarPreview;
+                  if (avatarFile) {
+                    const uploaded = await uploadImageFile(avatarFile);
+                    url = uploaded?.url ? media(uploaded.url) : url;
+                  }
+                  if (url) await updateGroupAvatar(avatarForConv._id, url);
+                  setShowAvatarModal(false);
+                }}
+              >Save</SmallBtn>
+            </ModalFoot>
+          </ModalCard>
+        </ModalBackdrop>
+      )}
+
+      {/* Members modal */}
+      {showMembers && (
+        <ModalBackdrop onClick={() => setShowMembers(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalHead>
+              <h3>Group members</h3>
+              <SmallBtn onClick={() => setShowMembers(false)}>Close</SmallBtn>
+            </ModalHead>
+            <ModalBody>
+              {(() => {
+                const ids = (Array.isArray(active?.participants) && active.participants.length)
+                  ? active.participants.map(x => String(x._id || x))
+                  : Array.from(new Set([user?._id, ...messages.map(m => String(m.senderId))].filter(Boolean)));
+                return ids.map(id => {
+                  const u = participants[id] || {};
+                  const avatar = media(u.profilePicture) || FALLBACK_AVATAR;
+                  const badges = Array.isArray(u.badgesEquipped) ? u.badgesEquipped : [];
+                  return (
+                    <div key={id} style={{ display:'grid', gridTemplateColumns:'48px 1fr', gap:12, alignItems:'center', padding:'10px 0', borderBottom:'1px solid #f1f3f5' }}>
+                      <img src={avatar} alt="" style={{ width:48, height:48, borderRadius:'50%', objectFit:'cover', border:'1px solid var(--border-color)' }} />
+                      <div>
+                        <div style={{ fontWeight:800 }}>{u.username || 'unknown'}</div>
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:6 }}>
+                          {badges.map((b, i) => <span key={i} style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:999, background:'#f3f4f6', border:'1px solid var(--border-color)' }}>{b}</span>)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </ModalBody>
+          </ModalCard>
+        </ModalBackdrop>
+      )}
+
+      {/* Rename modal */}
+      {showRename && (
+        <ModalBackdrop onClick={() => setShowRename(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalHead>
+              <h3>Rename group</h3>
+              <SmallBtn onClick={() => setShowRename(false)}>Close</SmallBtn>
+            </ModalHead>
+            <ModalBody>
+              <input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                placeholder="Group name"
+                style={{
+                  width:'100%',
+                  boxSizing:'border-box',
+                  padding:'10px 12px',
+                  border:'1px solid var(--border-color)',
+                  borderRadius:10
+                }}
+              />
+              <Mini style={{ marginTop:8 }}>All members can rename the group.</Mini>
+            </ModalBody>
+            <ModalFoot>
+              <SmallBtn onClick={() => setShowRename(false)}>Cancel</SmallBtn>
+              <SmallBtn
+                onClick={async () => {
+                  const name = renameValue.trim() || 'Group chat';
+                  await renameConversation(name);
+                  setShowRename(false);
+                }}
+              >Save</SmallBtn>
+            </ModalFoot>
+          </ModalCard>
+        </ModalBackdrop>
+      )}
     </Page>
   );
 };

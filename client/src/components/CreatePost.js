@@ -28,13 +28,6 @@ const TextArea = styled.textarea`
   color: #111;
 `;
 
-const Toolbar = styled.div`
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 10px;
-`;
-
 const AttachBtn = styled.label`
   padding: 10px 18px;
   border-radius: 10px;

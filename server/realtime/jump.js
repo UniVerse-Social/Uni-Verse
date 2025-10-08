@@ -1,7 +1,14 @@
 // server/realtime/jump.js
+// High-quality multiplayer “Jump Game” backend:
+// - Queue two players, assign top/bottom fairly
+// - Build a deterministic course (90s) with jump/roll/bait obstacles
+// - Start both clients at a shared startAt epoch so visuals sync
+// - Relay lightweight input events for opponent animation
+// - Decide winner on crash/finish/leave/resign/disconnect
+
 module.exports = function attachJump(io) {
   const waiting = []; // { socketId, user }
-  const rooms = new Map(); // roomId -> { players:{top:{sid,user},bottom:{sid,user}}, seed, startAt, obstacles, results }
+  const rooms = new Map(); // roomId -> { players, seed, startAt, obstacles, results }
   const mkRoom = () => 'jump_' + Math.random().toString(36).slice(2, 10);
 
   // --- RNG & Course ---
@@ -14,18 +21,18 @@ module.exports = function attachJump(io) {
     };
   }
 
-  // Build a ~90s course: items of { t: msFromStart, kind: 'jump'|'roll'|'bait' }
+  // Build ~90s course: [{t:ms, kind:'jump'|'roll'|'bait'}]
   function buildCourse(seed, durationMs = 90000) {
     const r = mulberry32(seed >>> 0);
     const items = [];
-    let t = 2000; // small countdown buffer
+    let t = 2000; // pre-roll buffer
     while (t < durationMs) {
       const p = r();
       const kind = p < 0.45 ? 'jump' : (p < 0.85 ? 'roll' : 'bait'); // ~15% bait
       items.push({ t, kind });
-      // spacing 1.1–2.0s with some jitter
+      // base spacing 1.1–2.0s
       t += 1100 + Math.floor(r() * 900);
-      // occasional burst (two quick in a row)
+      // occasional burst (second quick obstacle)
       if (r() < 0.18 && t + 450 < durationMs) {
         items.push({ t: t + 350 + Math.floor(r() * 140), kind: r() < 0.5 ? 'jump' : 'roll' });
         t += 550;
@@ -34,30 +41,30 @@ module.exports = function attachJump(io) {
     return items;
   }
 
-  function packStart(room) {
-    const payload = {
+  function packStart(room, you) {
+    return {
       roomId: room.id,
       startAt: room.startAt,
       seed: room.seed,
       obstacles: room.obstacles,
       top: room.players.top.user,
       bottom: room.players.bottom.user,
+      you, // 'top' | 'bottom'
     };
-    return payload;
   }
 
   function conclude(room, winner, reason) {
     // winner: 'top' | 'bottom' | 'draw'
     const result =
       winner === 'top' ? 'Top wins'
-        : winner === 'bottom' ? 'Bottom wins'
-        : 'Draw';
+      : winner === 'bottom' ? 'Bottom wins'
+      : 'Draw';
     io.to(room.id).emit('jump:gameover', { result, reason, winner });
     rooms.delete(room.id);
   }
 
   io.on('connection', (socket) => {
-    // --- Queue ---
+    // --- Queue two players into a room ---
     socket.on('jump:queue', ({ userId, username }) => {
       waiting.push({ socketId: socket.id, user: { userId, username } });
       socket.emit('jump:queued');
@@ -67,13 +74,13 @@ module.exports = function attachJump(io) {
         const b = waiting.shift();
         const roomId = mkRoom();
 
-        // Randomize who is top/bottom for fairness
+        // Randomize top/bottom
         const topPick = Math.random() < 0.5 ? a : b;
         const bottomPick = topPick === a ? b : a;
 
         const seed = Math.floor(Math.random() * 0x7fffffff);
         const obstacles = buildCourse(seed);
-        const startAt = Date.now() + 1200;
+        const startAt = Date.now() + 1200; // small countdown
 
         const room = {
           id: roomId,
@@ -95,22 +102,32 @@ module.exports = function attachJump(io) {
         io.in(topPick.socketId).socketsJoin(roomId);
         io.in(bottomPick.socketId).socketsJoin(roomId);
 
-        // Send start payload to each socket
-        const payload = packStart(room);
-        io.to(topPick.socketId).emit('jump:start', { ...payload, you: 'top' });
-        io.to(bottomPick.socketId).emit('jump:start', { ...payload, you: 'bottom' });
+        // Start payloads
+        io.to(topPick.socketId).emit('jump:start', packStart(room, 'top'));
+        io.to(bottomPick.socketId).emit('jump:start', packStart(room, 'bottom'));
       }
     });
 
-    // --- Player reports ---
+    // --- Relay inputs (for visual sync only) ---
+    socket.on('jump:input', ({ roomId, action, at }) => {
+      const room = rooms.get(roomId); if (!room) return;
+      const side =
+        room.players.top.sid === socket.id ? 'top' :
+        room.players.bottom.sid === socket.id ? 'bottom' : null;
+      if (!side) return;
+      socket.to(roomId).emit('jump:input', { side, action, at: at || Date.now() });
+    });
+
+    // --- Outcome reports ---
     socket.on('jump:crash', ({ roomId, t }) => {
       const room = rooms.get(roomId); if (!room) return;
-      const side = (room.players.top.sid === socket.id) ? 'top'
-                 : (room.players.bottom.sid === socket.id) ? 'bottom' : null;
+      const side =
+        room.players.top.sid === socket.id ? 'top' :
+        room.players.bottom.sid === socket.id ? 'bottom' : null;
       if (!side) return;
 
       const r = room.results[side];
-      if (r.crashedAt != null || r.finishedAt != null) return; // already ended
+      if (r.crashedAt != null || r.finishedAt != null) return;
       r.crashedAt = typeof t === 'number' ? t : (Date.now() - room.startAt);
 
       const ot = side === 'top' ? 'bottom' : 'top';
@@ -128,8 +145,9 @@ module.exports = function attachJump(io) {
 
     socket.on('jump:finish', ({ roomId, t }) => {
       const room = rooms.get(roomId); if (!room) return;
-      const side = (room.players.top.sid === socket.id) ? 'top'
-                 : (room.players.bottom.sid === socket.id) ? 'bottom' : null;
+      const side =
+        room.players.top.sid === socket.id ? 'top' :
+        room.players.bottom.sid === socket.id ? 'bottom' : null;
       if (!side) return;
 
       const r = room.results[side];
@@ -139,16 +157,14 @@ module.exports = function attachJump(io) {
       const ot = side === 'top' ? 'bottom' : 'top';
       const oRes = room.results[ot];
 
-      // If opponent already ended:
       if (oRes.finishedAt != null) {
-        // both finished -> earlier finish wins
         conclude(room, r.finishedAt <= oRes.finishedAt ? side : ot, 'both finished');
       } else if (oRes.crashedAt != null) {
         conclude(room, side, 'opponent crashed');
       } else {
-        // wait for opponent; optional timeout safeguard
+        // Timeout safeguard if opponent becomes unresponsive
         setTimeout(() => {
-          const still = rooms.get(roomId);
+          const still = rooms.get(room.id);
           if (!still) return;
           const o2 = still.results[ot];
           if (o2.finishedAt == null && o2.crashedAt == null) {
@@ -175,11 +191,11 @@ module.exports = function attachJump(io) {
 
     // --- Disconnect cleanup ---
     socket.on('disconnect', () => {
-      // if in waiting, remove
+      // Remove from queue if waiting
       const qi = waiting.findIndex((w) => w.socketId === socket.id);
       if (qi >= 0) waiting.splice(qi, 1);
 
-      // if in a room, the other wins
+      // If in a room, the other wins
       for (const [rid, room] of rooms.entries()) {
         if (room.players.top.sid === socket.id || room.players.bottom.sid === socket.id) {
           const loser = (room.players.top.sid === socket.id) ? 'top' : 'bottom';

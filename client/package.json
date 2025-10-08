@@ -20,7 +20,7 @@
             "react-scripts": "5.0.1",
             "redis": "^5.8.3",
             "socket.io-client": "^4.8.1",
-            "stockfish": "^17.1.0",
+            "stockfish": "^16.0.0",
             "styled-components": "^5.3.11",
             "web-vitals": "^2.1.4"
       },

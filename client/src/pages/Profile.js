@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import styled from 'styled-components';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AuthContext } from '../App';
 import Post from '../components/Post';
@@ -365,6 +365,7 @@ const Profile = () => {
   const [userOnPage, setUserOnPage] = useState(null);
   const [posts, setPosts] = useState([]);
   const { username } = useParams();
+  const navigate = useNavigate();
   const { user: currentUser, login } = useContext(AuthContext);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -385,10 +386,18 @@ const Profile = () => {
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
 
-  // ---- NEW: badges state ----
+  // Badges state
   const [badges, setBadges] = useState({ catalog: [], unlocked: [], equipped: ['', '', '', '', ''] });
   const [showBadgesModal, setShowBadgesModal] = useState(false);
   const [activeSlot, setActiveSlot] = useState(0);
+
+  // Reset stale state on route change (prevents ghosts from previous profile)
+  useEffect(() => {
+    setUserOnPage(null);
+    setPosts([]);
+    setShowFollowers(false);
+    setShowFollowing(false);
+  }, [username]);
 
   // Fetch profile and posts
   const fetchUserAndPosts = useCallback(async () => {
@@ -411,6 +420,21 @@ const Profile = () => {
     }
   }, [userOnPage, currentUser]);
 
+  useEffect(() => {
+    if (!userOnPage || !currentUser) return;
+
+    // Only redirect if we're truly viewing our *own* profile route.
+    const viewingOwnRoute = username === currentUser.username;
+
+    if (
+      viewingOwnRoute &&
+      String(userOnPage._id) === String(currentUser._id) &&
+      userOnPage.username !== username
+    ) {
+      navigate(`/profile/${userOnPage.username}`, { replace: true });
+    }
+  }, [userOnPage, currentUser, username, navigate]);
+  
   // Close settings when clicking outside
   useEffect(() => {
     function onDocClick(e) {
@@ -496,9 +520,9 @@ const Profile = () => {
     handleLogout();
   };
 
-  const isOwnProfile = currentUser && userOnPage && currentUser.username === username;
+  const isOwnProfile = !!currentUser && !!userOnPage && String(currentUser._id) === String(userOnPage._id);
 
-  /* ---- NEW: badges helpers ---- */
+  /* ---- Badges helpers ---- */
 
   const fetchBadges = useCallback(async () => {
     if (!userOnPage?._id) return;
@@ -532,7 +556,6 @@ const Profile = () => {
       });
       const { unlocked = [], equipped = [] } = res.data || {};
       setBadges((b) => ({ ...b, unlocked, equipped }));
-      // If slot 0 changed, you may want to refresh posts in other places to show title; profile view itself is fine.
     } catch (e) {
       console.error('Equip badge failed', e);
       alert(e?.response?.data?.message || 'Failed to equip badge');
@@ -727,7 +750,7 @@ const Profile = () => {
                   )}
                 </Stats>
 
-                {/* ---- NEW: Five badge slots under stats ---- */}
+                {/* ---- Five badge slots under stats ---- */}
                 <BadgesRow>
                   {Array.from({ length: 5 }).map((_, i) => {
                     const name = badges.equipped[i];
@@ -791,7 +814,8 @@ const Profile = () => {
             ))}
           </PostsGrid>
 
-          {showFollowers && (
+          {/* Only allow viewing these lists on your own profile */}
+          {isOwnProfile && showFollowers && (
             <FollowersModal
               userId={userOnPage._id}
               me={currentUser}
@@ -800,7 +824,7 @@ const Profile = () => {
               onClose={() => setShowFollowers(false)}
             />
           )}
-          {showFollowing && (
+          {isOwnProfile && showFollowing && (
             <FollowersModal
               userId={userOnPage._id}
               me={currentUser}

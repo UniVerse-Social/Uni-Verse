@@ -7,9 +7,24 @@ import UserLink from './UserLink';
 
 const Backdrop = styled.div`position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:50;`;
 const Panel = styled.div`position:fixed; top:0; right:0; width:min(480px,92vw); height:100vh; background:#fff; box-shadow:-2px 0 12px rgba(0,0,0,.2); z-index:51; display:flex; flex-direction:column;`;
-const Head = styled.div`padding:12px 14px; border-bottom:1px solid #eee; font-weight:700;`;
-const Section = styled.div`padding:12px 14px; border-bottom:1px solid #f3f3f3;`;
-const List = styled.div`max-height:40vh; overflow:auto; padding:0 14px 12px;`;
+const Head = styled.div`
+  padding:12px 14px;
+  border-bottom:1px solid #eee;
+  font-weight:700;
+  flex:0 0 auto;           /* keep header fixed */
+`;
+const Section = styled.div`
+  padding:12px 14px;
+  border-bottom:1px solid #f3f3f3;
+  flex:0 0 auto;           /* keep sections fixed */
+`;
+/* Fill remaining space; scroll only when content overflows */
+const List = styled.div`
+  flex:1 1 auto;
+  min-height:0;            /* critical so overflow works in flex column */
+  overflow:auto;
+  padding:0 14px 12px;
+`;
 const Row = styled.div`display:grid; grid-template-columns:40px 1fr auto; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #f4f4f4;`;
 const Av = styled.div`width:40px; height:40px; border-radius:50%; background:#f2f2f2; display:grid; place-items:center; overflow:hidden;`;
 const Title = styled.span`font-size:12px; color:#666;`;

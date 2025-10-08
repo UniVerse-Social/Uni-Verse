@@ -1,6 +1,6 @@
 // client/src/App.js
 import React, { createContext, useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { createGlobalStyle } from 'styled-components';
 
 import Navbar from './components/Navbar';
@@ -33,6 +33,15 @@ function GlobalUsernameLinker() {
   }, [navigate]);
   return null;
 }
+
+// ---------- Footer gate ----------
+function FooterSwitch() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith('/profile/')) return <Footer />;   // inline
+  if (pathname === '/clubs') return <Footer fixed />;        // fixed overlay
+  return null;                                               // hidden elsewhere
+}
+
 
 // ---------- Lazy pages ----------
 const Clubs = React.lazy(() => import('./pages/Clubs'));
@@ -106,7 +115,7 @@ function App() {
 
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
-            <Footer />
+            <FooterSwitch />
           </>
         ) : (
           <>
@@ -121,7 +130,7 @@ function App() {
 
               <Route path="*" element={<Navigate to="/login" />} />
             </Routes>
-            <Footer />
+            <FooterSwitch />
           </>
         )}
       </Router>

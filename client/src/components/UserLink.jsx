@@ -27,20 +27,19 @@ const TitleBadge = styled.span`
   background: #f3f4f6;
   color: #111;
   border: 1px solid var(--border-color);
-  transform: translateY(1px); /* sits nicer on the baseline */
+  transform: translateY(1px);
 `;
 
-const cache = new Map(); // username -> titleBadge string | null
+// simple in-memory cache for tiny /profile lookups
+const cache = new Map(); // username -> titleBadge | null
 
-/**
- * UserLink
- * Props:
- *  - username (string): required
- *  - children (node): optional custom label (defaults to username)
- *  - titleBadge (string): optional pre-fetched/known title badge; skips the fetch
- *  - hideBadge (bool): optional to suppress the badge in specific places
- */
-export default function UserLink({ username, children, titleBadge, hideBadge = false }) {
+export default function UserLink({
+  username,
+  children,
+  titleBadge,
+  hideBadge = false,
+  onNavigate,
+}) {
   const [title, setTitle] = React.useState(titleBadge ?? null);
 
   React.useEffect(() => {
@@ -55,7 +54,9 @@ export default function UserLink({ username, children, titleBadge, hideBadge = f
 
     (async () => {
       try {
-        const { data } = await axios.get(`${API_BASE_URL}/api/users/profile/${encodeURIComponent(username)}`);
+        const { data } = await axios.get(
+          `${API_BASE_URL}/api/users/profile/${encodeURIComponent(username)}`
+        );
         const t =
           data?.titleBadge ??
           (Array.isArray(data?.badgesEquipped) ? data.badgesEquipped[0] : null) ??
@@ -68,12 +69,24 @@ export default function UserLink({ username, children, titleBadge, hideBadge = f
       }
     })();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [username, hideBadge, titleBadge]);
+
+  const handleClick = (e) => {
+    if (onNavigate) {
+      e.preventDefault();
+      e.stopPropagation(); // ensure row click handlers don’t double-fire
+      onNavigate(username);
+    }
+  };
 
   return (
     <Wrap>
-      <Link to={`/profile/${username}`}>{children || username}</Link>
+      <Link to={`/profile/${username}`} onClick={handleClick}>
+        {children || username}
+      </Link>
       {!hideBadge && !!(titleBadge ?? title) && (
         <TitleBadge aria-label="Title badge">{titleBadge ?? title}</TitleBadge>
       )}
