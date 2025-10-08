@@ -9,6 +9,7 @@ const Backdrop = styled.div`position:fixed; inset:0; background:rgba(0,0,0,.35);
 const Panel = styled.div`position:fixed; top:0; right:0; width:min(480px,92vw); height:100vh; background:#fff; box-shadow:-2px 0 12px rgba(0,0,0,.2); z-index:51; display:flex; flex-direction:column;`;
 const Head = styled.div`
   padding:12px 14px;
+  min-height: 3.5%;
   border-bottom:1px solid #eee;
   font-weight:700;
   flex:0 0 auto;           /* keep header fixed */
