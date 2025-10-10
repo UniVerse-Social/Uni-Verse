@@ -7,6 +7,7 @@ import CreatePost from '../components/CreatePost';
 import Post from '../components/Post';
 import AdCard from '../components/AdCard';
 import { API_BASE_URL } from '../config';
+import StickerDock from '../components/StickerDock';
 
 const HomeContainer = styled.div`
   display: flex;
@@ -203,6 +204,7 @@ const Home = () => {
 
   return (
     <HomeContainer>
+      <StickerDock />
       <Feed>
         <PreferencesButton onClick={() => setShowPrefs(true)}>Home page preferences</PreferencesButton>
 

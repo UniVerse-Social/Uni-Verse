@@ -1,10 +1,60 @@
 // server/routes/posts.js
 const router = require('express').Router();
+const mongoose = require('mongoose');
 const Post = require('../models/Post');
 const User = require('../models/User');
 const Comment = require('../models/Comment');
 const { maskText, enforceNotBanned } = require('../middleware/moderation');
 const { checkAndUnlock } = require('../services/badges');
+
+const ALLOW_MODES = new Set(['everyone', 'followers', 'none']);
+const uniqueStrings = (arr = []) => {
+  const out = [];
+  const seen = new Set();
+  arr.forEach((val) => {
+    if (val === null || val === undefined) return;
+    const str = String(val).trim();
+    if (!str) return;
+    if (seen.has(str)) return;
+    seen.add(str);
+    out.push(str);
+  });
+  return out;
+};
+
+const toObjectIds = (values = []) => {
+  const out = [];
+  const seen = new Set();
+  values.forEach((val) => {
+    try {
+      const oid = val instanceof mongoose.Types.ObjectId ? val : new mongoose.Types.ObjectId(val);
+      const key = oid.toString();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(oid);
+    } catch {
+      // ignore invalid ids
+    }
+  });
+  return out;
+};
+
+const sanitizeStickerSettings = (raw = {}) => {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const settings = {};
+  const mode = typeof raw.allowMode === 'string' ? raw.allowMode : '';
+  settings.allowMode = ALLOW_MODES.has(mode) ? mode : 'everyone';
+  if (Array.isArray(raw.allowlist)) {
+    settings.allowlist = toObjectIds(uniqueStrings(raw.allowlist));
+  }
+  if (Array.isArray(raw.denylist)) {
+    settings.denylist = toObjectIds(uniqueStrings(raw.denylist));
+  }
+  if (typeof raw.sticky === 'boolean') {
+    settings.sticky = raw.sticky;
+  }
+  return settings;
+};
 
 // CREATE A POST (with text masking; attachments optional)
 router.post('/', enforceNotBanned, async (req, res) => {
@@ -19,6 +69,13 @@ router.post('/', enforceNotBanned, async (req, res) => {
     // normalize attachments to an array (limit to 10 to be safe)
     if (!Array.isArray(body.attachments)) body.attachments = [];
     body.attachments = body.attachments.slice(0, 10);
+
+    const stickerSettings = sanitizeStickerSettings(body.stickerSettings);
+    if (stickerSettings) {
+      body.stickerSettings = stickerSettings;
+    } else {
+      delete body.stickerSettings;
+    }
 
     const post = await Post.create(body);
 
@@ -60,6 +117,12 @@ router.put('/:id', enforceNotBanned, async (req, res) => {
     }
     if (Array.isArray(req.body.attachments)) {
       updates.attachments = req.body.attachments.slice(0, 10);
+    }
+    if (req.body.stickerSettings) {
+      const stickerSettings = sanitizeStickerSettings(req.body.stickerSettings);
+      if (stickerSettings) {
+        updates.stickerSettings = stickerSettings;
+      }
     }
 
     Object.assign(post, updates);
@@ -123,6 +186,15 @@ const aggregatePostData = async (posts, viewerId) => {
 
   const postIds = posts.map((p) => p._id);
   const commentMeta = new Map();
+  const stickerUserIds = new Set();
+
+  posts.forEach((post) => {
+    (post.stickers || []).forEach((sticker) => {
+      if (sticker.placedBy) {
+        stickerUserIds.add(String(sticker.placedBy));
+      }
+    });
+  });
 
   if (postIds.length) {
     const comments = await Comment.find({ postId: { $in: postIds } })
@@ -177,6 +249,13 @@ const aggregatePostData = async (posts, viewerId) => {
     });
   }
 
+  const stickerUsers = stickerUserIds.size
+    ? await User.find({ _id: { $in: Array.from(stickerUserIds) } })
+        .select('_id username profilePicture')
+        .lean()
+    : [];
+  const stickerUserMap = new Map(stickerUsers.map((u) => [String(u._id), u]));
+
   return posts
     .map((post) => {
       const author = authorMap.get(post.userId.toString());
@@ -192,6 +271,41 @@ const aggregatePostData = async (posts, viewerId) => {
       obj.commentCount = meta?.count || 0;
       obj.commentPreview = meta?.preview || null;
       obj.viewerCommented = meta?.userCommented || false;
+
+      obj.stickers = (post.stickers || []).map((sticker) => {
+        const placement = {
+          id: sticker._id,
+          stickerKey: sticker.stickerKey,
+          assetType: sticker.assetType,
+          assetValue: sticker.assetValue,
+          position: sticker.position,
+          scale: sticker.scale,
+          rotation: sticker.rotation,
+          placedBy: sticker.placedBy ? String(sticker.placedBy) : null,
+          createdAt: sticker.createdAt,
+          updatedAt: sticker.updatedAt,
+        };
+        const sUser = placement.placedBy ? stickerUserMap.get(placement.placedBy) : null;
+        if (sUser) {
+          placement.placedByUser = {
+            _id: String(sUser._id),
+            username: sUser.username,
+            profilePicture: sUser.profilePicture,
+          };
+        }
+        return placement;
+      });
+      const settings = post.stickerSettings || {};
+      obj.stickerSettings = {
+        allowMode: settings.allowMode || 'everyone',
+        allowlist: Array.isArray(settings.allowlist)
+          ? settings.allowlist.map((id) => String(id))
+          : [],
+        denylist: Array.isArray(settings.denylist)
+          ? settings.denylist.map((id) => String(id))
+          : [],
+        sticky: Boolean(settings.sticky),
+      };
 
       return obj;
     })

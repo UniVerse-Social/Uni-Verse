@@ -14,6 +14,7 @@ import './App.css';
 import DMPage from './pages/DMs';
 import Games from './pages/Game';
 import LegalDocPage from './pages/LegalDocPage';
+import { StickerProvider } from './context/StickersContext';
 
 // ---------- Global username click handler ----------
 function GlobalUsernameLinker() {
@@ -87,12 +88,13 @@ function App() {
 
   return (
     <AuthContext.Provider value={{ user, login, logout }}>
-      <GlobalTheme />
-      <Router>
-        {user ? (
-          <>
-            <GlobalUsernameLinker />
-            <Navbar />
+      <StickerProvider>
+        <GlobalTheme />
+        <Router>
+          {user ? (
+            <>
+              <GlobalUsernameLinker />
+              <Navbar />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/profile/:username" element={<Profile />} />
@@ -116,11 +118,11 @@ function App() {
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
             <FooterSwitch />
-          </>
-        ) : (
-          <>
-            <Routes>
-              <Route path="/login" element={<Login />} />
+            </>
+          ) : (
+            <>
+              <Routes>
+                <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
 
               {/* Public legal pages */}
@@ -129,11 +131,12 @@ function App() {
               <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
 
               <Route path="*" element={<Navigate to="/login" />} />
-            </Routes>
-            <FooterSwitch />
-          </>
-        )}
-      </Router>
+              </Routes>
+              <FooterSwitch />
+            </>
+          )}
+        </Router>
+      </StickerProvider>
     </AuthContext.Provider>
   );
 }

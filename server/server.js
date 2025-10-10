@@ -44,6 +44,7 @@ app.use('/api/listings', require('./routes/listings'));
 app.use('/api/ads', require('./routes/ads'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/games', require('./routes/games'));
+app.use('/api/stickers', require('./routes/stickers'));
 
 app.use('/api/auth', authRoute);
 app.use('/api/users', userRoute);
