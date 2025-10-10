@@ -13,13 +13,13 @@
 
 - [✅] Stickers! With new sticker system users can attach their own or others' posts with draggable/droppable stickers. Note: hold left mouse click to toggle transparency for all stickers on post, right click to delete a sticker (if either it's your sticker or your post)
 
-- [ ] Refine and fix sticker system, add custom sticker tab, add sticker settings in user's post options
+- [✅] Refine and fix sticker system, add custom sticker tab, add sticker settings in user's post options
 
 - [ ] Refine and fix the Home Page Preferences button for better/clearer filtering; add a Save Settings Button
 
 - [✅] make the homepage screen flush with the designs (homepage, club page, titantap page)
 
-- [ ] If we delete posts make it so it lives updates without having to refresh the page. 
+- [✅] If we delete posts make it so it lives updates without having to refresh the page. 
 
 - [✅] if a post is edited, make an indicator + timestamp showing when it was edited
 
@@ -35,7 +35,7 @@
 
 - [✅] Add tags to TitanTap page so you can sort through database using tags instead of needing to search
 
-- [✅] Live update follower/following count in profile
+- [ ] Live update follower/following count in profile
 
 - [✅] add hobbies to profile and use emojis to display them, also use emojis for hobbies in titanTap
 
