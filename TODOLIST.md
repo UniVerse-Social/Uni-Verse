@@ -11,25 +11,31 @@
 
 - [ ] add signup requirements
 
+- [ ] Stickers!
+
 - [✅] make the homepage screen flush with the designs (homepage, club page, titantap page)
 
 - [ ] If we delete posts make it so it lives updates without having to refresh the page. 
 
-- [ ] if a post is edited, make an indicator + timestamp showing when it was edited
+- [✅] if a post is edited, make an indicator + timestamp showing when it was edited
 
-- [ ] add count next to comments
+- [✅] add count next to comments
+
+- [✅] overhaul to comments on home page and club page; support for images, reply chains, deleting comments, top comments
 
 - [✅] Add dm button to every screen aside from home screen: TitanTap, Clubs, Games, Profile
   
-- [ ] Fix 'Unfollow User' button
+- [✅] Fix 'Unfollow User' button
 
 - [ ] Fix DM Search bar
 
-- [ ] Live update follower/following count in profile
+- [✅] Add tags to TitanTap page so you can sort through database using tags instead of needing to search
 
-- [ ] separate edit profile section from change password section in the 'edit profile' modal?
+- [✅] Live update follower/following count in profile
 
-- [ ] Add 'discover' tab to search/swipe page? (able to see posts from entire server/users you aren't following)
+- [✅] add hobbies to profile and use emojis to display them, also use emojis for hobbies in titanTap
+
+- [✅] Add preferences bar on home page so users can adjust their feed to: sort, filter, show unfollowed groups
 
 - [✅] Remove the stretching of the post area
 
