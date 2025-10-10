@@ -11,7 +11,11 @@
 
 - [ ] add signup requirements
 
-- [ ] Stickers!
+- [✅] Stickers! With new sticker system users can attach their own or others' posts with draggable/droppable stickers. Note: hold left mouse click to toggle transparency for all stickers on post, right click to delete a sticker (if either it's your sticker or your post)
+
+- [ ] Refine and fix sticker system, add custom sticker tab, add sticker settings in user's post options
+
+- [ ] Refine and fix the Home Page Preferences button for better/clearer filtering; add a Save Settings Button
 
 - [✅] make the homepage screen flush with the designs (homepage, club page, titantap page)
 
