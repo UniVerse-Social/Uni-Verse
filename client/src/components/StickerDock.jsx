@@ -1,90 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useStickers } from '../context/StickersContext';
+import { useCustomStickerCatalog } from '../context/CustomStickerContext';
+import { useStickerInteractions } from '../context/StickerInteractionsContext';
 
-const setDragPayload = (event, item) => {
-  try {
-    event.dataTransfer.setData('application/x-sticker-key', item.key);
-    event.dataTransfer.setData('application/x-sticker-type', item.type || 'emoji');
-    event.dataTransfer.setData('application/x-sticker-value', item.value || '');
-    event.dataTransfer.effectAllowed = 'copy';
-  } catch (err) {
-    // ignore errors (e.g., unsupported browsers)
-  }
-};
-
-const EXTRA_STICKERS = [
-  { key: 'emoji-sparkles', label: 'Sparkles', type: 'emoji', value: '✨' },
-  { key: 'emoji-heart-hands', label: 'Heart Hands', type: 'emoji', value: '🫶' },
-  { key: 'emoji-confetti', label: 'Confetti', type: 'emoji', value: '🎉' },
-  { key: 'emoji-fire', label: 'Fire', type: 'emoji', value: '🔥' },
-  { key: 'emoji-shine', label: 'Shining Star', type: 'emoji', value: '🌟' },
-  { key: 'emoji-rainbow', label: 'Rainbow', type: 'emoji', value: '🌈' },
-  { key: 'emoji-sunglasses', label: 'Cool', type: 'emoji', value: '😎' },
-  { key: 'emoji-party', label: 'Party Face', type: 'emoji', value: '🥳' },
-  { key: 'emoji-applause', label: 'Applause', type: 'emoji', value: '👏' },
-  { key: 'emoji-thumbs-up', label: 'Thumbs Up', type: 'emoji', value: '👍' },
-  { key: 'emoji-rocket', label: 'Rocket', type: 'emoji', value: '🚀' },
-  { key: 'emoji-lightbulb', label: 'Idea', type: 'emoji', value: '💡' },
-  { key: 'emoji-laugh', label: 'Joy', type: 'emoji', value: '😂' },
-  { key: 'emoji-thinking', label: 'Thinking', type: 'emoji', value: '🤔' },
-  { key: 'emoji-wow', label: 'Wow', type: 'emoji', value: '🤯' },
-  { key: 'emoji-cherry-blossom', label: 'Bloom', type: 'emoji', value: '🌸' },
-  { key: 'emoji-crystal-ball', label: 'Vision', type: 'emoji', value: '🔮' },
-  { key: 'emoji-headphones', label: 'Vibes', type: 'emoji', value: '🎧' },
-  { key: 'emoji-game', label: 'Gamer', type: 'emoji', value: '🎮' },
-  { key: 'emoji-palette', label: 'Palette', type: 'emoji', value: '🎨' },
-  { key: 'emoji-stars', label: 'Sparkle Cluster', type: 'emoji', value: '💫' },
-  { key: 'emoji-target', label: 'Target', type: 'emoji', value: '🎯' },
-  { key: 'emoji-shield', label: 'Shield', type: 'emoji', value: '🛡️' },
-  { key: 'emoji-lightning', label: 'Lightning', type: 'emoji', value: '⚡' },
-  { key: 'emoji-mic', label: 'Mic Drop', type: 'emoji', value: '🎤' },
-  { key: 'emoji-sparkling-heart', label: 'Sparkling Heart', type: 'emoji', value: '💖' },
-  { key: 'emoji-peace', label: 'Peace', type: 'emoji', value: '✌️' },
-  { key: 'emoji-clover', label: 'Lucky Clover', type: 'emoji', value: '🍀' },
-  { key: 'emoji-wave', label: 'Wave', type: 'emoji', value: '👋' },
-  { key: 'emoji-books', label: 'Books', type: 'emoji', value: '📚' },
-  { key: 'emoji-camera', label: 'Camera', type: 'emoji', value: '📸' },
-  { key: 'emoji-pin', label: 'Push Pin', type: 'emoji', value: '📌' },
-  { key: 'emoji-music-notes', label: 'Music Notes', type: 'emoji', value: '🎶' },
-  { key: 'emoji-checkered-flag', label: 'Finish', type: 'emoji', value: '🏁' },
-  { key: 'emoji-sunflower', label: 'Sunflower', type: 'emoji', value: '🌻' },
-  { key: 'emoji-earth', label: 'Globe', type: 'emoji', value: '🌎' },
-  { key: 'emoji-cookie', label: 'Cookie', type: 'emoji', value: '🍪' },
-  { key: 'emoji-boba', label: 'Boba', type: 'emoji', value: '🧋' },
-  { key: 'emoji-burger', label: 'Burger', type: 'emoji', value: '🍔' },
-  { key: 'emoji-taco', label: 'Taco', type: 'emoji', value: '🌮' },
-  { key: 'emoji-ramen', label: 'Ramen', type: 'emoji', value: '🍜' },
-  { key: 'emoji-fries', label: 'Fries', type: 'emoji', value: '🍟' },
-  { key: 'emoji-basketball', label: 'Basketball', type: 'emoji', value: '🏀' },
-  { key: 'emoji-football', label: 'Football', type: 'emoji', value: '🏈' },
-  { key: 'emoji-baseball', label: 'Baseball', type: 'emoji', value: '⚾' },
-  { key: 'emoji-tennis', label: 'Tennis', type: 'emoji', value: '🎾' },
-  { key: 'emoji-volleyball', label: 'Volleyball', type: 'emoji', value: '🏐' },
-  { key: 'emoji-watermelon', label: 'Watermelon', type: 'emoji', value: '🍉' },
-  { key: 'emoji-ice-cream', label: 'Ice Cream', type: 'emoji', value: '🍦' },
-  { key: 'emoji-donut', label: 'Donut', type: 'emoji', value: '🍩' },
-  { key: 'emoji-pizza', label: 'Pizza', type: 'emoji', value: '🍕' },
-  { key: 'emoji-trophy', label: 'Victory', type: 'emoji', value: '🥇' },
-  { key: 'emoji-sparkle-heart', label: 'Heart Sparkle', type: 'emoji', value: '💗' },
-  { key: 'emoji-glasses', label: 'Reading', type: 'emoji', value: '👓' },
-  { key: 'emoji-running', label: 'Runner', type: 'emoji', value: '🏃' },
-  { key: 'emoji-raise-hands', label: 'Raise Hands', type: 'emoji', value: '🙌' },
-  { key: 'emoji-pinwheel', label: 'Pinwheel', type: 'emoji', value: '🎐' },
-  { key: 'emoji-notebook', label: 'Notebook', type: 'emoji', value: '📓' },
-  { key: 'emoji-plant', label: 'Plant', type: 'emoji', value: '🪴' },
-  { key: 'emoji-sun', label: 'Sun', type: 'emoji', value: '☀️' },
-  { key: 'emoji-moon', label: 'Moon', type: 'emoji', value: '🌙' },
-  { key: 'emoji-cloud', label: 'Cloud', type: 'emoji', value: '☁️' },
-  { key: 'emoji-umbrella', label: 'Umbrella', type: 'emoji', value: '☂️' },
-  { key: 'emoji-crystal', label: 'Gem', type: 'emoji', value: '💎' },
-  { key: 'emoji-alien', label: 'Alien', type: 'emoji', value: '👽' },
-];
+const DEFAULT_TAB = 'catalog';
+const CUSTOM_TAB = 'custom';
 
 const DockWrap = styled.div`
   position: fixed;
   left: 0;
-  top: 160px;
+  top: 140px;
   z-index: 1400;
   display: flex;
   align-items: flex-start;
@@ -102,7 +28,7 @@ const DockTab = styled.button`
   align-items: center;
   justify-content: center;
   gap: 4px;
-  background: rgba(17, 24, 39, 0.68);
+  background: rgba(17, 24, 39, 0.62);
   color: #f1f5f9;
   border: 1px solid rgba(148, 163, 184, 0.45);
   border-radius: 0 16px 16px 0;
@@ -112,7 +38,7 @@ const DockTab = styled.button`
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 
   &:hover {
-    background: rgba(37, 99, 235, 0.9);
+    background: rgba(37, 99, 235, 0.88);
     border-color: rgba(96, 165, 250, 0.85);
     color: #fff;
   }
@@ -126,13 +52,13 @@ const DockTabLetter = styled.span`
 
 const Drawer = styled.aside`
   pointer-events: auto;
-  width: 380px;
-  max-height: 80vh;
+  width: 420px;
+  max-height: 76vh;
   overflow: hidden;
   background: #ffffff;
   color: var(--text-color);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: 18px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
   margin-left: 14px;
   transform-origin: left top;
@@ -145,22 +71,56 @@ const Drawer = styled.aside`
 `;
 
 const DrawerHeader = styled.div`
-  padding: 14px 16px 10px;
+  padding: 14px 18px 12px;
   border-bottom: 1px solid var(--border-color);
-  font-weight: 600;
-  font-size: 15px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
 `;
 
+const HeaderTitle = styled.div`
+  font-weight: 600;
+  font-size: 15px;
+`;
+
+const HeaderMeta = styled.span`
+  font-size: 12px;
+  color: #94a3b8;
+`;
+
+const TabsBar = styled.div`
+  display: flex;
+  padding: 8px 12px;
+  gap: 8px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  background: rgba(241, 245, 249, 0.6);
+`;
+
+const TabButton = styled.button`
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 0;
+  cursor: pointer;
+  color: ${(p) => (p.$active ? '#1d4ed8' : '#475569')};
+  background: ${(p) => (p.$active ? 'rgba(191, 219, 254, 0.7)' : 'transparent')};
+  transition: background 0.18s ease, color 0.18s ease;
+
+  &:hover {
+    background: ${(p) => (p.$active ? 'rgba(191, 219, 254, 0.9)' : 'rgba(226, 232, 240, 0.8)')};
+  }
+`;
+
 const DrawerBody = styled.div`
+  flex: 1;
   overflow-y: auto;
   padding: 22px 26px 28px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-  gap: 12px;
+  gap: 14px;
   background: #ffffff;
 `;
 
@@ -168,7 +128,7 @@ const StickerCard = styled.button`
   background: none;
   border: none;
   padding: 0;
-  font-size: 40px;
+  font-size: ${(p) => (p.$isCustom ? 0 : 38)}px;
   cursor: grab;
   display: flex;
   align-items: center;
@@ -178,6 +138,16 @@ const StickerCard = styled.button`
   width: 100%;
   height: 100%;
   outline: none;
+
+  img {
+    display: block;
+    max-width: 64px;
+    max-height: 64px;
+    width: auto;
+    height: auto;
+    pointer-events: none;
+    border-radius: 12px;
+  }
 
   &:hover {
     transform: scale(1.12);
@@ -194,22 +164,120 @@ const StatusText = styled.div`
   text-align: center;
   font-size: 13px;
   color: #64748b;
+  grid-column: 1 / -1;
 `;
+
+const CustomToolbar = styled.div`
+  padding: 10px 18px;
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+  background: rgba(248, 250, 252, 0.9);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+`;
+
+const HintText = styled.span`
+  font-size: 12px;
+  color: #64748b;
+`;
+
+const UploadButton = styled.button`
+  border: none;
+  background: #1d4ed8;
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: #1e40af;
+  }
+`;
+
+const tabs = [
+  { id: DEFAULT_TAB, label: 'Default Stickers' },
+  { id: CUSTOM_TAB, label: 'Custom Stickers' },
+];
 
 export default function StickerDock() {
   const { catalog, loading, error } = useStickers();
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
+  const fileInputRef = useRef(null);
+  const removeClickRef = useRef({ id: null, ts: 0 });
+  const { beginPickerDrag } = useStickerInteractions();
+  const {
+    customStickers,
+    addStickerFromImage,
+    removeCustomSticker,
+  } = useCustomStickerCatalog();
 
-  const stickerItems = useMemo(() => {
-    const baseList = Array.isArray(catalog) ? catalog : [];
-    const merged = [...baseList];
-    EXTRA_STICKERS.forEach((extra) => {
-      if (!merged.some((item) => item.key === extra.key)) {
-        merged.push(extra);
-      }
+  const defaultStickers = useMemo(() => {
+    if (!Array.isArray(catalog)) return [];
+    const seen = new Set();
+    return catalog.filter((item) => {
+      if (!item?.key) return false;
+      if (seen.has(item.key)) return false;
+      seen.add(item.key);
+      return Boolean(item.value);
     });
-    return merged.slice(0, 128);
   }, [catalog]);
+
+  const displayItems = activeTab === CUSTOM_TAB ? customStickers : defaultStickers;
+  const totalCount = activeTab === CUSTOM_TAB ? customStickers.length : defaultStickers.length;
+
+  const handleTabChange = useCallback((next) => {
+    setActiveTab(next);
+  }, []);
+
+  const handleUploadClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    async (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file) return;
+      try {
+        await addStickerFromImage(file);
+        setActiveTab(CUSTOM_TAB);
+      } catch (err) {
+        console.error('Custom sticker add failed', err);
+        alert('Could not add that image as a sticker. Try a smaller file.');
+      }
+    },
+    [addStickerFromImage]
+  );
+
+  const handleCustomRemove = useCallback(
+    (event, stickerId) => {
+      event.preventDefault();
+      const now = Date.now();
+      const last = removeClickRef.current;
+      if (last.id === stickerId && now - last.ts < 350) {
+        removeCustomSticker(stickerId);
+        removeClickRef.current = { id: null, ts: 0 };
+      } else {
+        removeClickRef.current = { id: stickerId, ts: now };
+      }
+    },
+    [removeCustomSticker]
+  );
+
+  const handleStickerPointerDown = useCallback(
+    (event, item, origin) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      beginPickerDrag({ sticker: item, point: { x: event.clientX, y: event.clientY }, origin });
+    },
+    [beginPickerDrag]
+  );
 
   return (
     <DockWrap>
@@ -220,33 +288,78 @@ export default function StickerDock() {
       </DockTab>
       <Drawer $open={open} role="dialog" aria-label="Sticker catalog">
         <DrawerHeader>
-          Sticker Catalog
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>
-            {loading ? 'Loading…' : `${stickerItems.length} items`}
-          </span>
+          <HeaderTitle>Stickers</HeaderTitle>
+          <HeaderMeta>{loading ? 'Loading…' : `${totalCount} items`}</HeaderMeta>
         </DrawerHeader>
+
+        <TabsBar>
+          {tabs.map((tab) => (
+            <TabButton
+              key={tab.id}
+              type="button"
+              $active={activeTab === tab.id}
+              onClick={() => handleTabChange(tab.id)}
+            >
+              {tab.label}
+            </TabButton>
+          ))}
+        </TabsBar>
+
         <DrawerBody>
           {loading && <StatusText>Loading stickers…</StatusText>}
           {!loading && error && <StatusText>{error}</StatusText>}
-          {!loading && !error && stickerItems.length === 0 && (
+          {!loading && !error && displayItems.length === 0 && activeTab === DEFAULT_TAB && (
             <StatusText>No stickers available yet.</StatusText>
+          )}
+          {!loading && !error && displayItems.length === 0 && activeTab === CUSTOM_TAB && (
+            <StatusText>Your custom catalog is empty. Upload a PNG, JPG, or GIF.</StatusText>
           )}
           {!loading &&
             !error &&
-            stickerItems.map((item) => (
+            displayItems.map((item) => (
               <StickerCard
                 key={item.key}
                 title={item.label}
-                draggable
-                data-sticker-key={item.key}
-                data-sticker-type={item.type}
-                data-sticker-value={item.value}
-                onDragStart={(event) => setDragPayload(event, item)}
+                $isCustom={activeTab === CUSTOM_TAB}
+                onPointerDown={(event) =>
+                  handleStickerPointerDown(
+                    event,
+                    item,
+                    activeTab === CUSTOM_TAB ? 'custom' : 'catalog'
+                  )
+                }
+                onContextMenu={
+                  activeTab === CUSTOM_TAB
+                    ? (event) => handleCustomRemove(event, item.id)
+                    : undefined
+                }
               >
-                {item.value}
+                {item.assetType === 'image' || activeTab === CUSTOM_TAB ? (
+                  <img src={item.assetValue || item.value} alt={item.label} />
+                ) : (
+                  item.value
+                )}
               </StickerCard>
             ))}
         </DrawerBody>
+
+        <CustomToolbar>
+          <HintText>
+            {activeTab === CUSTOM_TAB
+              ? 'Double right-click to remove saved stickers. Double left-click stickers on posts to save them here.'
+              : 'Drag stickers onto a post.'}
+          </HintText>
+          <UploadButton type="button" onClick={handleUploadClick}>
+            Upload custom
+          </UploadButton>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+        </CustomToolbar>
       </Drawer>
     </DockWrap>
   );

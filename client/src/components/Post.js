@@ -13,6 +13,9 @@ import {
   deleteStickerPlacement,
   updateStickerSettings,
 } from '../utils/stickers';
+import StickerSettingsModal from './StickerSettingsModal';
+import { useStickerInteractions } from '../context/StickerInteractionsContext';
+import { useCustomStickerCatalog } from '../context/CustomStickerContext';
 
 
 
@@ -134,7 +137,7 @@ const StickerCanvas = styled.div`
 
 const StickerItem = styled.div`
   position: absolute;
-  pointer-events: ${(p) => (p.$interactive ? 'auto' : 'none')};
+  pointer-events: auto;
   cursor: ${(p) => (p.$interactive ? 'grab' : 'default')};
   transform-origin: center;
   transition: opacity 0.2s ease, filter 0.2s ease;
@@ -164,69 +167,6 @@ const StickerItem = styled.div`
     object-fit: contain;
     pointer-events: none;
   }
-`;
-
-const StickerSettingsPanel = styled.div`
-  margin-top: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px dashed rgba(148, 163, 184, 0.65);
-  background: rgba(226, 232, 240, 0.3);
-  display: grid;
-  gap: 12px;
-`;
-
-const StickerSettingsRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-`;
-
-const StickerSettingsLabel = styled.label`
-  font-size: 13px;
-  color: #334155;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`;
-
-const StickerSettingsTextarea = styled.textarea`
-  border: 1px solid rgba(148, 163, 184, 0.55);
-  border-radius: 8px;
-  padding: 6px 8px;
-  font-size: 13px;
-  min-height: 54px;
-  resize: vertical;
-  width: 100%;
-`;
-
-const StickerSettingsActions = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-`;
-
-const StickerSettingsButton = styled.button`
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid #2563eb;
-  background: ${(p) => (p.$primary ? '#2563eb' : 'transparent')};
-  color: ${(p) => (p.$primary ? '#fff' : '#2563eb')};
-  transition: background 0.2s ease, color 0.2s ease;
-
-  &:hover {
-    background: ${(p) => (p.$primary ? '#1e3a8a' : 'rgba(37, 99, 235, 0.12)')};
-    color: ${(p) => (p.$primary ? '#fff' : '#1e3a8a')};
-  }
-`;
-
-const StickerSettingsHint = styled.p`
-  font-size: 12px;
-  color: #64748b;
-  margin: 0;
 `;
 
 const DAY_MS = 1000 * 60 * 60 * 24;
@@ -265,16 +205,6 @@ const ROTATION_COEFFICIENT = 0.6;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const getStickerId = (sticker) => (sticker?.id || sticker?._id || null);
-
-const isStickerDragEvent = (event) => {
-  const types = event?.dataTransfer?.types;
-  if (!types) return false;
-  if (typeof types.includes === 'function') {
-    return types.includes('application/x-sticker-key');
-  }
-  const arr = Array.from(types);
-  return arr.includes('application/x-sticker-key');
-};
 
 const MediaGrid = styled.div`
   display: grid;
@@ -366,12 +296,13 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
   const allowlist = Array.isArray(stickerSettings.allowlist) ? stickerSettings.allowlist : [];
   const denylist = Array.isArray(stickerSettings.denylist) ? stickerSettings.denylist : [];
   const allowMode = stickerSettings.allowMode || 'everyone';
-  const [selectedStickerId, setSelectedStickerId] = useState(null);
   const containerRef = useRef(null);
-  const dragSessionRef = useRef(null);
-  const [dragSession, setDragSession] = useState(null);
-  const rotationActiveRef = useRef(false);
   const stickersRef = useRef(stickers);
+  const [movingStickerId, setMovingStickerId] = useState(null);
+  const deleteClickRef = useRef({ id: null, ts: 0 });
+  const movingStickerIdRef = useRef(null);
+  const { beginStickerMove, registerTarget, hoverTargetId, activeDrag } = useStickerInteractions();
+  const { addStickerFromPlacement } = useCustomStickerCatalog();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState({
     allowMode,
@@ -391,6 +322,10 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
   useEffect(() => {
     stickersRef.current = stickers;
   }, [stickers]);
+
+  useEffect(() => {
+    setIsDragOver(canPlaceStickers && hoverTargetId === post._id);
+  }, [hoverTargetId, post._id, canPlaceStickers]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -449,54 +384,141 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
     clearHoldTimer();
   }, [clearHoldTimer]);
 
-  const handleDragEnter = useCallback(
-    (event) => {
-      if (!canPlaceStickers || !isStickerDragEvent(event)) return;
-      event.preventDefault();
-      setIsDragOver(true);
+  const canMoveSticker = useCallback(
+    (sticker) => {
+      if (!currentUser?._id) return false;
+      if (!sticker) return false;
+      const ownerId = sticker.placedBy
+        ? String(sticker.placedBy)
+        : sticker.placedByUser?._id
+        ? String(sticker.placedByUser._id)
+        : null;
+      return ownerId === String(currentUser._id);
     },
-    [canPlaceStickers]
+    [currentUser?._id]
   );
 
-  const handleDragOver = useCallback(
-    (event) => {
-      if (!canPlaceStickers || !isStickerDragEvent(event)) return;
-      event.preventDefault();
+  const canDeleteSticker = useCallback(
+    (sticker) => {
+      if (!currentUser?._id) return false;
+      if (!sticker) return false;
+      const ownerId = sticker.placedBy
+        ? String(sticker.placedBy)
+        : sticker.placedByUser?._id
+        ? String(sticker.placedByUser._id)
+        : null;
+      if (ownerId === String(currentUser._id)) return true;
+      return String(currentUser._id) === String(post.userId);
     },
-    [canPlaceStickers]
+    [currentUser?._id, post.userId]
   );
 
-  const handleDragLeave = useCallback((event) => {
-    if (!isStickerDragEvent(event)) return;
-    const related = event.relatedTarget;
-    if (related && event.currentTarget.contains(related)) return;
-    setIsDragOver(false);
+  const handleContainerClick = useCallback(() => {
+    setSettingsOpen(false);
   }, []);
 
-  const handleDrop = useCallback(
-    async (event) => {
-      if (!canPlaceStickers || !isStickerDragEvent(event)) return;
-      event.preventDefault();
-      setIsDragOver(false);
-      if (!currentUser?._id) return;
-      const stickerKey = event.dataTransfer.getData('application/x-sticker-key');
-      if (!stickerKey) return;
-      const rect = event.currentTarget.getBoundingClientRect();
-      const x = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
-      const y = Math.min(Math.max((event.clientY - rect.top) / rect.height, 0), 1);
+  const handleStickerDelete = useCallback(
+    async (stickerId) => {
+      if (!stickerId || !currentUser?._id) return;
+      const sticker = stickersRef.current.find((s) => getStickerId(s) === stickerId);
+      if (!sticker || !canDeleteSticker(sticker)) return;
       try {
-        const placement = await createStickerPlacement(post._id, {
+        await deleteStickerPlacement(post._id, stickerId, { userId: currentUser._id });
+        setStickers((prev) => prev.filter((s) => getStickerId(s) !== stickerId));
+      } catch (err) {
+        console.error('Failed to delete sticker', err);
+      }
+    },
+    [currentUser?._id, post._id, canDeleteSticker]
+  );
+
+  const handleStickerPointerDown = useCallback(
+    (event, sticker) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (!canMoveSticker(sticker)) return;
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      event.preventDefault();
+      event.stopPropagation();
+      clearHoldTimer();
+      const position = sticker.position || {};
+      const center = {
+        x: rect.left + (typeof position.x === 'number' ? position.x : 0.5) * rect.width,
+        y: rect.top + (typeof position.y === 'number' ? position.y : 0.5) * rect.height,
+      };
+      const placementId = getStickerId(sticker);
+      if (!placementId) return;
+      const started = beginStickerMove({
+        sticker,
+        postId: post._id,
+        placementId,
+        center,
+        point: { x: event.clientX, y: event.clientY },
+        scale: typeof sticker.scale === 'number' ? sticker.scale : 1,
+        rotation: typeof sticker.rotation === 'number' ? sticker.rotation : 0,
+      });
+      if (started) {
+        movingStickerIdRef.current = placementId;
+        setMovingStickerId(placementId);
+      }
+    },
+    [beginStickerMove, canMoveSticker, clearHoldTimer, post._id]
+  );
+
+  const handleStickerDoubleClick = useCallback(
+    (event, sticker) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (sticker.assetType === 'image') {
+        addStickerFromPlacement(sticker);
+      }
+    },
+    [addStickerFromPlacement]
+  );
+
+  const handleStickerContextMenu = useCallback(
+    (event, sticker) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!canDeleteSticker(sticker)) return;
+      const stickerId = getStickerId(sticker);
+      if (!stickerId) return;
+      const now = Date.now();
+      const last = deleteClickRef.current;
+      if (last.id === stickerId && now - last.ts < 350) {
+        deleteClickRef.current = { id: null, ts: 0 };
+        handleStickerDelete(stickerId);
+      } else {
+        deleteClickRef.current = { id: stickerId, ts: now };
+      }
+    },
+    [canDeleteSticker, handleStickerDelete]
+  );
+
+  const handleDropNewSticker = useCallback(
+    async ({ sticker, position, scale, rotation }) => {
+      if (!canPlaceStickers || !currentUser?._id) return;
+      try {
+        const payload = {
           userId: currentUser._id,
-          stickerKey,
-          position: { x, y },
-          scale: 1,
-          rotation: 0,
-        });
+          position,
+          scale,
+          rotation,
+        };
+        if (sticker.origin === 'custom' || sticker.assetType === 'image') {
+          payload.stickerKey = sticker.stickerKey || sticker.key;
+          payload.customSticker = {
+            assetType: sticker.assetType,
+            assetValue: sticker.assetValue,
+            label: sticker.label,
+          };
+        } else {
+          payload.stickerKey = sticker.stickerKey || sticker.key;
+        }
+        const placement = await createStickerPlacement(post._id, payload);
         if (placement) {
           const newPlacement = { ...placement };
           setStickers((prev) => [...prev, newPlacement]);
-          const newId = getStickerId(newPlacement);
-          if (newId) setSelectedStickerId(newId);
         }
       } catch (err) {
         if (err?.response?.status === 403) {
@@ -509,194 +531,71 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
     [canPlaceStickers, currentUser?._id, post._id]
   );
 
-  const canEditSticker = useCallback(
-    (sticker) => {
-      if (!currentUser?._id) return false;
-      if (String(currentUser._id) === String(post.userId)) return true;
-      if (!sticker) return false;
-      const ownerId = sticker.placedBy
-        ? String(sticker.placedBy)
-        : sticker.placedByUser?._id
-        ? String(sticker.placedByUser._id)
-        : null;
-      return ownerId === String(currentUser._id);
-    },
-    [currentUser?._id, post.userId]
-  );
-
-  useEffect(() => {
-    if (selectedStickerId && !stickers.some((s) => getStickerId(s) === selectedStickerId)) {
-      setSelectedStickerId(null);
-    }
-  }, [stickers, selectedStickerId]);
-
-  const handleContainerClick = useCallback(() => {
-    setSelectedStickerId(null);
-    setSettingsOpen(false);
-  }, []);
-
-  const handleStickerDelete = useCallback(
-    async (stickerId) => {
-      if (!stickerId || !currentUser?._id) return;
-      const sticker = stickersRef.current.find((s) => getStickerId(s) === stickerId);
-      if (!sticker || !canEditSticker(sticker)) return;
-      try {
-        await deleteStickerPlacement(post._id, stickerId, { userId: currentUser._id });
-        dragSessionRef.current = null;
-        setDragSession(null);
-        rotationActiveRef.current = false;
-        setStickers((prev) => prev.filter((s) => getStickerId(s) !== stickerId));
-        if (selectedStickerId === stickerId) {
-          setSelectedStickerId(null);
-        }
-      } catch (err) {
-        console.error('Failed to delete sticker', err);
-      }
-    },
-    [currentUser?._id, post._id, canEditSticker, selectedStickerId]
-  );
-
-  const handleStickerMouseDown = useCallback(
-    (event, sticker) => {
-      if (!canEditSticker(sticker)) return;
-      clearHoldTimer();
-      const stickerId = getStickerId(sticker);
-      if (event.button !== 0) {
+  const handleDropMoveSticker = useCallback(
+    async ({ placementId, position, scale, rotation }) => {
+      if (!currentUser?._id || !placementId) return;
+      const sticker = stickersRef.current.find((s) => getStickerId(s) === placementId);
+      if (!sticker || !canMoveSticker(sticker)) {
+        movingStickerIdRef.current = null;
+        setMovingStickerId(null);
         return;
       }
-      event.preventDefault();
-      event.stopPropagation();
-      rotationActiveRef.current = false;
-      setSelectedStickerId(stickerId);
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const position = sticker.position || {};
-      const centerX = rect.left + (typeof position.x === 'number' ? position.x : 0.5) * rect.width;
-      const centerY = rect.top + (typeof position.y === 'number' ? position.y : 0.5) * rect.height;
-      const session = {
-        id: stickerId,
-        offsetX: event.clientX - centerX,
-        offsetY: event.clientY - centerY,
-        lastX: event.clientX,
+      const previous = {
+        position: sticker.position,
+        scale: sticker.scale,
+        rotation: sticker.rotation,
       };
-      dragSessionRef.current = session;
-      setDragSession(session);
-    },
-    [canEditSticker, clearHoldTimer]
-  );
-
-  const adjustStickerScale = useCallback((stickerId, delta) => {
-    if (!stickerId || !Number.isFinite(delta)) return;
-    setStickers((prev) =>
-      prev.map((sticker) => {
-        if (getStickerId(sticker) !== stickerId) return sticker;
-        const currentScale = typeof sticker.scale === 'number' ? sticker.scale : 1;
-        const nextScale = clamp(currentScale + delta, STICKER_MIN_SCALE, STICKER_MAX_SCALE);
-        if (Math.abs(nextScale - currentScale) < 0.005) return sticker;
-        return { ...sticker, scale: nextScale };
-      })
-    );
-  }, []);
-
-  const handleWheel = useCallback(
-    (event) => {
-      const session = dragSessionRef.current;
-      if (!session) return;
-      const stickerId = session.id;
-      const sticker = stickersRef.current.find((s) => getStickerId(s) === stickerId);
-      if (!sticker || !canEditSticker(sticker)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const delta = event.deltaY < 0 ? 0.08 : -0.08;
-      adjustStickerScale(stickerId, delta);
-    },
-    [adjustStickerScale, canEditSticker]
-  );
-
-  useEffect(() => {
-    if (!dragSession) return;
-    const handleDocumentWheel = (event) => {
-      const session = dragSessionRef.current;
-      if (!session) return;
-      const sticker = stickersRef.current.find((s) => getStickerId(s) === session.id);
-      if (!sticker || !canEditSticker(sticker)) return;
-      event.preventDefault();
-      const delta = event.deltaY < 0 ? 0.08 : -0.08;
-      adjustStickerScale(session.id, delta);
-    };
-    const options = { passive: false };
-    document.addEventListener('wheel', handleDocumentWheel, options);
-    return () => {
-      document.removeEventListener('wheel', handleDocumentWheel, options);
-    };
-  }, [dragSession, adjustStickerScale, canEditSticker]);
-
-  useEffect(() => {
-    const session = dragSessionRef.current;
-    if (!dragSession || !session) return;
-
-    const handleMove = (event) => {
-      event.preventDefault();
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const centerX = event.clientX - session.offsetX;
-      const centerY = event.clientY - session.offsetY;
-      const xNorm = clamp((centerX - rect.left) / rect.width, 0, 1);
-      const yNorm = clamp((centerY - rect.top) / rect.height, 0, 1);
-
       setStickers((prev) =>
-        prev.map((sticker) => {
-          if (getStickerId(sticker) !== session.id) return sticker;
-          let rotation = typeof sticker.rotation === 'number' ? sticker.rotation : 0;
-          if ((event.buttons & 2) === 2) {
-            const delta = event.clientX - session.lastX;
-            rotation = clamp(rotation + delta * ROTATION_COEFFICIENT, -180, 180);
-            rotationActiveRef.current = true;
-          }
-          session.lastX = event.clientX;
-          return {
-            ...sticker,
-            position: { x: xNorm, y: yNorm },
-            rotation,
-          };
-        })
+        prev.map((item) =>
+          getStickerId(item) === placementId
+            ? { ...item, position, scale, rotation }
+            : item
+        )
       );
-    };
-
-    const handleUp = async () => {
-      const completedSession = dragSessionRef.current;
-      dragSessionRef.current = null;
-      setDragSession(null);
-      rotationActiveRef.current = false;
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleUp);
-      document.removeEventListener('mouseleave', handleUp);
-      if (!completedSession || !currentUser?._id) return;
-      const sticker = stickersRef.current.find((s) => getStickerId(s) === completedSession.id);
-      if (!sticker) return;
       try {
-        await updateStickerPlacement(post._id, completedSession.id, {
+        await updateStickerPlacement(post._id, placementId, {
           userId: currentUser._id,
-          position: sticker.position,
-          rotation: sticker.rotation,
-          scale: sticker.scale,
+          position,
+          scale,
+          rotation,
         });
       } catch (err) {
         console.error('Failed to update sticker placement', err);
+        setStickers((prev) =>
+          prev.map((item) =>
+            getStickerId(item) === placementId
+              ? {
+                  ...item,
+                  position: previous.position,
+                  scale: previous.scale,
+                  rotation: previous.rotation,
+                }
+              : item
+          )
+        );
+      } finally {
+        movingStickerIdRef.current = null;
+        setMovingStickerId(null);
       }
-    };
+    },
+    [currentUser?._id, post._id, canMoveSticker]
+  );
 
-    document.addEventListener('mousemove', handleMove);
-    document.addEventListener('mouseup', handleUp);
-    document.addEventListener('mouseleave', handleUp);
-    return () => {
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleUp);
-      document.removeEventListener('mouseleave', handleUp);
-    };
-  }, [dragSession, currentUser?._id, post._id]);
+  useEffect(() => {
+    const unregister = registerTarget(post._id, {
+      getRect: () => containerRef.current?.getBoundingClientRect() || null,
+      onDropNew: handleDropNewSticker,
+      onDropMove: handleDropMoveSticker,
+    });
+    return unregister;
+  }, [registerTarget, post._id, handleDropNewSticker, handleDropMoveSticker]);
 
+  useEffect(() => {
+    if (!activeDrag && movingStickerIdRef.current) {
+      movingStickerIdRef.current = null;
+      setMovingStickerId(null);
+    }
+  }, [activeDrag]);
 
   const parseListInput = useCallback(
     (value = '') =>
@@ -812,14 +711,9 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
       className="surface"
       $dragOver={isDragOver}
       onClick={handleContainerClick}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
       onMouseDown={handleHoldStart}
       onMouseUp={handleHoldEnd}
       onMouseLeave={handleHoldEnd}
-      onWheel={handleWheel}
     >
       <StickerCanvas>
         {stickers.map((sticker) => {
@@ -833,30 +727,28 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
             ? `${sticker.placedByUser.username}'s sticker`
             : 'Sticker';
           const stickerId = getStickerId(sticker);
-          const interactive = canEditSticker(sticker);
-          const isSelected = stickerId === selectedStickerId;
+          const interactive = canMoveSticker(sticker);
+          const hideSticker =
+            movingStickerId && stickerId === movingStickerId && activeDrag?.placementId === movingStickerId;
+          if (hideSticker) {
+            return null;
+          }
           return (
             <StickerItem
               key={key}
               title={title}
               $muted={stickersMuted}
               $interactive={interactive}
-              $selected={isSelected}
+              $selected={false}
               style={{
                 left: `${x * 100}%`,
                 top: `${y * 100}%`,
                 transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`,
               }}
               data-sticker-item="true"
-              onMouseDown={(event) => handleStickerMouseDown(event, sticker)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (dragSessionRef.current || rotationActiveRef.current) return;
-                if (canEditSticker(sticker)) {
-                  handleStickerDelete(getStickerId(sticker));
-                }
-              }}
+              onPointerDown={(event) => handleStickerPointerDown(event, sticker)}
+              onDoubleClick={(event) => handleStickerDoubleClick(event, sticker)}
+              onContextMenu={(event) => handleStickerContextMenu(event, sticker)}
             >
               {sticker.assetType === 'image' ? (
                 <img src={toMediaUrl(sticker.assetValue)} alt={sticker.stickerKey || 'sticker'} />
@@ -941,97 +833,14 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
           )}
         </Action>
       </PostActions>
-      {settingsOpen && isOwner && (
-        <StickerSettingsPanel
-          onClick={(event) => event.stopPropagation()}
-          onMouseDown={(event) => event.stopPropagation()}
-          onWheel={(event) => event.stopPropagation()}
-        >
-          <StickerSettingsRow>
-            <StickerSettingsLabel>
-              <input
-                type="radio"
-                name={`sticker-allow-${post._id}`}
-                value="everyone"
-                checked={settingsDraft.allowMode === 'everyone'}
-                onChange={handleSettingsChange('allowMode')}
-              />
-              Everyone
-            </StickerSettingsLabel>
-            <StickerSettingsLabel>
-              <input
-                type="radio"
-                name={`sticker-allow-${post._id}`}
-                value="followers"
-                checked={settingsDraft.allowMode === 'followers'}
-                onChange={handleSettingsChange('allowMode')}
-              />
-              Followers only
-            </StickerSettingsLabel>
-            <StickerSettingsLabel>
-              <input
-                type="radio"
-                name={`sticker-allow-${post._id}`}
-                value="none"
-                checked={settingsDraft.allowMode === 'none'}
-                onChange={handleSettingsChange('allowMode')}
-              />
-              Disabled
-            </StickerSettingsLabel>
-          </StickerSettingsRow>
-          <div>
-            <StickerSettingsLabel style={{ marginBottom: 4 }}>
-              Allowlist (user IDs, comma separated)
-            </StickerSettingsLabel>
-            <StickerSettingsTextarea
-              value={settingsDraft.allowlist}
-              onChange={handleSettingsChange('allowlist')}
-              placeholder="userId1, userId2"
-            />
-          </div>
-          <div>
-            <StickerSettingsLabel style={{ marginBottom: 4 }}>
-              Denylist (user IDs, comma separated)
-            </StickerSettingsLabel>
-            <StickerSettingsTextarea
-              value={settingsDraft.denylist}
-              onChange={handleSettingsChange('denylist')}
-              placeholder="userId1, userId2"
-            />
-          </div>
-          <StickerSettingsLabel>
-            <input
-              type="checkbox"
-              checked={Boolean(settingsDraft.sticky)}
-              onChange={handleSettingsChange('sticky')}
-            />
-            Make stickers sticky on load
-          </StickerSettingsLabel>
-          <StickerSettingsHint>
-            Allowlist overrides denylist. Leave both blank to rely solely on the allow mode.
-          </StickerSettingsHint>
-          <StickerSettingsActions>
-          <StickerSettingsButton
-            type="button"
-            data-ignore-hold
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={handleSettingsCancel}
-          >
-            Cancel
-          </StickerSettingsButton>
-          <StickerSettingsButton
-            type="button"
-            data-ignore-hold
-            $primary
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={handleSettingsSave}
-          >
-            Save
-          </StickerSettingsButton>
-        </StickerSettingsActions>
-        </StickerSettingsPanel>
-      )}
-      
+      <StickerSettingsModal
+        open={Boolean(settingsOpen && isOwner)}
+        values={settingsDraft}
+        onChange={handleSettingsChange}
+        onSave={handleSettingsSave}
+        onCancel={handleSettingsCancel}
+      />
+
       {editOpen && (    // v edit post button   //open comments button^
         <EditPostModal
           post={{ ...post, textContent }}

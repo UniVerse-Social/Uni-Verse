@@ -7,6 +7,10 @@ const { enforceNotBanned } = require('../middleware/moderation');
 
 const catalogMap = new Map(stickersCatalog.map((s) => [s.key, s]));
 
+const MAX_CUSTOM_STICKER_LENGTH = 250_000; // ~180 KB base64 payload
+
+const makeCustomKey = () => `custom-${new mongoose.Types.ObjectId().toString()}`;
+
 const toObjectId = (value) => {
   if (!value) return null;
   try {
@@ -130,7 +134,31 @@ router.post(
       const post = await Post.findById(req.params.postId);
       if (!post) return res.status(404).json({ message: 'Post not found' });
 
-      const stickerMeta = catalogMap.get(req.body.stickerKey);
+      let stickerMeta = null;
+      const requestKey = req.body.stickerKey;
+      if (requestKey && catalogMap.has(requestKey)) {
+        stickerMeta = catalogMap.get(requestKey);
+      } else if (req.body.customSticker && typeof req.body.customSticker === 'object') {
+        const custom = req.body.customSticker;
+        const assetType = custom.assetType === 'image' ? 'image' : null;
+        const assetValue = typeof custom.assetValue === 'string' ? custom.assetValue : '';
+        if (!assetType || !assetValue.startsWith('data:image/')) {
+          return res.status(400).json({ message: 'Invalid custom sticker payload' });
+        }
+        if (assetValue.length > MAX_CUSTOM_STICKER_LENGTH) {
+          return res.status(413).json({ message: 'Custom sticker is too large' });
+        }
+        stickerMeta = {
+          key: requestKey || makeCustomKey(),
+          type: 'image',
+          value: assetValue,
+          label: custom.label || 'Custom sticker',
+          isCustom: true,
+        };
+      } else {
+        stickerMeta = catalogMap.get(requestKey || '');
+      }
+
       if (!stickerMeta) {
         return res.status(400).json({ message: 'Invalid stickerKey' });
       }

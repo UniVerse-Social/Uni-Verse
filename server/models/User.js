@@ -1,6 +1,26 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const FeedPreferencesSchema = new mongoose.Schema(
+  {
+    showOwn: { type: Boolean, default: true },
+    showFollowing: { type: Boolean, default: true },
+    showFollowers: { type: Boolean, default: false },
+    includeAllUsers: { type: Boolean, default: false },
+    includeSameDepartment: { type: Boolean, default: false },
+    onlyInteracted: { type: Boolean, default: false },
+    sharedInterestsOnly: { type: Boolean, default: false },
+    withImagesOnly: { type: Boolean, default: false },
+    stickerAccessOnly: { type: Boolean, default: false },
+    sort: {
+      type: String,
+      enum: ['newest', 'oldest', 'mostLiked'],
+      default: 'newest',
+    },
+  },
+  { _id: false }
+);
+
 const UserSchema = new mongoose.Schema(
   {
     username: { type: String, required: true, unique: true, trim: true },
@@ -28,7 +48,9 @@ const UserSchema = new mongoose.Schema(
     // - badgesUnlocked: all badge names the user has earned
     // - badgesEquipped: up to 5 equipped badge names (index 0 is the "Title" badge)
     badgesUnlocked: { type: [String], default: [] },
-    badgesEquipped: { type: [String], default: [] }
+    badgesEquipped: { type: [String], default: [] },
+
+    feedPreferences: { type: FeedPreferencesSchema, default: () => ({}) },
   },
   { timestamps: true }
 );

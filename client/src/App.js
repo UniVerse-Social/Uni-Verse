@@ -15,6 +15,8 @@ import DMPage from './pages/DMs';
 import Games from './pages/Game';
 import LegalDocPage from './pages/LegalDocPage';
 import { StickerProvider } from './context/StickersContext';
+import { CustomStickerProvider } from './context/CustomStickerContext';
+import { StickerInteractionsProvider } from './context/StickerInteractionsContext';
 
 // ---------- Global username click handler ----------
 function GlobalUsernameLinker() {
@@ -89,53 +91,57 @@ function App() {
   return (
     <AuthContext.Provider value={{ user, login, logout }}>
       <StickerProvider>
-        <GlobalTheme />
-        <Router>
-          {user ? (
-            <>
-              <GlobalUsernameLinker />
-              <Navbar />
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/profile/:username" element={<Profile />} />
-              <Route path="/titantap" element={<TitanTap />} />
-              <Route
-                path="/clubs"
-                element={
-                  <React.Suspense fallback={<div />}>
-                    <Clubs />
-                  </React.Suspense>
-                }
-              />
-              <Route path="/games" element={<Games />} />
-              <Route path="/dms" element={<DMPage />} />
+        <CustomStickerProvider user={user}>
+          <StickerInteractionsProvider>
+            <GlobalTheme />
+            <Router>
+              {user ? (
+                <>
+                  <GlobalUsernameLinker />
+                  <Navbar />
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/profile/:username" element={<Profile />} />
+                    <Route path="/titantap" element={<TitanTap />} />
+                    <Route
+                      path="/clubs"
+                      element={
+                        <React.Suspense fallback={<div />}>
+                          <Clubs />
+                        </React.Suspense>
+                      }
+                    />
+                    <Route path="/games" element={<Games />} />
+                    <Route path="/dms" element={<DMPage />} />
 
-              {/* Legal pages available while logged in */}
-              <Route path="/terms" element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />} />
-              <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
-              <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
+                    {/* Legal pages available while logged in */}
+                    <Route path="/terms" element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />} />
+                    <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
+                    <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
 
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-            <FooterSwitch />
-            </>
-          ) : (
-            <>
-              <Routes>
-                <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
+                    <Route path="*" element={<Navigate to="/" />} />
+                  </Routes>
+                  <FooterSwitch />
+                </>
+              ) : (
+                <>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
 
-              {/* Public legal pages */}
-              <Route path="/terms" element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />} />
-              <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
-              <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
+                    {/* Public legal pages */}
+                    <Route path="/terms" element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />} />
+                    <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
+                    <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
 
-              <Route path="*" element={<Navigate to="/login" />} />
-              </Routes>
-              <FooterSwitch />
-            </>
-          )}
-        </Router>
+                    <Route path="*" element={<Navigate to="/login" />} />
+                  </Routes>
+                  <FooterSwitch />
+                </>
+              )}
+            </Router>
+          </StickerInteractionsProvider>
+        </CustomStickerProvider>
       </StickerProvider>
     </AuthContext.Provider>
   );
