@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { API_BASE_URL } from '../config';
 import UserLink from "../components/UserLink";
+import { getHobbyEmoji } from '../utils/hobbies';
 
 // ---------- Minimal styles (scoped via classNames) ----------
 const styles = `
@@ -21,6 +22,7 @@ const styles = `
 .res-sub { font-size: 12px; color: #111; margin-top: 2px; }
 .chips { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { background: #f4f6f8; border: 1px solid #e5e8eb; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
+.chip .chip-emoji { margin-right: 4px; font-size: 13px; display: inline-block; }
 
 /* --- NEW: badges row on the card --- */
 .badges { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -36,15 +38,36 @@ const styles = `
 .card .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .card .name { font-weight: 700; font-size: 18px; }
 .card .sub { color: #666; font-size: 12px; margin-top: 2px; }
-.card .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; max-height: 48px; overflow: hidden; }
+.card .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; max-height: 72px; overflow: hidden; }
 .card .hint { margin-top: 18px; color: #888; font-size: 12px; text-align: center; }
 
 .controls { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
 .controls button { padding: 10px 16px; border-radius: 999px; border: 1px solid #111; background: #fff; color: #111; cursor: pointer; }
 .controls .ghost { background: #fff; color: #111; }
 
+.tag-trigger { padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.12); color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; transition: background 0.2s ease; }
+.tag-trigger:hover { background: rgba(255,255,255,0.2); }
+.tag-active-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.tag-chip-active { display: inline-flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(37,99,235,0.28); }
+.tag-chip-active span { font-weight: 600; }
+
+.tag-modal { position: fixed; top: 120px; right: 40px; width: 280px; max-width: 90vw; max-height: 70vh; overflow: auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 18px 42px rgba(0,0,0,0.18); padding: 18px; z-index: 1600; }
+.tag-modal header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tag-modal h3 { margin: 0; font-size: 16px; color: #111827; }
+.tag-modal button.close { border: none; background: transparent; font-size: 20px; line-height: 1; cursor: pointer; color: #6b7280; }
+.tag-modal button.close:hover { color: #111827; }
+.tag-error { color: #b91c1c; font-size: 12px; margin-bottom: 8px; }
+.tag-section { margin-bottom: 14px; }
+.tag-section h4 { margin: 0 0 6px; font-size: 13px; color: #374151; letter-spacing: 0.04em; text-transform: uppercase; }
+.tag-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-pill { padding: 6px 12px; border-radius: 999px; border: 1px solid #d1d5db; background: #f9fafb; color: #1f2937; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.18s ease; }
+.tag-pill:hover { background: #e5edff; border-color: #bfdbfe; }
+.tag-pill.active { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 6px 16px rgba(37,99,235,0.28); }
+
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #fff; color: #111; padding: 10px 14px; border-radius: 999px; }
 `;
+
+const GAME_KEYS = ['chess', 'checkers', 'fishing', 'poker', 'reversi', 'jump', 'oddeven'];
 
 function getCurrentUserId() {
   try {
@@ -146,7 +169,12 @@ function SwipeableCard({ user, onDecision }) {
 
         {Array.isArray(user.hobbies) && user.hobbies.length > 0 && (
           <div className="chips">
-            {user.hobbies.slice(0, 6).map((h, i) => (<span key={i} className="chip">{h}</span>))}
+            {user.hobbies.slice(0, 6).map((h, i) => (
+              <span key={i} className="chip" title={h}>
+                <span className="chip-emoji" aria-hidden="true">{getHobbyEmoji(h)}</span>
+                {h}
+              </span>
+            ))}
           </div>
         )}
 
@@ -163,8 +191,54 @@ const TitanTap = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [justFollowed, setJustFollowed] = useState(null);
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const [activeTags, setActiveTags] = useState([]);
+  const [tagData, setTagData] = useState({ loaded: false, hobbies: [], departments: [], clubs: [], leaderboardIds: [] });
+  const [tagLoading, setTagLoading] = useState(false);
+  const [tagError, setTagError] = useState('');
 
   const userId = useMemo(() => getCurrentUserId(), []);
+  const leaderboardSet = useMemo(
+    () => new Set((tagData.leaderboardIds || []).map(String)),
+    [tagData.leaderboardIds]
+  );
+
+  const ensureTagData = useCallback(async () => {
+    if (tagData.loaded || tagLoading) return;
+    setTagLoading(true);
+    try {
+      const [signupRes, clubsRes, leaderboardRes] = await Promise.all([
+        api('/api/auth/signup-data'),
+        api(`/api/clubs?viewer=${encodeURIComponent(userId || '')}`),
+        Promise.all(
+          GAME_KEYS.map((key) =>
+            api(`/api/games/leaderboard/${key}?limit=3`).catch(() => ({ leaders: [] }))
+          )
+        ),
+      ]);
+
+      const leaderboardIds = new Set();
+      leaderboardRes.forEach((entry) => {
+        const leaders = Array.isArray(entry?.leaders) ? entry.leaders : [];
+        leaders.forEach((leader) => {
+          if (leader?.userId) leaderboardIds.add(String(leader.userId));
+        });
+      });
+
+      setTagData({
+        loaded: true,
+        hobbies: Array.isArray(signupRes?.hobbies) ? signupRes.hobbies : [],
+        departments: Array.isArray(signupRes?.departments) ? signupRes.departments : [],
+        clubs: Array.isArray(clubsRes) ? clubsRes : [],
+        leaderboardIds: Array.from(leaderboardIds),
+      });
+      setTagError('');
+    } catch (err) {
+      setTagError(err?.message || 'Failed to load tag data');
+    } finally {
+      setTagLoading(false);
+    }
+  }, [tagData.loaded, tagLoading, userId]);
 
   useEffect(() => {
     (async () => {
@@ -176,15 +250,131 @@ const TitanTap = () => {
   }, [userId]);
 
   useEffect(() => {
+    if (showTagPicker) ensureTagData();
+  }, [showTagPicker, ensureTagData]);
+
+  useEffect(() => {
     const t = setTimeout(async () => {
       try {
-        if (!query.trim()) return setSearchResults([]);
-        const data = await api(`/api/users/search?q=${encodeURIComponent(query.trim())}&userId=${encodeURIComponent(userId || '')}`);
+        const trimmed = query.trim();
+        const hasText = trimmed.length > 0;
+        const hasTags = activeTags.length > 0;
+        if (!hasText && !hasTags) {
+          setSearchResults([]);
+          return;
+        }
+        const params = new URLSearchParams();
+        if (hasText) params.set('q', trimmed);
+        if (userId) params.set('userId', userId);
+        if (hasTags) params.set('tags', activeTags.map((tag) => tag.key).join(','));
+        const data = await api(`/api/users/search?${params.toString()}`);
         setSearchResults(Array.isArray(data) ? data : []);
       } catch (e) { setError(e.message); }
     }, 300);
     return () => clearTimeout(t);
-  }, [query, userId]);
+  }, [query, userId, activeTags]);
+
+  const isTagActive = useCallback(
+    (key) => activeTags.some((tag) => tag.key === key),
+    [activeTags]
+  );
+
+  const toggleTag = useCallback((tag) => {
+    setActiveTags((prev) => {
+      const exists = prev.some((t) => t.key === tag.key);
+      return exists ? prev.filter((t) => t.key !== tag.key) : [...prev, tag];
+    });
+  }, []);
+
+  const matchesAllTags = useCallback(
+    (user) => {
+      if (!activeTags.length) return true;
+      const uid = String(user?._id || '');
+      const userHobbies = Array.isArray(user?.hobbies) ? user.hobbies : [];
+      const userClubs = Array.isArray(user?.clubs) ? user.clubs.map((c) => String(c)) : [];
+      const userDept = user?.department || '';
+
+      return activeTags.every(({ key }) => {
+        if (key === 'leaderboardTop3') {
+          return leaderboardSet.has(uid);
+        }
+        if (key.startsWith('hobby:')) {
+          const hobby = key.slice('hobby:'.length);
+          return userHobbies.includes(hobby);
+        }
+        if (key.startsWith('department:')) {
+          const dept = key.slice('department:'.length);
+          return userDept === dept;
+        }
+        if (key === 'club:any') {
+          return userClubs.length > 0;
+        }
+        if (key.startsWith('club:')) {
+          const clubId = key.slice('club:'.length);
+          return userClubs.includes(clubId);
+        }
+        return true;
+      });
+    },
+    [activeTags, leaderboardSet]
+  );
+
+  const filteredDeck = useMemo(() => {
+    if (!activeTags.length) return deck;
+    return deck.filter((user) => matchesAllTags(user));
+  }, [deck, activeTags, matchesAllTags]);
+
+  const filteredSearchResults = useMemo(() => {
+    if (!activeTags.length) return searchResults;
+    return searchResults.filter((user) => matchesAllTags(user));
+  }, [searchResults, activeTags, matchesAllTags]);
+
+  const tagsCatalog = useMemo(() => {
+    const sections = [];
+    const featuredTags = [
+      { key: 'leaderboardTop3', label: 'Leaderboard Top 3' },
+      { key: 'club:any', label: 'In a Club' },
+    ];
+    sections.push({ id: 'featured', title: 'Featured', tags: featuredTags });
+
+    const hobbies = Array.isArray(tagData.hobbies)
+      ? [...tagData.hobbies].sort((a, b) => a.localeCompare(b))
+      : [];
+    if (hobbies.length) {
+      sections.push({
+        id: 'hobbies',
+        title: 'Hobbies',
+        tags: hobbies.map((h) => ({ key: `hobby:${h}`, label: h })),
+      });
+    }
+
+    const departments = Array.isArray(tagData.departments)
+      ? [...tagData.departments].sort((a, b) => a.localeCompare(b))
+      : [];
+    if (departments.length) {
+      sections.push({
+        id: 'departments',
+        title: 'Departments',
+        tags: departments.map((d) => ({ key: `department:${d}`, label: d })),
+      });
+    }
+
+    const clubs = Array.isArray(tagData.clubs)
+      ? [...tagData.clubs]
+          .filter((c) => c && c._id && c.name)
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .slice(0, 30)
+      : [];
+    if (clubs.length) {
+      sections.push({
+        id: 'clubs',
+        title: 'Clubs',
+        tags: clubs.map((c) => ({ key: `club:${c._id}`, label: c.name })),
+      });
+    }
+
+    return sections.filter((section) => section.tags.length > 0);
+  }, [tagData]);
 
   const decideTop = async (dir, user) => {
     if (dir === 'right' && userId) {
@@ -195,7 +385,7 @@ const TitanTap = () => {
   };
 
   const programmaticSwipe = async (direction) => {
-    const top = deck[deck.length - 1];
+    const top = filteredDeck[filteredDeck.length - 1];
     if (!top) return;
     await decideTop(direction, top);
   };
@@ -214,17 +404,81 @@ const TitanTap = () => {
 
       <div className="titantap-header">
         <h2>TitanTap</h2>
-        <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by username, department, or hobbies…" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by username, department, or hobbies…"
+        />
+        <button
+          type="button"
+          className="tag-trigger"
+          onClick={() => setShowTagPicker((prev) => !prev)}
+          aria-expanded={showTagPicker}
+        >
+          Tags
+        </button>
       </div>
+
+      {activeTags.length > 0 && (
+        <div className="tag-active-row">
+          {activeTags.map((tag) => (
+            <button
+              key={tag.key}
+              type="button"
+              className="tag-chip-active"
+              onClick={() => toggleTag(tag)}
+            >
+              <span>{tag.label}</span>
+              ×
+            </button>
+          ))}
+        </div>
+      )}
+
+      {showTagPicker && (
+        <div className="tag-modal">
+          <header>
+            <h3>Filter Tags</h3>
+            <button type="button" className="close" onClick={() => setShowTagPicker(false)} aria-label="Close tag picker">×</button>
+          </header>
+          {tagError && <div className="tag-error">{tagError}</div>}
+          {tagLoading ? (
+            <div className="note" style={{ padding: '8px 0' }}>Loading tags…</div>
+          ) : (
+            tagsCatalog.length > 0 ? (
+              tagsCatalog.map((section) => (
+                <div key={section.id} className="tag-section">
+                  <h4>{section.title}</h4>
+                  <div className="tag-pills">
+                    {section.tags.map((tag) => (
+                      <button
+                        key={tag.key}
+                        type="button"
+                        className={`tag-pill ${isTagActive(tag.key) ? 'active' : ''}`}
+                        onClick={() => toggleTag(tag)}
+                      >
+                        {tag.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="note" style={{ padding: '8px 0' }}>No tags available right now.</div>
+            )
+          )}
+        </div>
+      )}
 
       {error && <div className="note">{error}</div>}
 
-      {query.trim() && (
+      {(query.trim() || activeTags.length > 0) && (
         <div className="search-results">
-          {searchResults.length === 0 ? (
-            <div className="note">No results</div>
+          {filteredSearchResults.length === 0 ? (
+            <div className="note">No results for the current filters.</div>
           ) : (
-            searchResults.map(u => (
+            filteredSearchResults.map(u => (
               <div key={u._id} className="result-row">
                 <div className="res-avatar" aria-hidden>
                   {u.profilePicture ? <img src={u.profilePicture} alt={u.username} /> : <span style={{ fontWeight: 700 }}>{(u.username || '?').slice(0,1).toUpperCase()}</span>}
@@ -236,7 +490,12 @@ const TitanTap = () => {
                   <div className="res-sub">{u.department ? `Dept: ${u.department}` : ''}</div>
                   {Array.isArray(u.hobbies) && u.hobbies.length > 0 && (
                     <div className="chips">
-                      {u.hobbies.slice(0,4).map((h,i) => (<span key={i} className="chip">{h}</span>))}
+                      {u.hobbies.slice(0,4).map((h,i) => (
+                        <span key={i} className="chip" title={h}>
+                          <span className="chip-emoji" aria-hidden="true">{getHobbyEmoji(h)}</span>
+                          {h}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -257,8 +516,12 @@ const TitanTap = () => {
 
       <div className="deck">
         {loading && <div className="note">Loading suggestions…</div>}
-        {!loading && deck.length === 0 && <div className="note">No more suggestions right now.</div>}
-        {deck.map((user, idx) => (
+        {!loading && filteredDeck.length === 0 && (
+          <div className="note">
+            {activeTags.length ? 'No suggestions match the selected tags yet.' : 'No more suggestions right now.'}
+          </div>
+        )}
+        {filteredDeck.map((user, idx) => (
           <div key={user._id} style={{ zIndex: 1000 + idx }}>
             <SwipeableCard user={user} onDecision={decideTop} />
           </div>

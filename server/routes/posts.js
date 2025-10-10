@@ -2,6 +2,7 @@
 const router = require('express').Router();
 const Post = require('../models/Post');
 const User = require('../models/User');
+const Comment = require('../models/Comment');
 const { maskText, enforceNotBanned } = require('../middleware/moderation');
 const { checkAndUnlock } = require('../services/badges');
 
@@ -61,8 +62,9 @@ router.put('/:id', enforceNotBanned, async (req, res) => {
       updates.attachments = req.body.attachments.slice(0, 10);
     }
 
-    await post.updateOne({ $set: updates });
-    res.status(200).json('The post has been updated');
+    Object.assign(post, updates);
+    await post.save();
+    res.status(200).json(post);
   } catch (err) {
     console.error(err);
     res.status(500).json(err);
@@ -114,10 +116,66 @@ router.put('/:id/like', async (req, res) => {
 });
 
 // Helper to hydrate author info (+ title badge)
-const aggregatePostData = async (posts) => {
+const aggregatePostData = async (posts, viewerId) => {
   const authorIds = [...new Set(posts.map((p) => p.userId))];
   const postAuthors = await User.find({ _id: { $in: authorIds } });
   const authorMap = new Map(postAuthors.map((a) => [a._id.toString(), a]));
+
+  const postIds = posts.map((p) => p._id);
+  const commentMeta = new Map();
+
+  if (postIds.length) {
+    const comments = await Comment.find({ postId: { $in: postIds } })
+      .select('postId userId body parentId likes createdAt')
+      .lean();
+
+    const commentUserIds = new Set(comments.map((c) => String(c.userId)));
+    const commentAuthorMap = commentUserIds.size
+      ? new Map(
+          (await User.find({ _id: { $in: Array.from(commentUserIds) } })
+            .select('_id username')
+            .lean()).map((u) => [String(u._id), u.username || 'user'])
+        )
+      : new Map();
+
+    const byPost = new Map();
+    comments.forEach((c) => {
+      const key = String(c.postId);
+      if (!byPost.has(key)) byPost.set(key, []);
+      byPost.get(key).push(c);
+    });
+
+    const viewerIdStr = viewerId ? String(viewerId) : null;
+
+    byPost.forEach((arr, key) => {
+      arr.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const topLevel = arr.filter((c) => !c.parentId);
+      let preview = null;
+      if (topLevel.length) {
+        const sortedByLikes = [...topLevel].sort((a, b) => {
+          const likeDiff = (b.likes?.length || 0) - (a.likes?.length || 0);
+          if (likeDiff !== 0) return likeDiff;
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+        const likedTop = sortedByLikes.find((c) => (c.likes?.length || 0) > 0);
+        const latest = topLevel[0];
+        const chosen = likedTop || latest;
+        if (chosen) {
+          preview = {
+            type: likedTop ? 'top' : 'latest',
+            username: commentAuthorMap.get(String(chosen.userId)) || 'user',
+            body: chosen.body || '',
+          };
+        }
+      }
+      const userCommented = viewerIdStr ? arr.some((c) => String(c.userId) === viewerIdStr) : false;
+      commentMeta.set(key, {
+        count: arr.length,
+        preview,
+        userCommented,
+      });
+    });
+  }
 
   return posts
     .map((post) => {
@@ -126,6 +184,15 @@ const aggregatePostData = async (posts) => {
       obj.username       = author ? author.username : 'Unknown User';
       obj.profilePicture = author ? author.profilePicture : '';
       obj.titleBadge     = author?.badgesEquipped?.[0] || null; // slot 0 is "Title"
+      obj.authorDepartment = author?.department || '';
+      obj.authorHobbies = Array.isArray(author?.hobbies) ? author.hobbies : [];
+      obj.viewerLiked = viewerId ? (post.likes || []).some((id) => String(id) === String(viewerId)) : false;
+
+      const meta = commentMeta.get(post._id.toString());
+      obj.commentCount = meta?.count || 0;
+      obj.commentPreview = meta?.preview || null;
+      obj.viewerCommented = meta?.userCommented || false;
+
       return obj;
     })
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -140,7 +207,7 @@ router.get('/timeline/:userId', async (req, res) => {
     const own = await Post.find({ userId: me._id });
     const friends = await Post.find({ userId: { $in: me.following || [] } });
 
-    res.status(200).json(await aggregatePostData(own.concat(friends)));
+    res.status(200).json(await aggregatePostData(own.concat(friends), me._id));
   } catch (err) {
     console.error(err);
     res.status(500).json(err);
@@ -153,8 +220,9 @@ router.get('/profile/:username', async (req, res) => {
     const user = await User.findOne({ username: req.params.username });
     if (!user) return res.status(404).json('User not found');
 
+    const viewerId = req.query.viewerId;
     const posts = await Post.find({ userId: user._id });
-    res.status(200).json(await aggregatePostData(posts));
+    res.status(200).json(await aggregatePostData(posts, viewerId));
   } catch (err) {
     console.error(err);
     res.status(500).json(err);

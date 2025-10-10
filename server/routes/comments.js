@@ -2,6 +2,21 @@ const router = require('express').Router();
 const mongoose = require('mongoose');
 const Comment = require('../models/Comment');
 const User = require('../models/User');
+const Post = require('../models/Post');
+
+function normalizeAttachments(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((att) => att && att.url)
+    .slice(0, 6)
+    .map((att) => ({
+      url: att.url,
+      type: att.type === 'image' ? 'image' : 'image',
+      width: typeof att.width === 'number' ? att.width : undefined,
+      height: typeof att.height === 'number' ? att.height : undefined,
+      scan: att.scan && typeof att.scan === 'object' ? att.scan : undefined,
+    }));
+}
 
 // Get all comments for a post (flat; client nests by parentId) — ENRICHED with username & profilePicture
 router.get('/post/:postId', async (req, res) => {
@@ -39,8 +54,51 @@ router.get('/post/:postId/count', async (req, res) => {
   try {
     const postId = new mongoose.Types.ObjectId(req.params.postId);
     const count = await Comment.countDocuments({ postId });
-    res.json({ count });
-  } catch {
+
+    const topLevel = await Comment.find({ postId, parentId: null })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    let preview = null;
+    if (topLevel.length > 0) {
+      const userIds = [...new Set(topLevel.map(c => String(c.userId)))];
+      const authors = await User.find({ _id: { $in: userIds } })
+        .select('_id username')
+        .lean();
+      const nameMap = new Map(authors.map(a => [String(a._id), a.username || 'user']));
+      const byLikes = [...topLevel].sort((a, b) => {
+        const likeDiff = (b.likes?.length || 0) - (a.likes?.length || 0);
+        if (likeDiff !== 0) return likeDiff;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+      const likedTop = byLikes.find(c => (c.likes?.length || 0) > 0);
+      const latest = topLevel[0];
+      const chosen = likedTop ? { type: 'top', comment: likedTop } : latest ? { type: 'latest', comment: latest } : null;
+      if (chosen) {
+        preview = {
+          type: chosen.type,
+          username: nameMap.get(String(chosen.comment.userId)) || 'user',
+          body: chosen.comment.body || '',
+          likes: chosen.comment.likes?.length || 0,
+          createdAt: chosen.comment.createdAt,
+        };
+        if (chosen.type === 'latest' && (chosen.comment.likes?.length || 0) === 0) {
+          // ensure we only indicate "latest" when no liked top comment exists
+          preview.type = 'latest';
+        }
+      }
+    }
+
+    let userCommented = false;
+    const viewerIdRaw = req.query.viewerId;
+    if (viewerIdRaw && mongoose.isValidObjectId(viewerIdRaw)) {
+      const viewerObjectId = new mongoose.Types.ObjectId(viewerIdRaw);
+      userCommented = !!(await Comment.exists({ postId, userId: viewerObjectId }));
+    }
+
+    res.json({ count, preview, userCommented });
+  } catch (e) {
+    console.error('comment preview error', e);
     res.status(500).json({ message: 'Failed to count comments' });
   }
 });
@@ -48,9 +106,12 @@ router.get('/post/:postId/count', async (req, res) => {
 // Create a comment (or reply)
 router.post('/', async (req, res) => {
   try {
-    const { postId, userId, body, parentId } = req.body || {};
-    if (!postId || !userId || !String(body || '').trim()) {
-      return res.status(400).json({ message: 'Missing fields' });
+    const { postId, userId, body, parentId, attachments } = req.body || {};
+    const trimmed = String(body || '').trim();
+    const safeAttachments = normalizeAttachments(attachments);
+
+    if (!postId || !userId || (!trimmed && safeAttachments.length === 0)) {
+      return res.status(400).json({ message: 'Missing comment content' });
     }
 
     // If replying, validate the parent belongs to same post
@@ -64,8 +125,9 @@ router.post('/', async (req, res) => {
     const created = await Comment.create({
       postId,
       userId,
-      body: String(body).trim(),
-      parentId: parentId || null
+      body: trimmed,
+      parentId: parentId || null,
+      attachments: safeAttachments,
     });
 
     res.status(201).json(created);
@@ -100,7 +162,10 @@ router.delete('/:id', async (req, res) => {
     const { userId } = req.body || {};
     const c = await Comment.findById(req.params.id);
     if (!c) return res.status(404).json({ message: 'Not found' });
-    if (String(c.userId) !== String(userId)) {
+    const post = await Post.findById(c.postId).select('userId').lean();
+    const isCommentAuthor = String(c.userId) === String(userId);
+    const isPostOwner = post && String(post.userId) === String(userId);
+    if (!isCommentAuthor && !isPostOwner) {
       return res.status(403).json({ message: 'Forbidden' });
     }
     await Comment.deleteMany({ $or: [{ _id: c._id }, { parentId: c._id }] });

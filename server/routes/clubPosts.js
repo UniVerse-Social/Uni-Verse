@@ -2,6 +2,8 @@ const router = require('express').Router();
 const mongoose = require('mongoose');
 const Club = require('../models/Club');
 const ClubPost = require('../models/ClubPost');
+const ClubComment = require('../models/ClubComment');
+const User = require('../models/User');
 const { maskText, enforceNotBanned } = require('../middleware/moderation');
 
 // List (unchanged core)
@@ -9,6 +11,11 @@ router.get('/:clubId', async (req, res) => {
   const clubId = new mongoose.Types.ObjectId(req.params.clubId);
   const channel = (req.query.channel || 'side').toLowerCase() === 'main' ? 'main' : 'side';
   const match = { clubId, channel };
+
+  const viewerIdRaw = req.query.viewerId;
+  const viewerId = viewerIdRaw && mongoose.isValidObjectId(viewerIdRaw)
+    ? new mongoose.Types.ObjectId(viewerIdRaw)
+    : null;
 
   if (channel === 'side') {
     if (!req.query.sideId) return res.status(400).json({ message: 'sideId required for side channel' });
@@ -53,12 +60,89 @@ router.get('/:clubId', async (req, res) => {
         attachments: 1,
         likes: 1,
         createdAt: 1,
+        updatedAt: 1,
         authorId: 1,
-        author: { _id: '$author._id', username: '$author.username', profilePicture: '$author.profilePicture' }
+        author: {
+          _id: '$author._id',
+          username: '$author.username',
+          profilePicture: '$author.profilePicture',
+          department: '$author.department',
+          hobbies: '$author.hobbies',
+          badgesEquipped: '$author.badgesEquipped',
+          titleBadge: '$author.titleBadge'
+        }
       }
     }
   ]);
-  res.json(posts);
+  const postIds = posts.map((p) => p._id);
+  const commentMeta = new Map();
+
+  if (postIds.length) {
+    const comments = await ClubComment.find({ postId: { $in: postIds } })
+      .select('postId userId body parentId likes createdAt')
+      .lean();
+
+    const authorIds = [...new Set(comments.map((c) => String(c.userId)))];
+    const authors = authorIds.length
+      ? await User.find({ _id: { $in: authorIds } }).select('_id username').lean()
+      : [];
+    const nameMap = new Map(authors.map((u) => [String(u._id), u.username || 'user']));
+
+    const byPost = new Map();
+    comments.forEach((c) => {
+      const key = String(c.postId);
+      if (!byPost.has(key)) byPost.set(key, []);
+      byPost.get(key).push(c);
+    });
+
+    const viewerIdStrLocal = viewerId ? String(viewerId) : null;
+
+    byPost.forEach((arr, key) => {
+      const topLevel = arr.filter((c) => !c.parentId);
+      let preview = null;
+      if (topLevel.length) {
+        const sortedByLikes = [...topLevel].sort((a, b) => {
+          const likeDiff = (b.likes?.length || 0) - (a.likes?.length || 0);
+          if (likeDiff !== 0) return likeDiff;
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+        const likedTop = sortedByLikes.find((c) => (c.likes?.length || 0) > 0);
+        const latest = topLevel[0];
+        const chosen = likedTop || latest;
+        if (chosen) {
+          preview = {
+            type: likedTop ? 'top' : 'latest',
+            username: nameMap.get(String(chosen.userId)) || 'user',
+            body: chosen.body || '',
+          };
+        }
+      }
+      const userCommented = viewerIdStrLocal
+        ? arr.some((c) => String(c.userId) === viewerIdStrLocal)
+        : false;
+      commentMeta.set(key, {
+        count: arr.length,
+        preview,
+        userCommented,
+      });
+    });
+  }
+
+  const viewerIdStr = viewerId ? String(viewerId) : null;
+  const enriched = posts.map((post) => {
+    const meta = commentMeta.get(post._id.toString());
+    return {
+      ...post,
+      authorDepartment: post.author?.department || '',
+      authorHobbies: Array.isArray(post.author?.hobbies) ? post.author.hobbies : [],
+      viewerLiked: viewerIdStr ? (post.likes || []).map(String).includes(viewerIdStr) : false,
+      commentCount: meta?.count || 0,
+      commentPreview: meta?.preview || null,
+      viewerCommented: meta?.userCommented || false,
+    };
+  });
+
+  res.json(enriched);
 });
 
 // Create post (mask text; allow images or attachments)

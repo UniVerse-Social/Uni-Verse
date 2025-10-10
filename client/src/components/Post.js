@@ -1,10 +1,10 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import styled from 'styled-components';
 import { Link } from 'react-router-dom';
-import { FaHeart, FaRegHeart, FaCommentAlt, FaEllipsisH } from 'react-icons/fa';
+import { FaHeart, FaRegHeart, FaCommentAlt, FaRegCommentAlt, FaEllipsisH } from 'react-icons/fa';
 import axios from 'axios';
 import { AuthContext } from '../App';
-import { toMediaUrl } from '../config';
+import { toMediaUrl, API_BASE_URL } from '../config';
 import EditPostModal from './EditPostModal';
 import CommentDrawer from './CommentDrawer';
 
@@ -78,7 +78,22 @@ const TitleBadge = styled.span`
   border: 1px solid var(--border-color);
 `;
 
-const Timestamp = styled.span` font-size: 12px; color: #6b7280; `;
+const Timestamp = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+  flex-wrap: wrap;
+`;
+const DateLabel = styled.span`
+  font-weight: 600;
+  color: #374151;
+`;
+const EditedStamp = styled.span`
+  font-size: 11px;
+  color: #9ca3af;
+`;
 const PostContent = styled.p` font-size: 16px; line-height: 1.5; margin: 0 0 12px 0; white-space: pre-wrap; word-break: break-word; color: #111; `;
 const PostActions = styled.div` display: flex; align-items: center; gap: 20px; color: #374151; `;
 const Action = styled.div` display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; `;
@@ -89,6 +104,47 @@ const DropdownMenu = styled.div`
   top: 44px; right: 16px;
 `;
 const DropdownItem = styled.div` padding: 12px 16px; cursor: pointer; &:hover { background-color: #f3f4f6; } `;
+
+const CommentPreviewInline = styled.span`
+  color: #64748b;
+  font-size: 12px;
+  margin-left: 8px;
+  flex: 1;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+const formatRelativeLabel = (createdAt) => {
+  const createdDate = new Date(createdAt);
+  if (Number.isNaN(createdDate.getTime())) return '';
+  const now = new Date();
+  const diffMs = now - createdDate;
+  if (diffMs < 0) return 'Just now';
+  const diffDays = Math.floor(diffMs / DAY_MS);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays <= 4) return `${diffDays} days ago`;
+  if (diffDays < 7) return '1 week ago';
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks < 8) return `${diffWeeks} week${diffWeeks === 1 ? '' : 's'} ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths} month${diffMonths === 1 ? '' : 's'} ago`;
+  const diffYears = Math.floor(diffDays / 365);
+  return `${diffYears} year${diffYears === 1 ? '' : 's'} ago`;
+};
+
+const makeSnippet = (body) => {
+  const cleaned = String(body || '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return '';
+  return cleaned.length > 80 ? `${cleaned.slice(0, 77)}...` : cleaned;
+};
+const ICON_SIZE = 16;
+const HEART_COLOR = "#ef4444";
+const COMMENT_COLOR = "#2563eb";
 
 const MediaGrid = styled.div`
   display: grid;
@@ -110,7 +166,95 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
   const [editOpen, setEditOpen] = useState(false);
   const [textContent, setTextContent] = useState(post.textContent);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentCount, setCommentCount] = useState(
+    typeof post.commentCount === 'number'
+      ? post.commentCount
+      : Array.isArray(post.comments)
+        ? post.comments.length
+        : 0
+  );
+  const initialPreview = post.commentPreview
+    ? {
+        ...post.commentPreview,
+        snippet: makeSnippet(post.commentPreview.body ?? post.commentPreview.snippet ?? ''),
+      }
+    : null;
+  const [commentPreview, setCommentPreview] = useState(initialPreview);
+  const [hasCommented, setHasCommented] = useState(Boolean(post.viewerCommented));
+  const initialEdited =
+    post.updatedAt && post.updatedAt !== post.createdAt ? new Date(post.updatedAt) : null;
+  const [lastEdited, setLastEdited] = useState(initialEdited);
 
+  const applyPreview = useCallback((payload) => {
+    if (!payload) {
+      setCommentPreview(null);
+      return;
+    }
+    const snippet = makeSnippet(payload.body ?? payload.snippet ?? '');
+    if (!snippet) {
+      setCommentPreview(null);
+      return;
+    }
+    setCommentPreview({
+      type: payload.type === 'top' ? 'top' : 'latest',
+      username: payload.username || 'user',
+      snippet,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof post.commentCount === 'number') {
+      setCommentCount(post.commentCount);
+    }
+    if (post.commentPreview) {
+      applyPreview(post.commentPreview);
+    } else {
+      setCommentPreview(null);
+    }
+    if (typeof post.viewerCommented === 'boolean') {
+      setHasCommented(post.viewerCommented);
+    }
+    if (post.updatedAt && post.updatedAt !== post.createdAt) {
+      setLastEdited(new Date(post.updatedAt));
+    } else {
+      setLastEdited(null);
+    }
+  }, [post.commentCount, post.commentPreview, post.viewerCommented, post.updatedAt, post.createdAt, applyPreview]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const viewerParam = currentUser?._id ? `?viewerId=${encodeURIComponent(currentUser._id)}` : '';
+        const res = await axios.get(`${API_BASE_URL}/api/comments/post/${post._id}/count${viewerParam}`);
+        if (!cancelled) {
+          const count = Number(res.data?.count) || 0;
+          setCommentCount(count);
+          applyPreview(count > 0 ? res.data?.preview : null);
+          setHasCommented(Boolean(res.data?.userCommented));
+        }
+      } catch (err) {
+        console.error('Failed to load comment count', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [post._id, applyPreview, currentUser?._id]);
+
+  const handleViewerCommented = useCallback(() => {
+    setHasCommented(true);
+  }, []);
+
+  const handleModalUpdated = useCallback((updated) => {
+    setTextContent(updated.textContent);
+    setLastEdited(updated.updatedAt ? new Date(updated.updatedAt) : new Date());
+    setEditOpen(false);
+    const merged = {
+      ...post,
+      textContent: updated.textContent,
+      updatedAt: updated.updatedAt,
+    };
+    onPostUpdated?.(merged);
+  }, [post, onPostUpdated]);
 
   const isOwner = currentUser && (currentUser._id === post.userId || currentUser.username === post.username);
 
@@ -136,6 +280,12 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
     }
   };
 
+  const createdDate = useMemo(() => {
+    const d = new Date(post.createdAt);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }, [post.createdAt]);
+  const dateLabel = useMemo(() => formatRelativeLabel(post.createdAt), [post.createdAt]);
+
   /* Use custom avatar if provided; otherwise the hardcoded fallback */
   const avatarSrc =
     post.profilePicture && String(post.profilePicture).trim()
@@ -156,7 +306,15 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
             <Username to={`/profile/${post.username}`} data-username-link>{post.username}</Username>
             {!!post.titleBadge && <TitleBadge>{post.titleBadge}</TitleBadge>}
           </UsernameRow>
-          <Timestamp>{new Date(post.createdAt).toLocaleString()}</Timestamp>
+          <Timestamp>
+            {dateLabel && <DateLabel>{dateLabel}</DateLabel>}
+            <span>{createdDate ? createdDate.toLocaleString() : ''}</span>
+            {lastEdited && (
+              <EditedStamp title={`Edited on ${lastEdited.toLocaleString()}`}>
+                · Edited on {lastEdited.toLocaleString()}
+              </EditedStamp>
+            )}
+          </Timestamp>
         </UserInfo>
 
         {isOwner && (
@@ -187,10 +345,17 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
                 
       <PostActions>
         <Action onClick={likeHandler}>
-          {isLiked ? <FaHeart color="red" /> : <FaRegHeart />} {likeCount}
+          {isLiked ? <FaHeart size={ICON_SIZE} color={HEART_COLOR} /> : <FaRegHeart size={ICON_SIZE} color={HEART_COLOR} />} {likeCount}
         </Action>
-        <Action onClick={() => {setCommentsOpen(true)}}> 
-          <FaCommentAlt /> Comments 
+        <Action onClick={() => {setCommentsOpen(true)}} title="View comments" style={{ flex: 1 }}> 
+          {hasCommented
+            ? <FaCommentAlt size={ICON_SIZE} color="#2563eb" />
+            : <FaRegCommentAlt size={ICON_SIZE} color="#2563eb" />} {commentCount}
+          {commentCount > 0 && commentPreview && (
+            <CommentPreviewInline title={`${commentPreview.username} — ${commentPreview.snippet}`}>
+              {commentPreview.username} — {commentPreview.snippet}
+            </CommentPreviewInline>
+          )}
         </Action>
       </PostActions>
       
@@ -198,7 +363,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
         <EditPostModal
           post={{ ...post, textContent }}
           onClose={() => setEditOpen(false)}  
-          onPostUpdated={(updated) => {setTextContent(updated.textContent); setEditOpen(false);}}
+          onPostUpdated={handleModalUpdated}
         />
       )}
 
@@ -206,6 +371,9 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
         <CommentDrawer
           post={post}           // Comment Drawer
           onClose={() => setCommentsOpen(false)}
+          onCountChange={setCommentCount}
+          onPreviewChange={applyPreview}
+          onViewerCommented={handleViewerCommented}
         />
       )}
     </PostContainer>
