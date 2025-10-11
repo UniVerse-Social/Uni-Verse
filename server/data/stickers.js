@@ -75,8 +75,4 @@ module.exports = [
   { key: 'smirk', label: 'Smirk', type: 'emoji', value: '😏' },
   { key: 'sparkle_smile', label: 'Sparkle Smile', type: 'emoji', value: '🤩' },
   { key: 'party_popper', label: 'Party Popper', type: 'emoji', value: '🪅' },
-<<<<<<< HEAD
 ];
-=======
-];
->>>>>>> 43d671d (Christian’s push)
