@@ -110,20 +110,34 @@ const Home = () => {
     includeSameDepartment: false,
     sharedInterestsOnly: false,
     onlyInteracted: false,
-    sort: 'chronological',
+    sort: 'newest',
   });
 
+  // Load posts whenever preferences change
   useEffect(() => {
-    const fetchPosts = async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/posts/timeline/${user._id}`);
-        setPosts(res.data);
+        const params = new URLSearchParams({
+          showOwn: String(preferences.showOwn),
+          showFollowers: String(preferences.showFollowers),
+          includeNonFollowers: String(preferences.includeNonFollowers),
+          includeSameDepartment: String(preferences.includeSameDepartment),
+          sharedInterestsOnly: String(preferences.sharedInterestsOnly),
+          onlyInteracted: String(preferences.onlyInteracted),
+          sort: preferences.sort === 'chronological' ? 'newest' : preferences.sort,
+        });
+        const res = await axios.get(
+          `${API_BASE_URL}/api/posts/home-feed/${user._id}?${params.toString()}`
+        );
+        if (!cancelled) setPosts(res.data || []);
       } catch (err) {
-        console.error(err);
+        console.error('Failed to load home feed', err);
       }
     };
-    fetchPosts();
-  }, [user._id]);
+    load();
+    return () => { cancelled = true; };
+  }, [user._id, preferences]);
 
   useEffect(() => {
     const loadAds = async () => {
@@ -155,52 +169,7 @@ const Home = () => {
     setPosts((prev) => prev.map((p) => (p._id === updated._id ? { ...p, ...updated } : p)));
   };
 
-  const filteredPosts = useMemo(() => {
-    const viewerId = String(user._id);
-    const followingIds = new Set(
-      (Array.isArray(user.following) ? user.following : []).map((id) => String(id))
-    );
-
-    const primary = posts.filter((p) => {
-      const authorId = String(p.userId);
-      const isOwn = authorId === viewerId;
-      const isFollower = followingIds.has(authorId);
-      const isNonFollower = !isOwn && !isFollower;
-      const sameDepartment = user.department
-        ? (p.authorDepartment || '').toLowerCase() === user.department.toLowerCase()
-        : false;
-
-      let allowed = false;
-      if (isOwn && preferences.showOwn) allowed = true;
-      if (isFollower && preferences.showFollowers) allowed = true;
-      if (isNonFollower && preferences.includeNonFollowers) allowed = true;
-      if (preferences.includeSameDepartment && sameDepartment && !isOwn) allowed = true;
-
-      return allowed;
-    });
-
-    let list = primary;
-
-    if (preferences.onlyInteracted) {
-      list = list.filter((p) => {
-        const liked = Array.isArray(p.likes) && p.likes.some((id) => String(id) === viewerId);
-        return p.viewerCommented || liked;
-      });
-    }
-
-    if (preferences.sharedInterestsOnly && Array.isArray(user.hobbies) && user.hobbies.length) {
-      const hobbySet = new Set(user.hobbies);
-      list = list.filter((p) => {
-        const authorHobbies = Array.isArray(p.authorHobbies) ? p.authorHobbies : [];
-        return authorHobbies.some((h) => hobbySet.has(h));
-      });
-    }
-
-    if (preferences.sort === 'mostLiked') {
-      list = [...list].sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0));
-    }
-    return list;
-  }, [posts, preferences, user]);
+  const filteredPosts = posts;
 
   return (
     <HomeContainer>
@@ -292,8 +261,8 @@ const Home = () => {
                 <input
                   type="radio"
                   name="home-sort"
-                  checked={preferences.sort === 'chronological'}
-                  onChange={() => setPreferences((prev) => ({ ...prev, sort: 'chronological' }))}
+                  checked={preferences.sort === 'newest'}
+                  onChange={() => setPreferences((prev) => ({ ...prev, sort: 'newest' }))}
                 />
                 Newest first
               </PrefRow>
@@ -317,7 +286,7 @@ const Home = () => {
                   includeSameDepartment: false,
                   sharedInterestsOnly: false,
                   onlyInteracted: false,
-                  sort: 'chronological',
+                  sort: 'newest',
                 });
               }}>Reset to default</PrefButton>
               <PrefButton type="button" onClick={() => setShowPrefs(false)}>Done</PrefButton>

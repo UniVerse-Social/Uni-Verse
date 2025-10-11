@@ -343,4 +343,102 @@ router.get('/profile/:username', async (req, res) => {
   }
 });
 
+// helper: parse boolean-ish query values
+const parseBool = (v, def = false) => {
+  if (v === undefined) return def;
+  const s = String(v).trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+};
+
+/**
+ * GET /api/posts/home-feed/:userId
+ * Query params:
+ *  - showOwn, showFollowers, includeNonFollowers, includeSameDepartment,
+ *    onlyInteracted, sharedInterestsOnly (all boolean-ish)
+ *  - sort: 'newest' | 'mostLiked'
+ *  - limit: optional, default 250 (max 500)
+ *
+ * Note: `showFollowers` here means "people I follow" (to match existing timeline semantics)
+ */
+router.get('/home-feed/:userId', async (req, res) => {
+  try {
+    const me = await User.findById(req.params.userId)
+      .select('following department hobbies')
+      .lean();
+    if (!me) return res.status(404).json('User not found');
+
+    const showOwn              = parseBool(req.query.showOwn, true);
+    const showFollowers        = parseBool(req.query.showFollowers, true); // i.e., following
+    const includeNonFollowers  = parseBool(req.query.includeNonFollowers, false);
+    const includeSameDepartment= parseBool(req.query.includeSameDepartment, false);
+    const onlyInteracted       = parseBool(req.query.onlyInteracted, false);
+    const sharedInterestsOnly  = parseBool(req.query.sharedInterestsOnly, false);
+    const sortKey              = req.query.sort === 'mostLiked' ? 'mostLiked' : 'newest';
+    const limit                = Math.min(parseInt(req.query.limit, 10) || 250, 500);
+
+    // Build author set if we're NOT exploring the whole network
+    let match = {};
+    if (!includeNonFollowers) {
+      const idSet = new Set();
+      if (showOwn) idSet.add(String(me._id));
+      if (showFollowers && Array.isArray(me.following)) {
+        for (const f of me.following) idSet.add(String(f));
+      }
+
+      // same department expansion (when requested)
+      if (includeSameDepartment && me.department) {
+        const sameDept = await User.find({
+          department: me.department,
+          _id: { $ne: me._id },
+        }).select('_id');
+        for (const u of sameDept) idSet.add(String(u._id));
+      }
+
+      const authorIds = Array.from(idSet).map((id) => new mongoose.Types.ObjectId(id));
+      match = authorIds.length ? { userId: { $in: authorIds } } : { userId: null }; // empty result if none
+    }
+
+    // Pull a sufficiently large recent window
+    const rawPosts = await Post.find(match).sort({ createdAt: -1 }).limit(limit);
+    let hydrated = await aggregatePostData(rawPosts, me._id);
+
+    // If we included "everyone", respect opt-outs (hide own / following if toggles are off)
+    if (includeNonFollowers) {
+      if (!showOwn) {
+        hydrated = hydrated.filter((p) => String(p.userId) !== String(me._id));
+      }
+      if (!showFollowers && Array.isArray(me.following)) {
+        const followingSet = new Set(me.following.map((x) => String(x)));
+        hydrated = hydrated.filter((p) => !followingSet.has(String(p.userId)));
+      }
+      // Department toggle is redundant when "everyone" is on (feed already includes dept),
+      // but sharedInterests/onlyInteracted will still apply below.
+    }
+
+    // Shared interests filter
+    if (sharedInterestsOnly) {
+      const myHobbies = new Set(Array.isArray(me.hobbies) ? me.hobbies : []);
+      hydrated = hydrated.filter((p) =>
+        Array.isArray(p.authorHobbies) && p.authorHobbies.some((h) => myHobbies.has(h))
+      );
+    }
+
+    // Only posts I've interacted with (liked or commented)
+    if (onlyInteracted) {
+      hydrated = hydrated.filter((p) => p.viewerLiked || p.viewerCommented);
+    }
+
+    // Sort: newest (default) vs most liked
+    if (sortKey === 'mostLiked') {
+      hydrated = [...hydrated].sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0));
+    }
+    // 'newest' is already ensured by aggregatePostData's default ordering
+
+    res.json(hydrated);
+  } catch (err) {
+    console.error('home-feed error:', err);
+    res.status(500).json({ message: 'Failed to load home feed' });
+  }
+});
+
 module.exports = router;

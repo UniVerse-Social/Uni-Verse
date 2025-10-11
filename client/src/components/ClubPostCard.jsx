@@ -220,18 +220,25 @@ export default function ClubPostCard({ post, refresh }) {
       <Head>
         <Avatar>
           {post.author?.profilePicture ? (
-            <img src={post.author.profilePicture} alt={post.author?.username || 'user'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img
+              src={post.author.profilePicture}
+              alt={post.author?.username || 'user'}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
           ) : (
-            (post.author?.username || '?').slice(0,1).toUpperCase()
+            (post.author?.username || '?').slice(0, 1).toUpperCase()
           )}
         </Avatar>
         <div>
           <NameRow>
-            <UserLink username={post.author?.username || 'user'}>
+            {/* IMPORTANT: prevent duplicate title by hiding the badge inside UserLink */}
+            <UserLink username={post.author?.username || 'user'} hideBadge>
               {post.author?.username || 'user'}
             </UserLink>
             {titleBadge && <TitleBadge>{titleBadge}</TitleBadge>}
-            <span style={{ fontSize: 12, color: '#6b7280' }}>{post.channel === 'main' ? 'Main' : (post.sideChannelName || 'Side')}</span>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>
+              {post.channel === 'main' ? 'Main' : (post.sideChannelName || 'Side')}
+            </span>
           </NameRow>
           <Timestamp>
             {dateLabel && <DateLabel>{dateLabel}</DateLabel>}
@@ -243,8 +250,12 @@ export default function ClubPostCard({ post, refresh }) {
             )}
           </Timestamp>
         </div>
-        {(String(post.authorId) === String(user._id)) && (
-          <span style={{ marginLeft: 'auto', cursor: 'pointer' }} onClick={deletePost} title="Delete post">
+        {String(post.authorId) === String(user._id) && (
+          <span
+            style={{ marginLeft: 'auto', cursor: 'pointer' }}
+            onClick={deletePost}
+            title="Delete post"
+          >
             <FaTrash />
           </span>
         )}

@@ -814,7 +814,10 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
               <FaEllipsisH />
             </OptionsButton>
             {menuOpen && (
-              <DropdownMenu onMouseLeave={() => setMenuOpen(false)}>
+              <DropdownMenu
+                onMouseLeave={() => setMenuOpen(false)}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <DropdownItem onClick={() => { setMenuOpen(false); setEditOpen(true); }} > Edit Post </DropdownItem>
                 <DropdownItem onClick={() => { setMenuOpen(false); handleToggleSettings(); }}>Sticker Settings</DropdownItem>
                 <DropdownItem onClick={handleDelete}>Delete Post</DropdownItem>

@@ -110,14 +110,10 @@ const Button = styled.button`
   }
 `;
 
-const StickerSettingsModal = ({ open, values, onChange, onSave, onCancel }) => {
+const StickerSettingModal = ({ open, values, onChange, onSave, onCancel }) => {
   useEffect(() => {
-    if (!open) return undefined;
-    const handleKey = (event) => {
-      if (event.key === 'Escape') {
-        onCancel();
-      }
-    };
+    if (!open) return;
+    const handleKey = (e) => e.key === 'Escape' && onCancel();
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [open, onCancel]);
@@ -130,11 +126,12 @@ const StickerSettingsModal = ({ open, values, onChange, onSave, onCancel }) => {
         role="dialog"
         aria-modal="true"
         aria-label="Sticker settings"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <Header>
           <Title>Sticker Settings</Title>
         </Header>
+
         <Body>
           <Row>
             <RadioLabel>
@@ -170,7 +167,9 @@ const StickerSettingsModal = ({ open, values, onChange, onSave, onCancel }) => {
           </Row>
 
           <div>
-            <FieldLabel htmlFor="sticker-allowlist">Allowlist (user IDs, comma separated)</FieldLabel>
+            <FieldLabel htmlFor="sticker-allowlist">
+              Allowlist (user IDs, comma separated)
+            </FieldLabel>
             <Textarea
               id="sticker-allowlist"
               value={values.allowlist}
@@ -180,7 +179,9 @@ const StickerSettingsModal = ({ open, values, onChange, onSave, onCancel }) => {
           </div>
 
           <div>
-            <FieldLabel htmlFor="sticker-denylist">Denylist (user IDs, comma separated)</FieldLabel>
+            <FieldLabel htmlFor="sticker-denylist">
+              Denylist (user IDs, comma separated)
+            </FieldLabel>
             <Textarea
               id="sticker-denylist"
               value={values.denylist}
@@ -198,19 +199,18 @@ const StickerSettingsModal = ({ open, values, onChange, onSave, onCancel }) => {
             Make stickers sticky on load
           </RadioLabel>
 
-          <Hint>Allowlist overrides denylist. Leave both blank to rely solely on the allow mode.</Hint>
+          <Hint>
+            Allowlist overrides denylist. Leave both blank to rely solely on the allow mode.
+          </Hint>
         </Body>
+
         <Footer>
-          <Button type="button" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="button" $primary onClick={onSave}>
-            Save
-          </Button>
+          <Button type="button" onClick={onCancel}>Cancel</Button>
+          <Button type="button" $primary onClick={onSave}>Save</Button>
         </Footer>
       </Modal>
     </Backdrop>
   );
 };
 
-export default StickerSettingsModal;
+export default StickerSettingModal;
