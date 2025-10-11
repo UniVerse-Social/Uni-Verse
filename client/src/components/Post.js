@@ -293,8 +293,14 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
   }, [post.stickers]);
 
   const stickerSettings = post.stickerSettings || {};
-  const allowlist = Array.isArray(stickerSettings.allowlist) ? stickerSettings.allowlist : [];
-  const denylist = Array.isArray(stickerSettings.denylist) ? stickerSettings.denylist : [];
+  const allowlist = useMemo(
+    () => (Array.isArray(stickerSettings.allowlist) ? stickerSettings.allowlist : []),
+    [stickerSettings.allowlist]
+  );
+  const denylist = useMemo(
+    () => (Array.isArray(stickerSettings.denylist) ? stickerSettings.denylist : []),
+    [stickerSettings.denylist]
+  );
   const allowMode = stickerSettings.allowMode || 'everyone';
   const containerRef = useRef(null);
   const stickersRef = useRef(stickers);
@@ -497,14 +503,24 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
 
   const handleDropNewSticker = useCallback(
     async ({ sticker, position, scale, rotation }) => {
+      const safeScale = clamp(
+        typeof scale === 'number' ? scale : 1,
+        STICKER_MIN_SCALE,
+        STICKER_MAX_SCALE
+      );
+      const safeRotation =
+        typeof rotation === 'number' ? rotation * ROTATION_COEFFICIENT : 0;
+
       if (!canPlaceStickers || !currentUser?._id) return;
+
       try {
         const payload = {
           userId: currentUser._id,
           position,
-          scale,
-          rotation,
+          scale: safeScale,
+          rotation: safeRotation,
         };
+
         if (sticker.origin === 'custom' || sticker.assetType === 'image') {
           payload.stickerKey = sticker.stickerKey || sticker.key;
           payload.customSticker = {
@@ -515,6 +531,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
         } else {
           payload.stickerKey = sticker.stickerKey || sticker.key;
         }
+
         const placement = await createStickerPlacement(post._id, payload);
         if (placement) {
           const newPlacement = { ...placement };
@@ -527,37 +544,49 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
           console.error('Failed to place sticker', err);
         }
       }
-    },
-    [canPlaceStickers, currentUser?._id, post._id]
-  );
+    }, [canPlaceStickers, currentUser?._id, post._id]);
 
   const handleDropMoveSticker = useCallback(
     async ({ placementId, position, scale, rotation }) => {
+      const safeScale = clamp(
+        typeof scale === 'number' ? scale : 1,
+        STICKER_MIN_SCALE,
+        STICKER_MAX_SCALE
+      );
+      const safeRotation =
+        typeof rotation === 'number' ? rotation * ROTATION_COEFFICIENT : 0;
+
       if (!currentUser?._id || !placementId) return;
-      const sticker = stickersRef.current.find((s) => getStickerId(s) === placementId);
+
+      const sticker = stickersRef.current.find(
+        (s) => getStickerId(s) === placementId
+      );
       if (!sticker || !canMoveSticker(sticker)) {
         movingStickerIdRef.current = null;
         setMovingStickerId(null);
         return;
       }
+
       const previous = {
         position: sticker.position,
         scale: sticker.scale,
         rotation: sticker.rotation,
       };
+
       setStickers((prev) =>
         prev.map((item) =>
           getStickerId(item) === placementId
-            ? { ...item, position, scale, rotation }
+            ? { ...item, position, scale: safeScale, rotation: safeRotation }
             : item
         )
       );
+
       try {
         await updateStickerPlacement(post._id, placementId, {
           userId: currentUser._id,
           position,
-          scale,
-          rotation,
+          scale: safeScale,
+          rotation: safeRotation,
         });
       } catch (err) {
         console.error('Failed to update sticker placement', err);
@@ -577,9 +606,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
         movingStickerIdRef.current = null;
         setMovingStickerId(null);
       }
-    },
-    [currentUser?._id, post._id, canMoveSticker]
-  );
+    }, [currentUser?._id, canMoveSticker, post._id]);
 
   useEffect(() => {
     const unregister = registerTarget(post._id, {
@@ -644,7 +671,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
       console.error('Failed to update sticker settings', err);
       alert('Could not update sticker settings right now.');
     }
-  }, [isOwner, currentUser?._id, settingsDraft, parseListInput, post._id, onPostUpdated, post]);
+  }, [ isOwner, currentUser?._id, settingsDraft, parseListInput, onPostUpdated, post ]);
 
   const handleSettingsCancel = useCallback(() => {
     setSettingsOpen(false);
@@ -721,7 +748,11 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
           const x = Math.min(Math.max(typeof position.x === 'number' ? position.x : 0.5, 0), 1);
           const y = Math.min(Math.max(typeof position.y === 'number' ? position.y : 0.5, 0), 1);
           const rotation = typeof sticker.rotation === 'number' ? sticker.rotation : 0;
-          const scale = typeof sticker.scale === 'number' ? sticker.scale : 1;
+          const scale = clamp(
+            typeof sticker.scale === 'number' ? sticker.scale : 1,
+            STICKER_MIN_SCALE,
+            STICKER_MAX_SCALE
+          );
           const key = sticker.id || sticker._id || `${sticker.stickerKey}-${x}-${y}-${rotation}`;
           const title = sticker.placedByUser?.username
             ? `${sticker.placedByUser.username}'s sticker`
@@ -824,8 +855,8 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
           style={{ flex: 1 }}
         >
           {hasCommented
-            ? <FaCommentAlt size={ICON_SIZE} color="#2563eb" />
-            : <FaRegCommentAlt size={ICON_SIZE} color="#2563eb" />} {commentCount}
+            ? <FaCommentAlt size={ICON_SIZE} color={COMMENT_COLOR} />
+            : <FaRegCommentAlt size={ICON_SIZE} color={COMMENT_COLOR} />}
           {commentCount > 0 && commentPreview && (
             <CommentPreviewInline title={`${commentPreview.username} — ${commentPreview.snippet}`}>
               {commentPreview.username} — {commentPreview.snippet}

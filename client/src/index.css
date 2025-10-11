@@ -17,8 +17,8 @@ a[data-username-link]:hover { text-decoration: underline; }
   --primary-orange: #F58025;
 
   /* surfaces */
-  --container-white: #eeeeee;   /* a touch lighter than before */
-  --border-color: #eeeeee;
+  --container-white: #f2f2f2;   /* a touch lighter than before */
+  --border-color: #f2f2f2;
   --text-color: #111111;
 
   /* Lighter dark-grey textured background */

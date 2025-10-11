@@ -1,10 +1,12 @@
-// server/realtime/chess.js
 const { Chess } = require('chess.js');
 
 module.exports = function attachChess(io) {
   const waiting = []; // [{ socketId, user }]
-  const games = new Map(); // roomId -> { chess, whiteId, blackId, whiteUser, blackUser }
+  const games = new Map(); // roomId -> { chess, whiteId, blackId, whiteUser, blackUser, whiteMs, blackMs, turnStart }
   const mkRoom = () => 'chess_' + Math.random().toString(36).slice(2, 10);
+
+  // 10-minute initial time per side
+  const INIT_MS = 10 * 60 * 1000;
 
   // ---- helpers to tolerate old/new chess.js method names
   const call = (obj, modern, legacy) =>
@@ -17,6 +19,21 @@ module.exports = function attachChess(io) {
   const is3x     = ch => call(ch, 'isThreefoldRepetition', 'in_threefold_repetition');
   const isInsuf  = ch => call(ch, 'isInsufficientMaterial', 'insufficient_material');
   const isDraw   = ch => call(ch, 'isDraw', 'in_draw');
+
+  // Periodic timeout checker (covers players who run out of time without moving)
+  setInterval(() => {
+    for (const [roomId, g] of games.entries()) {
+      if (!g.turnStart) continue;
+      const now = Date.now();
+      const wLeft = g.whiteMs - (g.chess.turn() === 'w' ? (now - g.turnStart) : 0);
+      const bLeft = g.blackMs - (g.chess.turn() === 'b' ? (now - g.turnStart) : 0);
+      if (wLeft <= 0 || bLeft <= 0) {
+        const result = wLeft <= 0 ? 'Black wins' : 'White wins';
+        io.to(roomId).emit('chess:gameover', { result, reason: 'time' });
+        games.delete(roomId);
+      }
+    }
+  }, 500);
 
   io.on('connection', (socket) => {
     let roomJoined = null;
@@ -48,6 +65,9 @@ module.exports = function attachChess(io) {
           blackId: black.socketId,
           whiteUser: white.user,
           blackUser: black.user,
+          whiteMs: INIT_MS,
+          blackMs: INIT_MS,
+          turnStart: Date.now(), // white to move
         };
         games.set(roomId, game);
 
@@ -68,8 +88,8 @@ module.exports = function attachChess(io) {
           white: white.user,
           black: black.user,
         };
-        whiteSock.emit('chess:start', { ...payload, color: 'w' });
-        blackSock.emit('chess:start', { ...payload, color: 'b' });
+        whiteSock.emit('chess:start', { ...payload, color: 'w', wMs: game.whiteMs, bMs: game.blackMs });
+        blackSock.emit('chess:start', { ...payload, color: 'b', wMs: game.whiteMs, bMs: game.blackMs });
       }
     });
 
@@ -85,10 +105,23 @@ module.exports = function attachChess(io) {
           (game.chess.turn() === 'b' && !isWhite);
         if (!myTurn) return;
 
+        // Deduct time for the mover (side to move before this move)
+        const now = Date.now();
+        if (game.chess.turn() === 'w') game.whiteMs -= (now - game.turnStart);
+        else                           game.blackMs -= (now - game.turnStart);
+
+        if (game.whiteMs <= 0 || game.blackMs <= 0) {
+          const result = game.whiteMs <= 0 ? 'Black wins' : 'White wins';
+          io.to(roomId).emit('chess:gameover', { result, reason: 'time' });
+          games.delete(roomId);
+          return;
+        }
+
         const mv = game.chess.move({ from, to, promotion: promotion || 'q' });
         if (!mv) return;
 
-        io.to(roomId).emit('chess:state', { fen: game.chess.fen() });
+        game.turnStart = Date.now(); // start opponent's clock
+        io.to(roomId).emit('chess:state', { fen: game.chess.fen(), wMs: game.whiteMs, bMs: game.blackMs });
 
         if (isOver(game.chess)) {
           const result = isMate(game.chess)

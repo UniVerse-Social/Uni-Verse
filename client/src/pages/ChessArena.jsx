@@ -10,7 +10,7 @@ import { createStockfish } from '../engine/sfEngine';
 import GameRules from '../components/GameRules';
 
 /* Styles */
-const Wrap = styled.div`display:grid; grid-template-columns: 480px 1fr; gap:16px; align-items:start;`;
+const Wrap = styled.div`display:grid; grid-template-columns: 460px 1fr; gap:16px; align-items:start;`;
 const Panel = styled.div`border:1px solid var(--border-color); background:var(--container-white); border-radius:12px; padding:12px;`;
 const Button = styled.button`
   padding: 8px 12px; border-radius: 10px; border: 1px solid #111; cursor: pointer;
@@ -31,14 +31,29 @@ const Modal = styled.div`
 `;
 const ModalGrid = styled.div`display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px;`;
 
-/* Bot presets — made stronger across the board */
+/* Bot presets — strengths & personalities */
 const BOT_PRESETS = {
   tutorial:  { label: 'Tutorial', status: 'Tutorial bot: explains moves clearly.', useSF: true,  sf: { movetime: 280, depth: 12, multipv: 1 }, explain:true, thinkMs: 150 },
-  easy:      { label: 'Easy (700)',    useSF: false, timeMs: 300, maxDepth: 3, randomness: 0.30, blunder: 0.08, thinkMs: 120 },
-  medium:    { label: 'Medium (1000)', useSF: false, timeMs: 420, maxDepth: 4, randomness: 0.16, blunder: 0.04, thinkMs: 140 },
-  hard:      { label: 'Hard (1500)',   useSF: false, timeMs: 700, maxDepth: 5, randomness: 0.08, blunder: 0.015, thinkMs: 160 },
-  elite:     { label: 'Elite (2000)',  useSF: true,  sf: { movetime: 900, depth: 20 }, randomness: 0.01, thinkMs: 180 },
-  gm:        { label: 'Grandmaster (2200+)', useSF: true, sf: { movetime: 1200, depth: 22 }, randomness: 0.0, thinkMs: 200 },
+
+  // New player: shallow search, some randomness, will blunder sometimes
+  easy:   { label: 'Easy (700)',    useSF: false, timeMs: 320, maxDepth: 2, randomness: 0.35, blunder: 0.12,
+            inaccuracyCp: 140, safeDropCp: 220, thinkMs: 110 },
+
+  // ~1000 Elo: deeper than easy, still allows small inaccuracies but avoids big drops
+  medium: { label: 'Medium (1000)', useSF: false, timeMs: 650, maxDepth: 3, randomness: 0.14, blunder: 0.02,
+            inaccuracyCp: 90, safeDropCp: 130, thinkMs: 140 },
+
+  // Tough for most: deeper search, tiny inaccuracies only; no blunders
+  hard:   { label: 'Hard (1500)',   useSF: false, timeMs: 1200, maxDepth: 5, randomness: 0.04, blunder: 0,
+            inaccuracyCp: 35, safeDropCp: 50, pruneAggressive: false, thinkMs: 160 },
+
+  // Engine-backed: extremely strong; slight inaccuracies allowed, never blunders
+  elite:  { label: 'Elite (2000)',  useSF: true,  sf: { movetime: 1500, depth: 20, multipv: 4 },
+            safetyCp: 6, inaccuracyCp: 12, randomness: 0 },
+
+  // Top strength: always pick a line within 3 cp of best (i.e., best); never blunders
+  gm:     { label: 'Grandmaster (2200+)', useSF: true, sf: { movetime: 2000, depth: 22, multipv: 4 },
+            safetyCp: 0, inaccuracyCp: 0, randomness: 0 },
 };
 
 /* Rank helper used for modal badge (mirror Games page thresholds) */
@@ -165,8 +180,18 @@ const pieceGlyph = (t, color='w') => {
   return map[color][t] || '';
 };
 
+/* mm:ss clock formatter */
+function fmtClock(ms) {
+  ms = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(ms / 60);
+  const s = ms % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 /* --- JS search with anti-rook-shuffle --- */
-function searchBestMove(chess, { timeMs=250, maxDepth=3, randomness=0, pruneAggressive=false }) {
+function searchBestMove(chess,
+  { timeMs=250, maxDepth=3, randomness=0, pruneAggressive=false, safeDropCp=9999, inaccuracyCp=0, blunder=0 }
+) {
   const deadline = Date.now() + timeMs;
   const killers = Array.from({length:128}, ()=>({a:null,b:null}));
   const history = new Map();
@@ -282,14 +307,40 @@ function searchBestMove(chess, { timeMs=250, maxDepth=3, randomness=0, pruneAggr
     bestMove = (filtered[0] || moves[0]);
   }
 
-  if (bestMove && randomness > 0) {
-    const candidates = chess.moves({ verbose:true }).map(m=>{
-      chess.move(m); const s = qsearch(-9999, 9999).score; chess.undo();
-      return { m, s };
-    }).sort((a,b)=> b.s - a.s);
-    const k = Math.max(1, Math.min(6, Math.round(1 + randomness * (candidates.length-1))));
-    bestMove = candidates[Math.floor(Math.random()*k)].m;
+// Always build candidate list with quick scores
+const rootMoves = chess.moves({ verbose:true });
+if (!bestMove && rootMoves.length) bestMove = rootMoves[0];
+
+const candidates = rootMoves.map(m => {
+  chess.move(m);
+  const s = qsearch(-9999, 9999).score; // quick but tactical-aware
+  chess.undo();
+  return { m, s };
+}).sort((a,b)=> b.s - a.s);
+
+if (candidates.length) {
+  const bestCp = candidates[0].s;
+
+  // Easy/Medium: occasional deliberate blunder (outside safe window)
+  if (blunder > 0 && Math.random() < blunder) {
+    // pick from the bottom 25% of all moves
+    const start = Math.floor(candidates.length * 0.75);
+    const pool = candidates.slice(start);
+    if (pool.length) bestMove = pool[Math.floor(Math.random()*pool.length)].m;
+  } else {
+    // Respect a safety floor: don't pick a move that drops more than safeDropCp vs best
+    const safePool = candidates.filter(c => (bestCp - c.s) <= safeDropCp);
+    // Allow small inaccuracies if requested (hard: ~35cp, medium: ~90cp, etc.)
+    const okPool = (inaccuracyCp > 0)
+      ? candidates.filter(c => (bestCp - c.s) <= inaccuracyCp)
+      : safePool;
+
+    // Add controlled variety via 'randomness' but only within the okPool
+    const pool = (okPool.length ? okPool : safePool);
+    const k = Math.max(1, Math.min(pool.length, Math.round(1 + randomness * (pool.length - 1))));
+    bestMove = pool[Math.floor(Math.random() * k)]?.m || candidates[0].m;
   }
+}
 
   return { move: bestMove, score: bestScore };
 }
@@ -303,7 +354,7 @@ function useStockfish() {
   // Serialize calls so SF never receives overlapping "go"
   const lockRef = useRef(Promise.resolve());
   const withSFLock = useCallback((fn) => {
-    const run = lockRef.current.then(fn, fn);
+    const run = lockRef.current.then(() => fn(), () => fn());
     lockRef.current = run.catch(() => {});
     return run;
   }, []);
@@ -423,6 +474,20 @@ export default function ChessArena() {
   const botBusyRef = useRef(false);
   const setBusy = (v) => { botBusyRef.current = v; };
 
+  // Board size: small clamp so the board never overflows the viewport
+  const [boardSize, setBoardSize] = useState(432);
+  useEffect(() => {
+    const calc = () => {
+      const vh = window.innerHeight || 900;
+      // leave room for the header + right panel + margins, clamp between 380–444
+      const fit = Math.min(444, Math.floor(vh - 320));
+      setBoardSize(Math.max(380, fit));
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
+
   // PREMOVE
   const [premove, setPremove] = useState(null); // {from, to, promotion}
   const [premoveSquares, setPremoveSquares] = useState({});
@@ -484,7 +549,13 @@ export default function ChessArena() {
     if (chess.isGameOver()) { setPremove(null); return false; }
     if (chess.turn() !== myColor()) return false;
 
-    const mv = { from: premove.from, to: premove.to, promotion: premove.promotion || 'q' };
+    const isPromotionNow = chess
+      .moves({ verbose: true })
+      .some(m => m.from === premove.from && m.to === premove.to && m.flags && m.flags.includes('p'));
+    const mv = isPromotionNow
+      ? { from: premove.from, to: premove.to, promotion: premove.promotion || 'q' }
+      : { from: premove.from, to: premove.to };
+
     const moved = chess.move(mv);
     if (!moved) {
       setPremove(null);
@@ -527,17 +598,30 @@ export default function ChessArena() {
     const depth = p.sf?.depth;
     const movetime = p.sf?.movetime ?? 900;
     const multipv = 4;
+    const safetyCp = p.safetyCp ?? 12;          // how far we can deviate from best
+    const allowInaccCp = p.inaccuracyCp ?? 0;
     const hardLimitMs = Math.min(1600, movetime + 500);
 
     try {
       const lines = await withSFLock(() =>
         sfRef.current.analyze({ fen: fenStr, movetime, depth, multipv, hardLimitMs })
       );
+      
+    const candidates = (lines || [])
+      .map((l) => {
+        const uci  = (l.pv || '').split(/\s+/)[0] || null;
+        const mate = (l.scoreMate ?? l.mate ?? null);
+        const cp   = Number(l.scoreCp ?? 0);
 
-      // Parse first-move UCI for each PV
-      const candidates = (lines || [])
-        .map((l) => ({ uci: (l.pv || '').split(/\s+/)[0] || null, cp: l.scoreCp ?? 0 }))
-        .filter(x => x.uci && x.uci.length >= 4);
+        // Convert mate to a very large centipawn-like scale so mates outrank evals
+        const norm = (mate != null)
+          ? (mate > 0 ? 100000 - Math.abs(mate) * 100 : -100000 + Math.abs(mate) * 100)
+          : cp;
+
+        return { uci, cp, norm, mate };
+      })
+      .filter(x => x.uci && x.uci.length >= 4)
+      .sort((a,b) => b.norm - a.norm);
 
       if (candidates.length === 0) {
         // Fallback to direct bestMove (will return null on (none))
@@ -549,37 +633,40 @@ export default function ChessArena() {
       const lastFrom = last?.from, lastTo = last?.to;
       const recent = new Set(recentFensRef.current);
 
-      const deltaCp = (p.key === 'gm' || p.key === 'elite') ? 10 : 18;
+      // choose the strongest non-repeating line within a safety window (use normalized score)
+      const bestScore = candidates[0].norm;
+      const maxDrop   = Math.max(0, allowInaccCp || safetyCp); // GM=0, Elite≈8–12
 
-      // score-best first already; just scan for a non-repeating sensible move
-      const bestCp = candidates[0].cp;
+      // Prefer non-repeating/backtrack moves within the allowed drop
+      const pool = [];
       for (let i = 0; i < candidates.length; i++) {
         const cand = candidates[i];
-        const altWithin = Math.abs(bestCp - cand.cp) <= deltaCp;
-
-        // Simulate candidate to detect repetition/backtrack
-        const probe = new Chess(fenStr);
         const mv = { from: cand.uci.slice(0,2), to: cand.uci.slice(2,4), promotion: cand.uci.slice(4) || 'q' };
+
+        const probe = new Chess(fenStr);
         const moved = probe.move(mv);
-        if (!moved) continue; // invalid suggestion; skip
+        if (!moved) continue;
 
-        const repeats = recent.has(probe.fen());
-        const isBacktrack = (!!lastFrom && !!lastTo && lastFrom === mv.to && lastTo === mv.from && !moved.flags.includes('c'));
-        const isRookShuffle = (moved.piece === 'r' && !moved.flags.includes('c') && isBacktrack);
+        const repeats     = recent.has(probe.fen());
+        const isBacktrack = (!!lastFrom && !!lastTo && lastFrom === mv.to && lastTo === mv.from && !moved.flags?.includes('c'));
+        if (repeats || isBacktrack) continue;
 
-        if (i === 0 && (repeats || isBacktrack || isRookShuffle)) {
-          // Try to pick the next line if it's close in value
-          continue; // examine next candidate
-        }
-        if (i > 0 && (repeats || isBacktrack || isRookShuffle) && altWithin) {
-          // skip bad oscillatory alternative if it's just as good; keep scanning
-          continue;
-        }
-        return cand.uci; // good candidate
+        const drop = Math.abs(bestScore - cand.norm);
+        if (drop <= maxDrop) pool.push(cand);
       }
 
-      // If all candidates repeat or backtrack, just return the top PV anyway
-      return candidates[0].uci || null;
+      // If everything filtered out, fall back to pure best PV
+      if (pool.length === 0) {
+        return candidates[0].uci || null;
+      }
+
+      // Elite may add tiny variety; GM picks the true best
+      const pick = (p.key === 'elite' && pool.length > 1)
+        ? pool[Math.floor(Math.random() * Math.min(pool.length, 2))]
+        : pool[0];
+
+      return pick.uci;
+
     } catch {
       // Fallback path
       try {
@@ -641,7 +728,22 @@ export default function ChessArena() {
       const beforeFen = chess.fen();
 
       if (p.useSF) {
-        const uciMove = await fastBestMove(beforeFen, p);
+        let uciMove = null;
+        try {
+          uciMove = await fastBestMove(beforeFen, p);
+        } catch (e) {
+          // Harden: do not let engine errors bubble to React
+          console.warn('Stockfish error; falling back to JS', e);
+          // fast, safe fallback
+          const probe = new Chess(beforeFen);
+          const { move } = searchBestMove(probe, { timeMs: 320, maxDepth: 3, randomness: p.randomness || 0 });
+          if (move) {
+            chess.move(move);
+            setFen(chess.fen());
+            flashNotice('Engine hiccup — used backup move.', 1400);
+          }
+          return; // bail early; finally{} will clear the busy flag
+        }
         if (!uciMove) {
           // Terminal position — no move; declare result without throwing UI errors
           const txt = endMessage(chess);
@@ -665,8 +767,13 @@ export default function ChessArena() {
         }
       } else {
         const res = searchBestMove(chess, {
-          timeMs: p.timeMs, maxDepth: p.maxDepth,
-          randomness: p.randomness || 0, pruneAggressive: !!p.pruneAggressive
+          timeMs: p.timeMs,
+          maxDepth: p.maxDepth,
+          randomness: p.randomness || 0,
+          pruneAggressive: !!p.pruneAggressive,
+          safeDropCp: p.safeDropCp ?? 9999,
+          inaccuracyCp: p.inaccuracyCp ?? 0,
+          blunder: p.blunder ?? 0,
         });
         const m = res.move;
         if (!m) {
@@ -695,7 +802,7 @@ export default function ChessArena() {
     }
 
     await tryPremove();
-  }, [botProfile, fastBestMove, tryPremove, appendTip, sfRef, readyRef, withSFLock, openResultModal]);
+  }, [botProfile, fastBestMove, tryPremove, appendTip, sfRef, readyRef, withSFLock, openResultModal, flashNotice]);
 
   /* Online mode */
 
@@ -719,6 +826,17 @@ export default function ChessArena() {
     }
   }, [user?._id, fetchMyChessTrophies]);
 
+  // --- Online clocks state (10 minutes each; server-authoritative) ---
+  const [wMs, setWms] = useState(600000);
+  const [bMs, setBms] = useState(600000);
+  const [clockSince, setClockSince] = useState(null); // when the last server sync arrived
+  const [nowTs, setNowTs] = useState(Date.now());
+  useEffect(() => {
+    if (mode !== 'online' || !roomId) return;
+    const id = setInterval(() => setNowTs(Date.now()), 200); // smooth UI countdown
+    return () => clearInterval(id);
+  }, [mode, roomId]);
+
   const connectSocket = useCallback(() => {
     if (socketRef.current) return socketRef.current;
     const s = io(API_BASE_URL, { transports: ['websocket'] });
@@ -726,7 +844,7 @@ export default function ChessArena() {
 
     s.on('connect', () => setStatus('Connected. Queueing…'));
     s.on('chess:queued', () => setStatus('Looking for an opponent…'));
-    s.on('chess:start', ({ roomId, color, fen, white, black }) => {
+    s.on('chess:start', ({ roomId, color, fen, white, black, wMs, bMs }) => {
       chessRef.current = new Chess(fen || undefined);
       setFen(chessRef.current.fen());
       setOrientation(color === 'w' ? 'white' : 'black');
@@ -739,9 +857,16 @@ export default function ChessArena() {
       setOppName(color === 'w' ? (black?.username || 'Black') : (white?.username || 'White'));
       setStatus(`Match found: ${white?.username || 'White'} vs ${black?.username || 'Black'}. You are ${color==='w'?'White':'Black'}.`);
       recentFensRef.current = [chessRef.current.fen()];
+      // clocks
+      if (typeof wMs === 'number') setWms(wMs);
+      if (typeof bMs === 'number') setBms(bMs);
+      setClockSince(Date.now());
     });
-    s.on('chess:state', ({ fen }) => {
+    s.on('chess:state', ({ fen, wMs, bMs }) => {
       try { chessRef.current.load(fen); setFen(fen); clearNotice(); } catch {}
+      if (typeof wMs === 'number') setWms(wMs);
+      if (typeof bMs === 'number') setBms(bMs);
+      setClockSince(Date.now()); // opponent moved; start my clock locally
     });
     s.on('chess:gameover', async ({ result, reason }) => {
       const txt = `Game over: ${result} (${reason})`;
@@ -804,14 +929,21 @@ export default function ChessArena() {
     return 'Game over.';
   };
 
-  /* onPieceDrop with premove */
-  const onPieceDrop = async (source, target) => {
+  // Honor selected piece on promotion + keep premove choice
+  const onPieceDrop = async (source, target, piece) => {
     const chess = chessRef.current;
-    const mv = { from: source, to: target, promotion: 'q' };
+    // Is this move a promotion from the current position?
+    const isPromotion = chess
+      .moves({ verbose: true })
+      .some(m => m.from === source && m.to === target && m.flags && m.flags.includes('p'));
+    // react-chessboard passes "piece" like "wQ", "bN" on promotion
+    const chosen = (piece || '').slice(-1).toLowerCase(); // q|r|b|n
+    const promotion = isPromotion && ['q','r','b','n'].includes(chosen) ? chosen : undefined;
+    const mv = promotion ? { from: source, to: target, promotion } : { from: source, to: target };
     const isMyTurn = chess.turn() === myColor();
 
     if (!isMyTurn || (mode === 'bot' && botBusyRef.current)) {
-      setPremove(mv);
+      setPremove(mv); // keep the user’s choice for premoves too
       flashNotice(`Premove set: ${fmt(mv)}`, 900);
       return false;
     }
@@ -853,48 +985,145 @@ export default function ChessArena() {
     }
   };
 
-  /* Header/footer capture bars */
+  /* Header/footer capture bars + clocks */
   const caps = capturedLists(chessRef.current);
   const delta = materialDelta(chessRef.current);
-  const oppIsWhite = (myColor() === 'b');
-  const oppCap = oppIsWhite ? caps.w : caps.b;
-  const meCap  = oppIsWhite ? caps.b : caps.w;
-  const oppUpCp  = (oppIsWhite ? -delta : delta); // centipawns if opponent ahead
-  const meUpCp   = (oppIsWhite ? delta : -delta);  // our edge if ahead
+  const myCol  = myColor();                 // 'w' | 'b'
+  const oppCol = (myCol === 'w') ? 'b' : 'w';
+  const oppCap = (oppCol === 'w') ? caps.w : caps.b;
+  const meCap  = (myCol  === 'w') ? caps.w : caps.b;
+  const oppUpCp = (oppCol === 'w') ? delta : -delta; // + if opponent’s color is ahead
+  const meUpCp  = (myCol  === 'w') ? delta : -delta;
 
-  const CaptRow = ({ name, caps, up }) => (
+  // live clocks (client-side view, server authoritative times)
+  const turn = chessRef.current.turn ? chessRef.current.turn() : 'w';
+  const elapsed = (mode === 'online' && clockSince) ? (nowTs - clockSince) : 0;
+  const wLeft = Math.max(0, wMs - (mode==='online' && turn==='w' ? elapsed : 0));
+  const bLeft = Math.max(0, bMs - (mode==='online' && turn==='b' ? elapsed : 0));
+  const oppTime = (oppCol === 'w') ? wLeft : bLeft;
+  const myTime  = (myCol  === 'w') ? wLeft : bLeft;
+  const oppRunning = (mode === 'online' && turn === oppCol);
+  const myRunning  = (mode === 'online' && turn === myCol);
+
+  const CaptRow = ({ name, caps, up, timeMs, running }) => (
     <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:13, padding:'6px 8px'}}>
       <strong>{name}</strong>
-      <div style={{display:'flex', alignItems:'center', gap:6}}>
+      <div style={{display:'flex', alignItems:'center', gap:8}}>
+        {typeof timeMs === 'number' && mode==='online' && (
+          <span style={{fontVariantNumeric:'tabular-nums', fontWeight:700, color: running ? '#111' : '#6b7280'}}>
+            {fmtClock(timeMs)}
+          </span>
+        )}
         <span>{caps.map((t,i)=><span key={i}>{pieceGlyph(t, 'w')}</span>)}</span>
         {up>0 && <span style={{fontWeight:700}}>+{Math.round(up/100)}</span>}
       </div>
     </div>
   );
 
-  // Merge square styles: premove + drag origin
-  const customSquareStyles = {
-    ...premoveSquares,
-    ...(dragFrom ? { [dragFrom]: { boxShadow: 'inset 0 0 0 3px rgba(234,88,12,.9)' } } : {})
-  };
+/* Square style builder: premove, drag origin, legal targets, last move, in-check */
+function buildSquareStyles(chess, { premoveSquares, dragFrom }) {
+  const styles = { ...premoveSquares };
+
+  // Highlight the origin square being dragged
+  if (dragFrom) {
+    styles[dragFrom] = {
+      ...(styles[dragFrom] || {}),
+      boxShadow: 'inset 0 0 0 3px rgba(234,88,12,.9)',
+    };
+
+    // Show legal targets for the dragged/selected piece
+    const legal = chess.moves({ verbose: true }).filter(m => m.from === dragFrom);
+    for (const m of legal) {
+      const isCapture = m.flags?.includes('c') || m.flags?.includes('e'); // capture or en passant
+      styles[m.to] = {
+        ...(styles[m.to] || {}),
+        // a small dot for quiet moves, a ring for captures
+        background: isCapture
+          ? 'radial-gradient(circle, rgba(0,0,0,0) 65%, rgba(59,130,246,.45) 66%)'
+          : 'radial-gradient(circle, rgba(59,130,246,.35) 22%, rgba(0,0,0,0) 23%)',
+        boxShadow: isCapture
+          ? 'inset 0 0 0 3px rgba(59,130,246,.85)'
+          : (styles[m.to]?.boxShadow || undefined),
+        borderRadius: '2px',
+      };
+    }
+  }
+
+  // Highlight the last move (from & to squares)
+  const last = chess.history({ verbose: true }).slice(-1)[0];
+  if (last) {
+    const hl = 'rgba(251,191,36,.40)'; // amber-300-ish
+    styles[last.from] = { ...(styles[last.from] || {}), background: hl };
+    styles[last.to]   = { ...(styles[last.to]   || {}), background: hl };
+  }
+
+  // If the side to move is in check, mark their king square
+  const inCheck =
+    (typeof chess.inCheck === 'function' && chess.inCheck()) ||
+    (typeof chess.isCheck === 'function' && chess.isCheck()) ||
+    (typeof chess.in_check === 'function' && chess.in_check()) ||
+    (typeof chess.is_check === 'function' && chess.is_check()) || false;
+
+  if (inCheck) {
+    const board = chess.board();
+    const tm = chess.turn?.() || 'w';
+    let kingSq = null;
+    for (let r = 0; r < 8 && !kingSq; r++) {
+      for (let c = 0; c < 8; c++) {
+        const sq = board[r][c];
+        if (sq && sq.type === 'k' && sq.color === tm) {
+          const file = 'abcdefgh'[c];
+          const rank = String(8 - r);
+          kingSq = file + rank;
+          break;
+        }
+      }
+    }
+    if (kingSq) {
+      styles[kingSq] = {
+        ...(styles[kingSq] || {}),
+        boxShadow: 'inset 0 0 0 3px rgba(239,68,68,.9)',   // red ring
+        background: 'rgba(239,68,68,.25)',
+      };
+    }
+  }
+
+  return styles;
+}
+
+// Use the builder to produce the object the board expects
+const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares, dragFrom });
 
   return (
     <>
       <Wrap>
         <Panel>
-          <CaptRow name={oppName || (mode==='bot' ? (botProfile?.label || 'Bot') : 'Opponent')} caps={oppCap} up={Math.max(0, oppUpCp)} />
+          <CaptRow
+            name={oppName || (mode==='bot' ? (botProfile?.label || 'Bot') : 'Opponent')}
+            caps={oppCap}
+            up={Math.max(0, oppUpCp)}
+            timeMs={oppTime}
+            running={oppRunning}
+          />
           <Chessboard
             position={fen}
             onPieceDrop={onPieceDrop}
+            autoPromoteToQueen={false}
             onPieceDragBegin={(_, from) => setDragFrom(from)}
             onPieceDragEnd={() => setDragFrom(null)}
             boardOrientation={orientation}
-            boardWidth={456}
+            boardWidth={boardSize}
             customBoardStyle={{ borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)' }}
             customSquareStyles={customSquareStyles}
             isDraggablePiece={({ piece }) => piece && piece[0] === myColor()}
           />
-          <CaptRow name={user?.username || 'You'} caps={meCap} up={Math.max(0, meUpCp)} />
+          <CaptRow
+            name={user?.username || 'You'}
+            caps={meCap}
+            up={Math.max(0, meUpCp)}
+            timeMs={myTime}
+            running={myRunning}
+          />
         </Panel>
 
         <Panel>

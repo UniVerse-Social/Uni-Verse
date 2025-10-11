@@ -194,7 +194,7 @@ export default function Clubs(){
     params.viewerId = user._id;
     const res = await axios.get(`${api.posts}/${selected._id}`, { params });
     setPosts(res.data || []);
-  }, [api.posts, selected, active.type, active.sideId]);
+  }, [api.posts, selected, active.type, active.sideId, user._id]);
 
   useEffect(()=>{ refreshMine(); searchClubs(); }, [refreshMine, searchClubs]);
   useEffect(()=>{ if(selected){ loadPosts(); } }, [selected, loadPosts]);

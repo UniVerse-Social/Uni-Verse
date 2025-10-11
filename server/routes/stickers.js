@@ -305,4 +305,8 @@ router.put(
   }
 );
 
+<<<<<<< HEAD
 module.exports = router;
+=======
+module.exports = router;
+>>>>>>> 43d671d (Christian’s push)

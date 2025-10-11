@@ -37,7 +37,7 @@ export const updateStickerSettings = async (postId, payload) => {
   return res.data;
 };
 
-export default {
+const stickersApi = {
   fetchStickerCatalog,
   fetchPostStickers,
   createStickerPlacement,
@@ -45,3 +45,5 @@ export default {
   deleteStickerPlacement,
   updateStickerSettings,
 };
+
+export default stickersApi;

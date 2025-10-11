@@ -1,14 +1,4 @@
 // Stockfish wrapper (no npm import, no loop-captured functions)
-//
-// Boot order (same-origin only):
-// 1) If SAB + cross-origin isolation => try WASM-lite (threaded) file
-// 2) Fall back to legacy stockfish.js
-//
-// Notes:
-// - We intentionally do NOT use the asm build (was flaky in your env).
-// - We preflight URLs to avoid loading HTML as JS.
-// - We keep Threads=1 to avoid SAB requirements.
-// - No functions declared inside loops (ESLint no-loop-func).
 
 function supportsSAB() {
   try {
@@ -45,6 +35,7 @@ function candidateUrls() {
   for (const base of bases) {
     if (tryWasmLite) list.push(base + "stockfish-17.1-lite-51f59da.js");
     list.push(base + "stockfish.js");
+    list.push(base + "stockfish-17.1-asm-341ff22.js"); 
   }
   return list;
 }
@@ -139,10 +130,13 @@ async function createReadyWorkerFromUrl(url, opts, timeoutMs = 10000) {
       }
     };
 
-    w.onerror = (e) => {
-      clearAll();
-      reject(new Error(`Worker error for ${url}: ${e?.message || e}`));
-    };
+    const onErr = (e) => {
+        try { e?.preventDefault?.(); } catch {}
+        clearAll();
+        reject(new Error(`Worker error for ${url}: ${e?.message || e}`));
+      };
+      w.addEventListener("error", onErr);
+      w.addEventListener("messageerror", onErr);
 
     // Defer first command to let the worker finish boot
     setTimeout(() => {

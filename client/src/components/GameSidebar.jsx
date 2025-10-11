@@ -10,21 +10,26 @@ import { AuthContext } from '../App';
 const Card = styled.div`
   background: var(--container-white);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 14px;
+  border-radius: 14px;
+  padding: 12px;
   box-shadow: 0 10px 24px rgba(0,0,0,.06);
+
+  /* Keep the sidebar visually "cut" to the viewport height.
+     The internal lists scroll; the card itself doesn't overflow. */
+  max-height: calc(100vh - 220px);
+  overflow: hidden;
 `;
 
 const Title = styled.div`
   font-family: 'Exo 2', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   font-weight: 800;
-  font-size: 28px;
+  font-size: 24px;
   letter-spacing: .4px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 `;
 
 const Meta = styled.div`
-  font-size: 13px;
+  font-size: 12px;
   color: #6b7280;
 `;
 
@@ -33,8 +38,8 @@ const Row = styled.div`
   grid-template-columns: 1fr auto;
   gap: 8px;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
   background: #fff;
   border: 1px solid var(--border-color);
 `;
@@ -51,8 +56,8 @@ const Pill = styled.span`
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
+  padding: 3px 8px;
+  font-size: 11px;
   font-weight: 700;
   background: #f3f4f6;
   border: 1px solid var(--border-color);
@@ -94,15 +99,19 @@ const List = styled.div`
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
+  max-height: 150px;          /* fixed area for the rest of the leaderboard */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;         /* space for scrollbar */
 `;
 
 const Item = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 13px;
-  padding: 6px 8px;
-  border-radius: 10px;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 8px;
   border: 1px solid var(--border-color);
   background: #fff;
 `;
@@ -111,17 +120,27 @@ const HistoryList = styled.div`
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
+  max-height: 220px;          /* fixed area for recent games */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
 `;
 
 const Result = styled.div`
   font-weight: 800;
-  font-size: 12px;
+  font-size: 11px;
   color: ${p => (p.$win ? '#16a34a' : '#dc2626')};
 `;
 
 const Small = styled.span`
   font-size: 11px;
   color: #6b7280;
+`;
+
+const ScrollbarStyles = styled.div`
+  & *::-webkit-scrollbar { width: 8px; height: 8px; }
+  & *::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 8px; }
+  & *::-webkit-scrollbar-track { background: transparent; }
 `;
 
 /* =============== helpers =============== */
@@ -224,82 +243,84 @@ export default function GameSidebar({ gameKey, title }) {
   const rest = leaders.slice(3);
 
   return (
-    <Card>
-      <Title>{title ?? 'Game'}</Title>
+    <ScrollbarStyles>
+      <Card>
+        <Title>{title ?? 'Game'}</Title>
 
-      {/* Quick stats */}
-      <div style={{ display: 'grid', gap: 8 }}>
-        <Row>
-          <Label>Rank</Label>
-          <Value>{rankName}</Value>
-        </Row>
-        <Row>
-          <Label>Trophies</Label>
-          <Value>{myScore}</Value>
-        </Row>
-        <Row>
-          <Label>W / L</Label>
-          <Value>{wins} / {losses}</Value>
-        </Row>
-      </div>
+        {/* Quick stats */}
+        <div style={{ display: 'grid', gap: 8 }}>
+          <Row>
+            <Label>Rank</Label>
+            <Value>{rankName}</Value>
+          </Row>
+          <Row>
+            <Label>Trophies</Label>
+            <Value>{myScore}</Value>
+          </Row>
+          <Row>
+            <Label>W / L</Label>
+            <Value>{wins} / {losses}</Value>
+          </Row>
+        </div>
 
-      {/* Leaderboard */}
-      <BoardWrap>
-        <div style={{ fontWeight: 800, margin: '12px 0 6px' }}>Leaderboard</div>
+        {/* Leaderboard */}
+        <BoardWrap>
+          <div style={{ fontWeight: 800, margin: '12px 0 6px' }}>Leaderboard</div>
+          {loading && <Meta>Loading…</Meta>}
+          {!loading && (
+            <>
+              <Podium>
+                <Ped $h={60}>
+                  <PedName>{podium[1]?.name ?? '—'}</PedName>
+                  <PedScore>{podium[1]?.trophies ?? 0} 🏆</PedScore>
+                </Ped>
+                <Ped $h={80}>
+                  <PedName>{podium[0]?.name ?? '—'}</PedName>
+                  <PedScore>{podium[0]?.trophies ?? 0} 🏆</PedScore>
+                </Ped>
+                <Ped $h={50}>
+                  <PedName>{podium[2]?.name ?? '—'}</PedName>
+                  <PedScore>{podium[2]?.trophies ?? 0} 🏆</PedScore>
+                </Ped>
+              </Podium>
+
+              <List>
+                {rest.length === 0 && <Meta>No other players yet.</Meta>}
+                {rest.map((p, i) => (
+                  <Item key={p._id ?? `${p.name}-${i}`}>
+                    <div>
+                      <Pill>#{i + 4}</Pill>{' '}
+                      <strong>{p.name ?? 'Anonymous'}</strong>
+                    </div>
+                    <div>{p.trophies ?? 0} 🏆</div>
+                  </Item>
+                ))}
+              </List>
+            </>
+          )}
+        </BoardWrap>
+
+        {/* Recent games */}
+        <div style={{ fontWeight: 800, margin: '12px 0 6px' }}>Recent games</div>
         {loading && <Meta>Loading…</Meta>}
         {!loading && (
-          <>
-            <Podium>
-              <Ped $h={70}>
-                <PedName>{podium[1]?.name ?? '—'}</PedName>
-                <PedScore>{podium[1]?.trophies ?? 0} 🏆</PedScore>
-              </Ped>
-              <Ped $h={90}>
-                <PedName>{podium[0]?.name ?? '—'}</PedName>
-                <PedScore>{podium[0]?.trophies ?? 0} 🏆</PedScore>
-              </Ped>
-              <Ped $h={60}>
-                <PedName>{podium[2]?.name ?? '—'}</PedName>
-                <PedScore>{podium[2]?.trophies ?? 0} 🏆</PedScore>
-              </Ped>
-            </Podium>
-
-            <List>
-              {rest.length === 0 && <Meta>No other players yet.</Meta>}
-              {rest.map((p, i) => (
-                <Item key={p._id ?? `${p.name}-${i}`}>
-                  <div>
-                    <Pill>#{i + 4}</Pill>{' '}
-                    <strong>{p.name ?? 'Anonymous'}</strong>
-                  </div>
-                  <div>{p.trophies ?? 0} 🏆</div>
-                </Item>
-              ))}
-            </List>
-          </>
+          <HistoryList>
+            {history.length === 0 && <Meta>No recent games.</Meta>}
+            {history.map((h) => (
+              <Item key={h._id}>
+                <Result $win={h.didWin}>{h.didWin ? 'Win' : 'Loss'}</Result>
+                <div>
+                  <Small>
+                    {new Date(h.createdAt).toLocaleDateString()}&nbsp;
+                    {new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Small>
+                </div>
+                <div>{h.delta > 0 ? `+${h.delta}` : h.delta} 🏆</div>
+              </Item>
+            ))}
+          </HistoryList>
         )}
-      </BoardWrap>
-
-      {/* Recent games */}
-      <div style={{ fontWeight: 800, margin: '12px 0 6px' }}>Recent games</div>
-      {loading && <Meta>Loading…</Meta>}
-      {!loading && (
-        <HistoryList>
-          {history.length === 0 && <Meta>No recent games.</Meta>}
-          {history.map((h) => (
-            <Item key={h._id}>
-              <Result $win={h.didWin}>{h.didWin ? 'Win' : 'Loss'}</Result>
-              <div>
-                <Small>
-                  {new Date(h.createdAt).toLocaleDateString()}&nbsp;
-                  {new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Small>
-              </div>
-              <div>{h.delta > 0 ? `+${h.delta}` : h.delta} 🏆</div>
-            </Item>
-          ))}
-        </HistoryList>
-      )}
-    </Card>
+      </Card>
+    </ScrollbarStyles>
   );
 }

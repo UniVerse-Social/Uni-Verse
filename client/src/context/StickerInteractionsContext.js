@@ -33,7 +33,12 @@ const scheduleStateUpdate = (dragRef, setDragState, rafRef) => {
 
 const getPointInsideRect = (point, rect) => {
   if (!rect) return false;
-  return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
+  return (
+    point.x >= rect.left &&
+    point.x <= rect.right &&
+    point.y >= rect.top &&
+    point.y <= rect.bottom
+  );
 };
 
 const computeNormalizedPosition = (point, rect) => ({
@@ -73,33 +78,34 @@ export const StickerInteractionsProvider = ({ children }) => {
   const targetsRef = useRef(new Map());
   const listenersAttachedRef = useRef(false);
 
+  // stable options
   const wheelListenerOptions = useRef({ passive: false, capture: true }).current;
 
-  const updateHover = useCallback(
-    (activePoint, draft) => {
-      if (!draft) return;
-      let matchedTarget = null;
-      let matchedRect = null;
-      targetsRef.current.forEach((target) => {
-        const rect = target.getRect();
-        if (!rect) return;
-        if (getPointInsideRect(activePoint, rect)) {
-          matchedTarget = target;
-          matchedRect = rect;
-        }
-      });
+  // allow handlers to call finalizeDrag before it's defined (breaks cycle cleanly)
+  const finalizeDragRef = useRef(null);
 
-      if (!matchedTarget) {
-        draft.hoverTargetId = null;
-        draft.hoverPosition = null;
-        return;
+  const updateHover = useCallback((activePoint, draft) => {
+    if (!draft) return;
+    let matchedTarget = null;
+    let matchedRect = null;
+    targetsRef.current.forEach((target) => {
+      const rect = target.getRect();
+      if (!rect) return;
+      if (getPointInsideRect(activePoint, rect)) {
+        matchedTarget = target;
+        matchedRect = rect;
       }
+    });
 
-      draft.hoverTargetId = matchedTarget.id;
-      draft.hoverPosition = computeNormalizedPosition(activePoint, matchedRect);
-    },
-    []
-  );
+    if (!matchedTarget) {
+      draft.hoverTargetId = null;
+      draft.hoverPosition = null;
+      return;
+    }
+
+    draft.hoverTargetId = matchedTarget.id;
+    draft.hoverPosition = computeNormalizedPosition(activePoint, matchedRect);
+  }, []);
 
   const suppressContextMenu = useCallback((event) => {
     if (dragRef.current) {
@@ -107,17 +113,14 @@ export const StickerInteractionsProvider = ({ children }) => {
     }
   }, []);
 
-  const handleWheel = useCallback(
-    (event) => {
-      const draft = dragRef.current;
-      if (!draft) return;
-      event.preventDefault();
-      const delta = event.deltaY < 0 ? 0.08 : -0.08;
-      draft.scale = clamp(draft.scale + delta, STICKER_MIN_SCALE, STICKER_MAX_SCALE);
-      scheduleStateUpdate(dragRef, setDragState, rafRef);
-    },
-    []
-  );
+  const handleWheel = useCallback((event) => {
+    const draft = dragRef.current;
+    if (!draft) return;
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? 0.08 : -0.08;
+    draft.scale = clamp(draft.scale + delta, STICKER_MIN_SCALE, STICKER_MAX_SCALE);
+    scheduleStateUpdate(dragRef, setDragState, rafRef);
+  }, []);
 
   const handlePointerMove = useCallback(
     (event) => {
@@ -154,51 +157,15 @@ export const StickerInteractionsProvider = ({ children }) => {
       }
       draft.pointer = point;
 
-      const activePoint = draft.rotateMode && draft.rotateAnchor ? draft.rotateAnchor : draft.center || point;
+      const activePoint =
+        draft.rotateMode && draft.rotateAnchor ? draft.rotateAnchor : draft.center || point;
       updateHover(activePoint, draft);
       scheduleStateUpdate(dragRef, setDragState, rafRef);
     },
     [updateHover]
   );
 
-  const detachListeners = () => {
-    if (!listenersAttachedRef.current) return;
-    listenersAttachedRef.current = false;
-    document.removeEventListener('pointermove', handlePointerMove, true);
-    document.removeEventListener('pointerup', handlePointerUp, true);
-    document.removeEventListener('pointercancel', handlePointerCancel, true);
-    document.removeEventListener('wheel', handleWheel, wheelListenerOptions);
-    document.removeEventListener('contextmenu', suppressContextMenu, true);
-  };
-
-  const finalizeDrag = (dispatch = null) => {
-    const current = dragRef.current;
-    dragRef.current = null;
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    setDragState(null);
-    detachListeners();
-    if (dispatch && typeof dispatch === 'function') {
-      try {
-        dispatch(current);
-      } catch (err) {
-        console.error('Sticker drag completion failed', err);
-      }
-    }
-  };
-
-  const attachListeners = () => {
-    if (listenersAttachedRef.current) return;
-    listenersAttachedRef.current = true;
-    document.addEventListener('pointermove', handlePointerMove, true);
-    document.addEventListener('pointerup', handlePointerUp, true);
-    document.addEventListener('pointercancel', handlePointerCancel, true);
-    document.addEventListener('wheel', handleWheel, wheelListenerOptions);
-    document.addEventListener('contextmenu', suppressContextMenu, true);
-  };
-
+  // Define handlers that were previously "used before defined"
   const handlePointerUp = useCallback(
     (event) => {
       const draft = dragRef.current;
@@ -208,7 +175,9 @@ export const StickerInteractionsProvider = ({ children }) => {
       const dispatchCompletion = (snapshot) => {
         if (!snapshot) return;
         const activePoint =
-          snapshot.rotateMode && snapshot.rotateAnchor ? snapshot.rotateAnchor : snapshot.center || snapshot.pointer;
+          snapshot.rotateMode && snapshot.rotateAnchor
+            ? snapshot.rotateAnchor
+            : snapshot.center || snapshot.pointer;
         updateHover(activePoint, snapshot);
         const target = snapshot.hoverTargetId ? targetsRef.current.get(snapshot.hoverTargetId) : null;
         if (!target || !snapshot.hoverPosition) return;
@@ -233,14 +202,73 @@ export const StickerInteractionsProvider = ({ children }) => {
           });
         }
       };
-      finalizeDrag(dispatchCompletion);
+      // use ref to avoid use-before-define
+      finalizeDragRef.current?.(dispatchCompletion);
     },
-    [finalizeDrag, updateHover]
+    [updateHover]
   );
 
   const handlePointerCancel = useCallback(() => {
-    finalizeDrag();
-  }, [finalizeDrag]);
+    finalizeDragRef.current?.();
+  }, []);
+
+  const detachListeners = useCallback(() => {
+    if (!listenersAttachedRef.current) return;
+    listenersAttachedRef.current = false;
+    document.removeEventListener('pointermove', handlePointerMove, true);
+    document.removeEventListener('pointerup', handlePointerUp, true);
+    document.removeEventListener('pointercancel', handlePointerCancel, true);
+    document.removeEventListener('wheel', handleWheel, wheelListenerOptions);
+    document.removeEventListener('contextmenu', suppressContextMenu, true);
+  }, [
+    handlePointerMove,
+    handlePointerUp,
+    handlePointerCancel,
+    handleWheel,
+    wheelListenerOptions,
+    suppressContextMenu,
+  ]);
+
+  const finalizeDrag = useCallback(
+    (dispatch = null) => {
+      const current = dragRef.current;
+      dragRef.current = null;
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      setDragState(null);
+      detachListeners();
+      if (dispatch && typeof dispatch === 'function') {
+        try {
+          dispatch(current);
+        } catch (err) {
+          console.error('Sticker drag completion failed', err);
+        }
+      }
+    },
+    [detachListeners]
+  );
+
+  // keep ref in sync each render
+  finalizeDragRef.current = finalizeDrag;
+
+  const attachListeners = useCallback(() => {
+    if (listenersAttachedRef.current) return;
+    listenersAttachedRef.current = true;
+    document.addEventListener('pointermove', handlePointerMove, true);
+    document.addEventListener('pointerup', handlePointerUp, true);
+    document.addEventListener('pointercancel', handlePointerCancel, true);
+    document.addEventListener('wheel', handleWheel, wheelListenerOptions);
+    document.addEventListener('contextmenu', suppressContextMenu, true);
+  }, [
+    handlePointerMove,
+    handlePointerUp,
+    handlePointerCancel,
+    handleWheel,
+    wheelListenerOptions,
+    suppressContextMenu,
+  ]);
 
   const beginPickerDrag = useCallback(
     ({ sticker, point, origin = 'catalog' }) => {
@@ -310,7 +338,8 @@ export const StickerInteractionsProvider = ({ children }) => {
     };
   }, []);
 
-  useEffect(() => () => finalizeDrag(), []);
+  // include finalizeDrag in deps
+  useEffect(() => () => finalizeDrag(), [finalizeDrag]);
 
   const contextValue = useMemo(
     () => ({
