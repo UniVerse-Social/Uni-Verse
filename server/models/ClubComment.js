@@ -1,11 +1,27 @@
 const mongoose = require('mongoose');
 
+const AttachmentSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true },
+    type: { type: String, enum: ['image'], default: 'image' },
+    width: Number,
+    height: Number,
+    scan: {
+      safe: { type: Boolean, default: true },
+      labels: [{ type: String }],
+      score: { type: Number, default: 0 },
+    },
+  },
+  { _id: false }
+);
+
 const ClubCommentSchema = new mongoose.Schema({
   postId:   { type: mongoose.Schema.Types.ObjectId, ref: 'ClubPost', required: true },
   userId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  body:     { type: String, required: true, maxlength: 2000 },
+  body:     { type: String, default: '', maxlength: 2000 },
   parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'ClubComment', default: null },
   likes:    [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  attachments: { type: [AttachmentSchema], default: [] },
 }, { timestamps: true });
 
 ClubCommentSchema.index({ postId: 1, createdAt: 1 });

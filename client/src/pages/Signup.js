@@ -6,6 +6,16 @@ import axios from 'axios';
 import { debounce } from 'lodash';
 import { AuthContext } from '../App';
 import TermsModal from '../components/TermsModal';
+import { HOBBY_LIMIT, mapHobbiesWithMeta } from '../utils/hobbies';
+import {
+  CountBadge,
+  Hint,
+  LimitNote,
+  HobbyGrid,
+  HobbyOption,
+  HobbyEmoji,
+  HobbyText,
+} from '../components/HobbyTiles';
 
 
 // ===== Styled components (existing + a few new ones) =====
@@ -16,8 +26,8 @@ const SignupContainer = styled.div`
 
 const SignupForm = styled.form`
   background: var(--container-white); padding: 40px; border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 15px;
-  width: 100%; max-width: 400px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 18px;
+  width: 100%; max-width: 520px;
 `;
 
 const Input = styled.input`
@@ -35,12 +45,39 @@ const Button = styled.button`
   &:disabled { background-color: #ccc; cursor: not-allowed; }
 `;
 
-const HobbySelector = styled.div`
-  max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+const HobbyPanel = styled.div`
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
 `;
 
-const HobbyLabel = styled.label` display: flex; align-items: center; gap: 8px; `;
+const HobbyHeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+`;
+
+const HobbyHeaderLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const ClearAllButton = styled.button`
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  &:hover { text-decoration: underline; }
+`;
 
 const ValidationMessage = styled.p` color: red; font-size: 14px; margin: -10px 0 0 5px; `;
 
@@ -66,9 +103,6 @@ const InlineLink = styled.button`
 `;
 
 
-// ===== Constants =====
-const HOBBY_LIMIT = 10;
-
 const Signup = () => {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -78,6 +112,7 @@ const Signup = () => {
   const [validation, setValidation] = useState({ email: '', username: '' });
   const [isChecking, setIsChecking] = useState(false);
   const [errMsg, setErrMsg] = useState('');
+  const [hobbyLimitNote, setHobbyLimitNote] = useState('');
 
   // NEW: terms state
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -89,6 +124,11 @@ const Signup = () => {
 
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  const hobbyOptions = useMemo(
+    () => mapHobbiesWithMeta(signupData.hobbies),
+    [signupData.hobbies]
+  );
 
   // clear error when leaving step 3
   useEffect(() => {
@@ -149,14 +189,24 @@ const Signup = () => {
     setErrMsg('');
   };
 
-  const handleHobbyChange = (e) => {
-    const { value, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      hobbies: checked
-        ? [...prev.hobbies, value].slice(0, HOBBY_LIMIT)
-        : prev.hobbies.filter(h => h !== value)
-    }));
+  const toggleHobby = (name) => {
+    setHobbyLimitNote('');
+    setFormData(prev => {
+      const already = prev.hobbies.includes(name);
+      if (already) {
+        return { ...prev, hobbies: prev.hobbies.filter(h => h !== name) };
+      }
+      if (prev.hobbies.length >= HOBBY_LIMIT) {
+        setHobbyLimitNote(`You can select up to ${HOBBY_LIMIT} hobbies.`);
+        return prev;
+      }
+      return { ...prev, hobbies: [...prev.hobbies, name] };
+    });
+  };
+
+  const clearHobbies = () => {
+    setFormData(prev => ({ ...prev, hobbies: [] }));
+    setHobbyLimitNote('');
   };
 
   const handleSubmit = async (e) => {
@@ -287,19 +337,40 @@ const Signup = () => {
         {step === 3 && (
           <>
             <h2>Hobbies ({formData.hobbies.length}/{HOBBY_LIMIT})</h2>
-            <HobbySelector>
-              {signupData.hobbies.map(hobby => (
-                <HobbyLabel key={hobby}>
-                  <input
-                    type="checkbox"
-                    value={hobby}
-                    checked={formData.hobbies.includes(hobby)}
-                    onChange={handleHobbyChange}
-                  />
-                  {hobby}
-                </HobbyLabel>
-              ))}
-            </HobbySelector>
+            <HobbyPanel>
+              <HobbyHeaderRow>
+                <HobbyHeaderLeft>
+                  <CountBadge>Selected: {formData.hobbies.length}/{HOBBY_LIMIT}</CountBadge>
+                  <Hint>Pick up to {HOBBY_LIMIT} hobbies.</Hint>
+                </HobbyHeaderLeft>
+                {formData.hobbies.length > 0 && (
+                  <ClearAllButton type="button" onClick={clearHobbies}>
+                    Clear all
+                  </ClearAllButton>
+                )}
+              </HobbyHeaderRow>
+
+              {hobbyLimitNote && <LimitNote>{hobbyLimitNote}</LimitNote>}
+
+              <HobbyGrid>
+                {hobbyOptions.map(({ name, emoji }) => {
+                  const selected = formData.hobbies.includes(name);
+                  return (
+                    <HobbyOption
+                      key={name}
+                      type="button"
+                      $selected={selected}
+                      onClick={() => toggleHobby(name)}
+                      aria-pressed={selected}
+                      aria-label={`${selected ? 'Deselect' : 'Select'} ${name}`}
+                    >
+                      <HobbyEmoji aria-hidden="true">{emoji}</HobbyEmoji>
+                      <HobbyText>{name}</HobbyText>
+                    </HobbyOption>
+                  );
+                })}
+              </HobbyGrid>
+            </HobbyPanel>
 
             {/* Terms & Conditions gate (required before submit) */}
             <TermsRow>

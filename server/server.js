@@ -44,6 +44,7 @@ app.use('/api/listings', require('./routes/listings'));
 app.use('/api/ads', require('./routes/ads'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/games', require('./routes/games'));
+app.use('/api/stickers', require('./routes/stickers'));
 
 app.use('/api/auth', authRoute);
 app.use('/api/users', userRoute);
@@ -82,18 +83,20 @@ try {
 }
 
 // attach fishing realtime handlers
-try { 
-  require('./realtime/fishing')(io); 
-  console.log('Realtime: fishing namespace initialized'); 
-} catch (e) { 
-  console.warn('Realtime: fishing module not found or failed to load:', e?.message || e); }
+try {
+  require('./realtime/fishing')(io);
+  console.log('Realtime: fishing namespace initialized');
+} catch (e) {
+  console.warn('Realtime: fishing module not found or failed to load:', e?.message || e);
+}
 
 // attach poker realtime handlers
-try { 
-  require('./realtime/poker')(io); 
-  console.log('Realtime: poker namespace initialized'); 
-} catch (e) { 
-  console.warn('Realtime: poker module not found or failed to load:', e?.message || e); }
+try {
+  require('./realtime/poker')(io);
+  console.log('Realtime: poker namespace initialized');
+} catch (e) {
+  console.warn('Realtime: poker module not found or failed to load:', e?.message || e);
+}
 
 // attach reversi matchmaking/realtime handlers
 try {
@@ -111,20 +114,30 @@ try {
   console.warn('Realtime: jump module failed to load:', e?.message || e);
 }
 
-// Odd/Even realtime
+// NEW: Meteor realtime
 try {
-  require('./realtime/oddeven')(io);
-  console.log('Realtime: oddeven namespace initialized');
+  require('./realtime/meteor')(io);
+  console.log('Realtime: meteor namespace initialized');
 } catch (e) {
-  console.warn('Realtime: oddeven module failed to load:', e?.message || e);
+  console.warn('Realtime: meteor module failed to load:', e?.message || e);
 }
 
+// NEW: Tetris realtime
+try {
+  require('./realtime/tetris')(io);
+  console.log('Realtime: tetris namespace initialized');
+} catch (e) {
+  console.warn('Realtime: tetris module failed to load:', e?.message || e);
+}
+
+// Generic matchmaker (keep)
 try {
   require('./realtime/mm')(io);
   console.log('Realtime: generic matchmaker initialized');
 } catch (e) {
   console.warn('Realtime: matchmaker failed to load:', e?.message || e);
 }
+
 /* -------------------- START -------------------- */
 server.listen(PORT, () => {
   console.log(`API + Realtime listening on http://localhost:${PORT}`);

@@ -191,6 +191,7 @@ export default function Clubs(){
     const params = active.type === 'main'
       ? { channel: 'main' }
       : { channel: 'side', sideId: active.sideId };
+    params.viewerId = user._id;
     const res = await axios.get(`${api.posts}/${selected._id}`, { params });
     setPosts(res.data || []);
   }, [api.posts, selected, active.type, active.sideId]);

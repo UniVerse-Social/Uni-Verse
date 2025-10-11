@@ -14,7 +14,8 @@ import FishingArena from './FishingArena';
 import PokerArena from './PokerArena';
 import ReversiArena from './ReversiArena';
 import JumpArena from './JumpArena';
-import OddEvenArena from './OddEvenArena';
+import MeteorArena from './MeteorArena';
+import TetrisArena from './TetrisArena';
 import GameSidebar from '../components/GameSidebar';
 
 /* ------------------- Global fonts ------------------- */
@@ -241,7 +242,8 @@ const GAMES = [
   { key:'poker',    name:'Poker',       icon: '🃏' },
   { key:'reversi',  name:'Reversi',     icon: '◐ ' },
   { key:'jump',     name:'Jump Game',   icon: '🦘' },
-  { key:'oddeven',  name:'Odd or Even', icon: '🎲' },
+  { key:'meteor',   name:'Meteor',      icon: '☄️' },
+  { key:'tetris',   name:'Tetris VS',   icon: '🧱' },
 ];
 
 /* Tier thresholds */
@@ -660,7 +662,8 @@ export default function Games() {
         {view === 'poker'    && <PokerArena onResult={onResult} />}
         {view === 'reversi'  && <ReversiArena onResult={onResult} />}
         {view === 'jump'     && <JumpArena onResult={onResult} />}
-        {view === 'oddeven'  && <OddEvenArena onResult={onResult} />}
+        {view === 'meteor'   && <MeteorArena onResult={onResult} />}
+        {view === 'tetris'   && <TetrisArena onResult={onResult} />}
       </Card>
     </Row>
   );

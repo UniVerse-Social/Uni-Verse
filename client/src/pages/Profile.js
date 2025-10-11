@@ -3,12 +3,15 @@ import styled from 'styled-components';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AuthContext } from '../App';
+import { API_BASE_URL } from '../config';
 import Post from '../components/Post';
 import EditProfileModal from '../components/EditProfileModal';
 import ImageCropModal from '../components/ImageCropModal';
 import { FaCamera } from 'react-icons/fa';
 import { FiSettings, FiLogOut, FiTrash2, FiX } from 'react-icons/fi';
 import FollowersModal from '../components/FollowersModal';
+import HobbiesModal from '../components/HobbiesModal';
+import { getHobbyEmoji, HOBBY_LIMIT } from '../utils/hobbies';
 
 /* --------------------------- Styled Components --------------------------- */
 
@@ -144,10 +147,86 @@ const Stats = styled.div`
   margin-bottom: 4px;
 `;
 
+const CountNumber = styled.strong`
+  display: inline-block;
+  &.bump { animation: bump 0.35s ease; }
+  &.shake { animation: shake 0.35s ease; }
+
+  @keyframes bump {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.2); }
+    70% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+  }
+`;
+
 const Bio = styled.p`
   margin: 8px 0 0 0;
   color: #fff;
   font-size: 16px;
+`;
+
+const InterestsBar = styled.div`
+  margin: 12px 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #f9fafb;
+`;
+
+const InterestsTitle = styled.span`
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.15px;
+`;
+
+const InterestsList = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+`;
+
+const InterestDot = styled.span`
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 24px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+`;
+
+const InterestsHint = styled.span`
+  font-size: 12px;
+  color: rgba(249, 250, 251, 0.75);
+  flex: 1 1 auto;
+`;
+
+const ManageInterestsButton = styled.button`
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(15, 23, 42, 0.35);
+  color: #f9fafb;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: auto;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+  }
 `;
 
 /* ---- NEW: Badges row + slots ---- */
@@ -369,6 +448,10 @@ const Profile = () => {
   const { user: currentUser, login } = useContext(AuthContext);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followerAnim, setFollowerAnim] = useState('');
+  const [followingAnim, setFollowingAnim] = useState('');
 
   // Crop state
   const [imageToCrop, setImageToCrop] = useState(null);
@@ -385,6 +468,7 @@ const Profile = () => {
   // Followers modal
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
+  const [showHobbiesModal, setShowHobbiesModal] = useState(false);
 
   // Badges state
   const [badges, setBadges] = useState({ catalog: [], unlocked: [], equipped: ['', '', '', '', ''] });
@@ -403,15 +487,38 @@ const Profile = () => {
   const fetchUserAndPosts = useCallback(async () => {
     try {
       const userRes = await axios.get(`http://localhost:5000/api/users/profile/${username}`);
-      const postsRes = await axios.get(`http://localhost:5000/api/posts/profile/${username}`);
+      const viewerParam = currentUser?._id ? `?viewerId=${currentUser._id}` : '';
+      const postsRes = await axios.get(`http://localhost:5000/api/posts/profile/${username}${viewerParam}`);
       setUserOnPage(userRes.data);
       setPosts(postsRes.data);
     } catch (err) {
       console.error('Error fetching profile data:', err);
     }
-  }, [username]);
+  }, [username, currentUser?._id]);
 
   useEffect(() => { fetchUserAndPosts(); }, [fetchUserAndPosts]);
+
+  useEffect(() => {
+    if (!userOnPage) {
+      setFollowerCount(0);
+      setFollowingCount(0);
+      return;
+    }
+    setFollowerCount(Array.isArray(userOnPage.followers) ? userOnPage.followers.length : 0);
+    setFollowingCount(Array.isArray(userOnPage.following) ? userOnPage.following.length : 0);
+  }, [userOnPage]);
+
+  useEffect(() => {
+    if (!followerAnim) return;
+    const id = setTimeout(() => setFollowerAnim(''), 450);
+    return () => clearTimeout(id);
+  }, [followerAnim]);
+
+  useEffect(() => {
+    if (!followingAnim) return;
+    const id = setTimeout(() => setFollowingAnim(''), 450);
+    return () => clearTimeout(id);
+  }, [followingAnim]);
 
   // Follow state
   useEffect(() => {
@@ -486,12 +593,79 @@ const Profile = () => {
   // Update Profile after editing profile in modal
   const handleProfileUpdate = (updatedUserData) => setUserOnPage(updatedUserData);
 
+  const handleSaveHobbies = async (nextHobbies) => {
+    if (!currentUser) {
+      throw new Error('You must be signed in to update hobbies.');
+    }
+    if (!userOnPage || String(currentUser._id) !== String(userOnPage._id)) {
+      throw new Error('You can only update your own hobbies.');
+    }
+    try {
+      const safeList = Array.isArray(nextHobbies) ? nextHobbies.slice(0, HOBBY_LIMIT) : [];
+      const res = await axios.put(
+        `http://localhost:5000/api/users/${currentUser._id}`,
+        { userId: currentUser._id, hobbies: safeList }
+      );
+      login(res.data);
+      setUserOnPage(res.data);
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Failed to update hobbies.';
+      throw new Error(msg);
+    }
+  };
+
   // Follow/unfollow
   const handleFollow = async () => {
     if (!userOnPage || !currentUser) return;
     try {
-      await axios.put(`http://localhost:5000/api/users/${userOnPage._id}/follow`, { userId: currentUser._id });
-      fetchUserAndPosts();
+      const res = await axios.put(`${API_BASE_URL}/api/users/${userOnPage._id}/follow`, { userId: currentUser._id });
+      const message = res.data?.message || '';
+      const followersCount = typeof res.data?.followersCount === 'number' ? res.data.followersCount : null;
+      const nowFollowing = message.toLowerCase().includes('followed');
+      const viewerIdStr = String(currentUser._id);
+      const targetIdStr = String(userOnPage._id);
+
+      setIsFollowing(nowFollowing);
+
+      setUserOnPage((prev) => {
+        if (!prev) return prev;
+        const prevFollowers = Array.isArray(prev.followers) ? prev.followers.map(String) : [];
+        let nextFollowers = prevFollowers;
+        if (nowFollowing) {
+          if (!prevFollowers.includes(viewerIdStr)) nextFollowers = [...prevFollowers, viewerIdStr];
+        } else {
+          nextFollowers = prevFollowers.filter((id) => id !== viewerIdStr);
+        }
+        return { ...prev, followers: nextFollowers };
+      });
+
+      const previousCount = followerCount;
+      const nextCount = followersCount !== null
+        ? followersCount
+        : (nowFollowing ? previousCount + 1 : Math.max(0, previousCount - 1));
+      setFollowerCount(nextCount);
+      setFollowerAnim(nextCount >= previousCount ? 'bump' : 'shake');
+
+      if (typeof login === 'function') {
+        const prevFollowing = Array.isArray(currentUser.following)
+          ? currentUser.following.map(String)
+          : [];
+        let nextFollowing = prevFollowing;
+        if (nowFollowing) {
+          if (!prevFollowing.includes(targetIdStr)) nextFollowing = [...prevFollowing, targetIdStr];
+        } else {
+          nextFollowing = prevFollowing.filter((id) => id !== targetIdStr);
+        }
+        if (nextFollowing !== prevFollowing) {
+          login({ ...currentUser, following: nextFollowing });
+        }
+        if (String(currentUser._id) === targetIdStr) {
+          const prevFollowingCount = followingCount;
+          const nextFollowingCount = nextFollowing.length;
+          setFollowingCount(nextFollowingCount);
+          setFollowingAnim(nextFollowingCount >= prevFollowingCount ? 'bump' : 'shake');
+        }
+      }
     } catch (err) { console.error('Failed to follow/unfollow:', err); }
   };
 
@@ -692,6 +866,13 @@ const Profile = () => {
         </ModalBackdrop>
       )}
 
+      <HobbiesModal
+        open={showHobbiesModal}
+        selected={Array.isArray(userOnPage.hobbies) ? userOnPage.hobbies : []}
+        onClose={() => setShowHobbiesModal(false)}
+        onSave={handleSaveHobbies}
+      />
+
       {/* Main page */}
       <Page>
         <BannerWrap>
@@ -731,21 +912,21 @@ const Profile = () => {
 
                   {isOwnProfile ? (
                     <button style={{ all: 'unset', cursor: 'pointer', color: '#fff' }} onClick={() => setShowFollowers(true)} title="View your followers">
-                      <strong>{userOnPage.followers?.length || 0}</strong> followers
+                      <CountNumber className={followerAnim}>{followerCount}</CountNumber> followers
                     </button>
                   ) : (
                     <span style={{ color: '#fff' }}>
-                      <strong>{userOnPage.followers?.length || 0}</strong> followers
+                      <CountNumber className={followerAnim}>{followerCount}</CountNumber> followers
                     </span>
                   )}
 
                   {isOwnProfile ? (
                     <button style={{ all: 'unset', cursor: 'pointer', color: '#fff' }} onClick={() => setShowFollowing(true)} title="View who you follow">
-                      <strong>{userOnPage.following?.length || 0}</strong> following
+                      <CountNumber className={followingAnim}>{followingCount}</CountNumber> following
                     </button>
                   ) : (
                     <span style={{ color: '#fff' }}>
-                      <strong>{userOnPage.following?.length || 0}</strong> following
+                      <CountNumber className={followingAnim}>{followingCount}</CountNumber> following
                     </span>
                   )}
                 </Stats>
@@ -807,6 +988,34 @@ const Profile = () => {
               </div>
             </InfoAndActions>
           </Header>
+
+          {(isOwnProfile || (Array.isArray(userOnPage.hobbies) && userOnPage.hobbies.length > 0)) && (
+            <InterestsBar>
+              <InterestsTitle>Interests</InterestsTitle>
+
+              {Array.isArray(userOnPage.hobbies) && userOnPage.hobbies.length > 0 ? (
+                <InterestsList aria-label="Selected interests">
+                  {userOnPage.hobbies.map((hobby) => (
+                    <InterestDot key={hobby} title={hobby} aria-label={hobby}>
+                      {getHobbyEmoji(hobby)}
+                    </InterestDot>
+                  ))}
+                </InterestsList>
+              ) : (
+                <InterestsHint>
+                  {isOwnProfile
+                    ? 'Add a few so Titans know what you are into.'
+                    : 'No interests shared yet.'}
+                </InterestsHint>
+              )}
+
+              {isOwnProfile && (
+                <ManageInterestsButton type="button" onClick={() => setShowHobbiesModal(true)}>
+                  {Array.isArray(userOnPage.hobbies) && userOnPage.hobbies.length ? 'Edit' : 'Add'}
+                </ManageInterestsButton>
+              )}
+            </InterestsBar>
+          )}
 
           <PostsGrid>
             {posts.map((p) => (

@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Post = require('../models/Post');
+const GameProfile = require('../models/GameProfile');
 const {
   BADGE_CATALOG,
   checkAndUnlock,
@@ -95,29 +96,51 @@ router.put('/:id/follow', async (req, res) => {
     return res.status(403).json("You can't follow yourself");
   }
   try {
-    const userToFollow = await User.findById(req.params.id);
-    const currentUser = await User.findById(req.body.userId);
+    const targetId = req.params.id;
+    const actorId = req.body.userId;
+
+    const userToFollow = await User.findById(targetId);
+    const currentUser = await User.findById(actorId);
     if (!userToFollow || !currentUser) {
       return res.status(404).json('User not found');
     }
     if (!Array.isArray(userToFollow.followers)) userToFollow.followers = [];
     if (!Array.isArray(currentUser.following)) currentUser.following = [];
 
+    const followerSet = new Set(userToFollow.followers.map(f => String(f)));
+    const followingSet = new Set(currentUser.following.map(f => String(f)));
+
+    const actorObjectId = new mongoose.Types.ObjectId(actorId);
+    const targetObjectId = new mongoose.Types.ObjectId(targetId);
+
     let msg;
-    if (!userToFollow.followers.includes(req.body.userId)) {
-      await userToFollow.updateOne({ $push: { followers: req.body.userId } });
-      await currentUser.updateOne({ $push: { following: req.params.id } });
+    if (!followerSet.has(String(actorId))) {
+      await Promise.all([
+        userToFollow.updateOne({ $addToSet: { followers: actorObjectId } }),
+        currentUser.updateOne({ $addToSet: { following: targetObjectId } }),
+      ]);
       msg = 'User has been followed';
     } else {
-      await userToFollow.updateOne({ $pull: { followers: req.body.userId } });
-      await currentUser.updateOne({ $pull: { following: req.params.id } });
+      await Promise.all([
+        userToFollow.updateOne({ $pull: { followers: actorObjectId } }),
+        currentUser.updateOne({ $pull: { following: targetObjectId } }),
+      ]);
       msg = 'User has been unfollowed';
     }
 
     // Badge hook: 'followed' (unlocks Connector on thresholds)
     checkAndUnlock(userToFollow._id, { type: 'followed', targetUserId: userToFollow._id }).catch(() => {});
 
-    res.status(200).json(msg);
+    const [updatedTarget, updatedActor] = await Promise.all([
+      User.findById(targetId).select('followers').lean(),
+      User.findById(actorId).select('following').lean(),
+    ]);
+
+    res.status(200).json({
+      message: msg,
+      followersCount: updatedTarget?.followers?.length || 0,
+      followingCount: updatedActor?.following?.length || 0,
+    });
   } catch (err) {
     res.status(500).json(err);
   }
@@ -323,18 +346,83 @@ router.get("/:id/relations", async (req, res) => {
  */
 router.get('/search', async (req, res) => {
   try {
-    const q = (req.query.q || '').trim();
-    const me = req.query.userId ? new mongoose.Types.ObjectId(req.query.userId) : null;
+    const qRaw = (req.query.q || '').trim();
+    const tagsRaw = String(req.query.tags || '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
 
-    if (!q) return res.status(200).json([]);
+    const hasQuery = qRaw.length > 0;
+    const hasTags = tagsRaw.length > 0;
 
-    const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    const match = {
-      $or: [{ username: rx }, { department: rx }, { hobbies: rx }],
-    };
-    if (me) match._id = { $ne: me };
+    if (!hasQuery && !hasTags) return res.status(200).json([]);
 
-    const users = await User.find(match).select('-password -email').limit(30).lean();
+    const me = req.query.userId && mongoose.isValidObjectId(req.query.userId)
+      ? new mongoose.Types.ObjectId(req.query.userId)
+      : null;
+
+    const conditions = [];
+    if (hasQuery) {
+      const rx = new RegExp(qRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      conditions.push({ $or: [{ username: rx }, { department: rx }, { hobbies: rx }] });
+    }
+    if (me) {
+      conditions.push({ _id: { $ne: me } });
+    }
+
+    const GAME_KEYS = ['chess', 'checkers', 'fishing', 'poker', 'reversi', 'jump', 'oddeven'];
+    let leaderboardIds = null;
+
+    for (const tag of tagsRaw) {
+      if (tag === 'leaderboardTop3') {
+        if (leaderboardIds === null) {
+          const idSet = new Set();
+          await Promise.all(GAME_KEYS.map(async (key) => {
+            const rows = await GameProfile.aggregate([
+              { $project: { userId: 1, score: { $ifNull: [`$trophiesByGame.${key}`, 0] } } },
+              { $match: { score: { $gt: 0 } } },
+              { $sort: { score: -1, _id: 1 } },
+              { $limit: 3 },
+            ]);
+            rows.forEach((row) => {
+              if (row?.userId) idSet.add(String(row.userId));
+            });
+          }));
+          leaderboardIds = Array.from(idSet)
+            .filter((id) => mongoose.isValidObjectId(id))
+            .map((id) => new mongoose.Types.ObjectId(id));
+        }
+        if (!leaderboardIds.length) return res.status(200).json([]);
+        conditions.push({ _id: { $in: leaderboardIds } });
+        continue;
+      }
+      if (tag.startsWith('hobby:')) {
+        const value = tag.slice('hobby:'.length);
+        if (value) conditions.push({ hobbies: value });
+        continue;
+      }
+      if (tag.startsWith('department:')) {
+        const value = tag.slice('department:'.length);
+        if (value) conditions.push({ department: value });
+        continue;
+      }
+      if (tag === 'club:any') {
+        conditions.push({ clubs: { $exists: true, $not: { $size: 0 } } });
+        continue;
+      }
+      if (tag.startsWith('club:')) {
+        const value = tag.slice('club:'.length);
+        if (mongoose.isValidObjectId(value)) {
+          conditions.push({ clubs: new mongoose.Types.ObjectId(value) });
+        }
+        continue;
+      }
+    }
+
+    const match = conditions.length ? { $and: conditions } : {};
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+
+    const users = await User.find(match).select('-password -email').limit(limit).lean();
 
     if (me) {
       const mine = await User.findById(me).select('following').lean();

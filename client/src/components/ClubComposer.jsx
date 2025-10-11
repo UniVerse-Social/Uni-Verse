@@ -11,8 +11,8 @@ const Box = styled.div`
   background: var(--container-white);
 `;
 const TA = styled.textarea`
-  width:100%; min-height:80px; border:1px solid var(--border-color);
-  border-radius:10px; padding:10px; resize:vertical; background:#fff; color:#111;
+  width:96%; min-height:80px; border:1px solid var(--border-color);
+  border-radius:10px; padding:10px; resize:none; background:#fff; color:#111;
 `;
 const Row = styled.div`display:flex; justify-content:space-between; gap:8px; align-items:center; margin-top:8px;`;
 const Btn = styled.button`
