@@ -66,7 +66,13 @@ const PostContainer = styled.div`
   transition: border 0.18s ease, box-shadow 0.18s ease;
 `;
 
-const PostHeader = styled.div` display: flex; align-items: center; margin-bottom: 12px; `;
+const PostHeader = styled.div`
+   display: flex;
+   align-items: center;
+   margin-bottom: 12px;
+   position: relative;
+   z-index: 6;       /* stays above stickers (z=4) */
+ `;
 const ProfilePic = styled(SmartImg)` width: 42px; height: 42px; border-radius: 50%; background-color: #eee; margin-right: 12px; object-fit: cover; `;
 const UserInfo = styled.div` display: flex; flex-direction: column; flex-grow: 1; `;
 
@@ -105,8 +111,24 @@ const EditedStamp = styled.span`
   font-size: 11px;
   color: #9ca3af;
 `;
-const PostContent = styled.p` font-size: 16px; line-height: 1.5; margin: 0 0 12px 0; white-space: pre-wrap; word-break: break-word; color: #111; `;
-const PostActions = styled.div` display: flex; align-items: center; gap: 20px; color: #374151; `;
+const PostContent = styled.p`
+   font-size: 16px;
+   line-height: 1.5;
+   margin: 0 0 12px 0;
+   white-space: pre-wrap;
+   word-break: break-word;
+   color: #111;
+   position: relative;
+   z-index: 6;       /* text can’t be visually covered */
+ `;
+const PostActions = styled.div`
+   display: flex;
+   align-items: center;
+   gap: 20px;
+   color: #374151;
+   position: relative;
+   z-index: 6;       /* like/comment remain clickable & visible */
+ `;
 const Action = styled.div` display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; `;
 const OptionsButton = styled.div` cursor: pointer; padding: 6px; border-radius: 8px; &:hover { background-color: #f3f4f6; } `;
 const DropdownMenu = styled.div`
@@ -114,6 +136,7 @@ const DropdownMenu = styled.div`
   border: 1px solid var(--border-color); box-shadow: 0 12px 28px rgba(0,0,0,0.12); z-index: 10; overflow: hidden;
   top: 44px; right: 16px;
 `;
+
 const DropdownItem = styled.div` padding: 12px 16px; cursor: pointer; &:hover { background-color: #f3f4f6; } `;
 
 const CommentPreviewInline = styled.span`
@@ -207,11 +230,13 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const getStickerId = (sticker) => (sticker?.id || sticker?._id || null);
 
 const MediaGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(${p => Math.min(p.$count, 2)}, 1fr);
-  gap: 8px;
-  margin-bottom: 10px;
-  img {
+   display: grid;
+   grid-template-columns: repeat(${p => Math.min(p.$count, 2)}, 1fr);
+   gap: 8px;
+   margin-bottom: 10px;
+   position: relative;
+   z-index: 6;   /* photos are protected too */
+   img {
     width: 100%; height: 100%; object-fit: cover; display: block;
     border-radius: 10px; border: 1px solid var(--border-color);
     background: #f8f9fb;
@@ -302,7 +327,61 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
     [stickerSettings.denylist]
   );
   const allowMode = stickerSettings.allowMode || 'everyone';
+  // container stays
   const containerRef = useRef(null);
+  const avatarRef      = useRef(null);
+  const usernameRef    = useRef(null);
+  const titleBadgeRef  = useRef(null);
+  const timestampRef   = useRef(null);
+  const optionsBtnRef  = useRef(null);
+  const menuRef        = useRef(null);
+  const contentTextRef = useRef(null);   // wraps the actual text only
+  const mediaRef       = useRef(null);   // keep images protected
+  const actionsBtnsRef = useRef(null);   // just the like/comment buttons area
+
+  /* Overlap helpers */
+  const PROTECT_PAD = 6;
+  const overlaps = (a, b) =>
+    !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+
+  const rectsProtected = useCallback(() => {
+    const card = containerRef.current?.getBoundingClientRect();
+    if (!card) return [];
+    const toLocal = (r) => ({
+      left: r.left - card.left - PROTECT_PAD,
+      top: r.top - card.top - PROTECT_PAD,
+      right: r.right - card.left + PROTECT_PAD,
+      bottom: r.bottom - card.top + PROTECT_PAD,
+    });
+
+    const refs = [
+      avatarRef,
+      usernameRef,
+      titleBadgeRef,
+      timestampRef,
+      optionsBtnRef,   // kebab menu button
+      contentTextRef,  // only the text block itself
+      mediaRef,        // entire images grid is still protected
+      actionsBtnsRef,  // the small cluster of like/comment icons
+    ];
+
+    const out = [];
+    refs.forEach((ref) => {
+      const r = ref.current?.getBoundingClientRect();
+      if (r) out.push(toLocal(r));
+    });
+    return out;
+  }, []);
+
+  const isAllowedCenter = useCallback((pos, sizePx = 64) => {
+    const card = containerRef.current?.getBoundingClientRect();
+    if (!card) return true;
+    const cx = pos.x * card.width;
+    const cy = pos.y * card.height;
+    const half = sizePx / 2;
+    const me = { left: cx - half, top: cy - half, right: cx + half, bottom: cy + half };
+    return !rectsProtected().some((b) => overlaps(me, b));
+  }, [rectsProtected]);
   const stickersRef = useRef(stickers);
   const [movingStickerId, setMovingStickerId] = useState(null);
   const deleteClickRef = useRef({ id: null, ts: 0 });
@@ -351,6 +430,30 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
   }, []);
 
   useEffect(() => () => clearHoldTimer(), [clearHoldTimer]);
+
+  // close menu when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const onDocMouseDown = (e) => {
+      const menuEl = menuRef.current;
+      const btnEl = optionsBtnRef.current;
+      if (!menuEl || !btnEl) return;
+      if (menuEl.contains(e.target) || btnEl.contains(e.target)) return; // click inside; keep open
+      setMenuOpen(false);
+    };
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', onDocMouseDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -513,6 +616,10 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
 
       if (!canPlaceStickers || !currentUser?._id) return;
 
+      const baseSize = sticker.assetType === 'image' ? 64 : 48;
+        if (!isAllowedCenter(position, baseSize * safeScale)) {
+          return;
+        }
       try {
         const payload = {
           userId: currentUser._id,
@@ -544,7 +651,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
           console.error('Failed to place sticker', err);
         }
       }
-    }, [canPlaceStickers, currentUser?._id, post._id]);
+    }, [canPlaceStickers, currentUser?._id, post._id, isAllowedCenter]);
 
   const handleDropMoveSticker = useCallback(
     async ({ placementId, position, scale, rotation }) => {
@@ -561,6 +668,12 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
       const sticker = stickersRef.current.find(
         (s) => getStickerId(s) === placementId
       );
+      const baseSize = sticker.assetType === 'image' ? 64 : 48;
+        if (!isAllowedCenter(position, baseSize * safeScale)) {
+          movingStickerIdRef.current = null;
+          setMovingStickerId(null);
+          return;
+        }
       if (!sticker || !canMoveSticker(sticker)) {
         movingStickerIdRef.current = null;
         setMovingStickerId(null);
@@ -606,7 +719,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
         movingStickerIdRef.current = null;
         setMovingStickerId(null);
       }
-    }, [currentUser?._id, canMoveSticker, post._id]);
+    }, [currentUser?._id, canMoveSticker, post._id, isAllowedCenter]);
 
   useEffect(() => {
     const unregister = registerTarget(post._id, {
@@ -662,16 +775,52 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
         denylist: parseListInput(settingsDraft.denylist),
         sticky: !!settingsDraft.sticky,
       };
+
       const updated = await updateStickerSettings(post._id, payload);
       setSettingsOpen(false);
+
       if (updated) {
         onPostUpdated?.({ ...post, stickerSettings: updated });
+
+        // If stickers are disabled, purge existing stickers from other users
+        if (updated.allowMode === 'none') {
+          const ownerId = String(post.userId);
+          const toRemove = (stickersRef.current || []).filter(
+            (s) => getPlacedById(s) && getPlacedById(s) !== ownerId
+          );
+
+          if (toRemove.length) {
+            try {
+              await Promise.all(
+                toRemove.map((s) =>
+                  deleteStickerPlacement(post._id, getStickerId(s), {
+                    userId: currentUser._id,
+                  })
+                )
+              );
+            } catch (e) {
+              console.error('Failed to purge old stickers after disabling', e);
+            }
+
+            // Update local state to reflect removals immediately
+            setStickers((prev) =>
+              prev.filter((s) => getPlacedById(s) === ownerId)
+            );
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to update sticker settings', err);
       alert('Could not update sticker settings right now.');
     }
-  }, [ isOwner, currentUser?._id, settingsDraft, parseListInput, onPostUpdated, post ]);
+  }, [
+    isOwner,
+    currentUser?._id,
+    settingsDraft,
+    parseListInput,
+    onPostUpdated,
+    post,
+  ]);
 
   const handleSettingsCancel = useCallback(() => {
     setSettingsOpen(false);
@@ -732,6 +881,22 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
     .map(a => toMediaUrl(a.url));
   if (post.imageUrl && images.length === 0) images.push(toMediaUrl(post.imageUrl)); // legacy
 
+  const getPlacedById = (s) =>
+    s?.placedBy != null
+      ? String(s.placedBy)
+      : s?.placedByUser?._id
+      ? String(s.placedByUser._id)
+      : null;
+
+  // only show owner stickers if stickers are disabled
+  const stickersForDisplay = useMemo(() => {
+    if (allowMode === 'none') {
+      const ownerId = String(post.userId);
+      return (stickers || []).filter((s) => getPlacedById(s) === ownerId);
+    }
+    return stickers;
+  }, [stickers, allowMode, post.userId]);
+
   return (
     <PostContainer
       ref={containerRef}
@@ -743,7 +908,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
       onMouseLeave={handleHoldEnd}
     >
       <StickerCanvas>
-        {stickers.map((sticker) => {
+        {stickersForDisplay.map((sticker) => {
           const position = sticker.position || {};
           const x = Math.min(Math.max(typeof position.x === 'number' ? position.x : 0.5, 0), 1);
           const y = Math.min(Math.max(typeof position.y === 'number' ? position.y : 0.5, 0), 1);
@@ -790,55 +955,104 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
           );
         })}
       </StickerCanvas>
-      <PostHeader>
-        <ProfilePic src={avatarSrc} fallback={FALLBACK_AVATAR} alt="User avatar" />
-        <UserInfo>
-          <UsernameRow>
-            <Username to={`/profile/${post.username}`} data-username-link>{post.username}</Username>
-            {!!post.titleBadge && <TitleBadge>{post.titleBadge}</TitleBadge>}
-          </UsernameRow>
-          <Timestamp>
-            {dateLabel && <DateLabel>{dateLabel}</DateLabel>}
-            <span>{createdDate ? createdDate.toLocaleString() : ''}</span>
-            {lastEdited && (
-              <EditedStamp title={`Edited on ${lastEdited.toLocaleString()}`}>
-                · Edited on {lastEdited.toLocaleString()}
-              </EditedStamp>
-            )}
-          </Timestamp>
-        </UserInfo>
+        <PostHeader>
+          <ProfilePic ref={avatarRef} src={avatarSrc} fallback={FALLBACK_AVATAR} alt="User avatar" />
 
-        {isOwner && (
-          <>
-            <OptionsButton onClick={() => setMenuOpen(prev => !prev)} aria-label="More options">
-              <FaEllipsisH />
-            </OptionsButton>
-            {menuOpen && (
-              <DropdownMenu
-                onMouseLeave={() => setMenuOpen(false)}
-                onClick={(e) => e.stopPropagation()}
+          <UserInfo>
+            <UsernameRow>
+              <Username
+                ref={usernameRef}
+                to={`/profile/${post.username}`}
+                data-username-link
               >
-                <DropdownItem onClick={() => { setMenuOpen(false); setEditOpen(true); }} > Edit Post </DropdownItem>
-                <DropdownItem onClick={() => { setMenuOpen(false); handleToggleSettings(); }}>Sticker Settings</DropdownItem>
-                <DropdownItem onClick={handleDelete}>Delete Post</DropdownItem>
-              </DropdownMenu>
-            )}
-          </>
-        )}
-      </PostHeader>
+                {post.username}
+              </Username>
+              {!!post.titleBadge && (
+                <TitleBadge ref={titleBadgeRef}>{post.titleBadge}</TitleBadge>
+              )}
+            </UsernameRow>
 
-      {textContent && <PostContent>{textContent}</PostContent>}
+            <Timestamp ref={timestampRef}>
+              {dateLabel && <DateLabel>{dateLabel}</DateLabel>}
+              <span>{createdDate ? createdDate.toLocaleString() : ''}</span>
+              {lastEdited && (
+                <EditedStamp title={`Edited on ${lastEdited.toLocaleString()}`}>
+                  · Edited on {lastEdited.toLocaleString()}
+                </EditedStamp>
+              )}
+            </Timestamp>
+          </UserInfo>
 
+          {isOwner && (
+            <>
+              <OptionsButton
+                ref={optionsBtnRef}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen((prev) => !prev);
+                }}
+                aria-label="More options"
+              >
+                <FaEllipsisH />
+              </OptionsButton>
+
+              {menuOpen && (
+                <DropdownMenu
+                  ref={menuRef}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <DropdownItem
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setEditOpen(true);
+                    }}
+                  >
+                    Edit Post
+                  </DropdownItem>
+
+                  <DropdownItem
+                    onClick={() => {
+                      setMenuOpen(false);
+                      handleToggleSettings();
+                    }}
+                  >
+                    Sticker Settings
+                  </DropdownItem>
+
+                  <DropdownItem
+                    onClick={() => {
+                      setMenuOpen(false);
+                      handleDelete();
+                    }}
+                  >
+                    Delete Post
+                  </DropdownItem>
+                </DropdownMenu>
+              )}
+            </>
+          )}
+        </PostHeader>
+
+      {textContent && (
+        <PostContent>
+          <span ref={contentTextRef}>{textContent}</span>
+        </PostContent>
+      )}
 
       {images.length > 0 && (
-        <MediaGrid $count={images.length}>
+        <MediaGrid ref={mediaRef} $count={images.length}>
           {images.map((src, i) => (
             <SmartImg key={i} src={src} fallback="" alt={`post media ${i + 1}`} />
           ))}
         </MediaGrid>
       )}
                 
-      <PostActions>
+    <PostActions>
+      {/* Protect only the buttons cluster so white space stays placeable */}
+      <div
+        ref={actionsBtnsRef}
+        style={{ display: 'flex', alignItems: 'center', gap: 20 }}
+      >
         <Action
           data-ignore-hold
           onClick={(event) => {
@@ -846,8 +1060,14 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
             likeHandler();
           }}
         >
-          {isLiked ? <FaHeart size={ICON_SIZE} color={HEART_COLOR} /> : <FaRegHeart size={ICON_SIZE} color={HEART_COLOR} />} {likeCount}
+          {isLiked ? (
+            <FaHeart size={ICON_SIZE} color={HEART_COLOR} />
+          ) : (
+            <FaRegHeart size={ICON_SIZE} color={HEART_COLOR} />
+          )}
+          {likeCount}
         </Action>
+
         <Action
           data-ignore-hold
           onClick={(event) => {
@@ -855,18 +1075,25 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
             setCommentsOpen(true);
           }}
           title="View comments"
-          style={{ flex: 1 }}
         >
-          {hasCommented
-            ? <FaCommentAlt size={ICON_SIZE} color={COMMENT_COLOR} />
-            : <FaRegCommentAlt size={ICON_SIZE} color={COMMENT_COLOR} />}
-          {commentCount > 0 && commentPreview && (
-            <CommentPreviewInline title={`${commentPreview.username} — ${commentPreview.snippet}`}>
-              {commentPreview.username} — {commentPreview.snippet}
-            </CommentPreviewInline>
+          {hasCommented ? (
+            <FaCommentAlt size={ICON_SIZE} color={COMMENT_COLOR} />
+          ) : (
+            <FaRegCommentAlt size={ICON_SIZE} color={COMMENT_COLOR} />
           )}
         </Action>
-      </PostActions>
+      </div>
+
+      {/* Preview text is not protected so stickers can go in the white space */}
+      {commentCount > 0 && commentPreview && (
+        <CommentPreviewInline
+          title={`${commentPreview.username} — ${commentPreview.snippet}`}
+          style={{ marginLeft: 8, flex: 1 }}
+        >
+          {commentPreview.username} — {commentPreview.snippet}
+        </CommentPreviewInline>
+      )}
+    </PostActions>
       <StickerSettingsModal
         open={Boolean(settingsOpen && isOwner)}
         values={settingsDraft}

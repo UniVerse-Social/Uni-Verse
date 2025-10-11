@@ -13,7 +13,7 @@ const styles = `
 
 .note { text-align: center; padding: 16px 0; color: #666; }
 
-.search-results { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 6px; margin-bottom: 14px; max-height: 360px; overflow: auto; }
+.search-results { position: fixed; left: 50%; transform: translateX(-50%); top: 120px; width: min(900px, calc(100vw - 32px)); z-index: 1550; background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 6px; max-height: 360px; overflow: auto; margin: 0; box-shadow: 0 18px 42px rgba(0,0,0,0.18); }
 .result-row { background: #fff; display: flex; align-items: center; gap: 12px; padding: 8px; border-bottom: 1px solid #f3f3f3; }
 .result-row:last-child { border-bottom: none; }
 .res-avatar { width: 44px; height: 44px; border-radius: 50%; background: #f0f0f0; display: grid; place-items: center; overflow: hidden; flex: 0 0 auto; }
@@ -128,7 +128,7 @@ function SwipeableCard({ user, onDecision }) {
 
   const style = { transform: `translate(calc(-50% + ${dx}px), ${dy}px) rotate(${rot}deg)`, transition: released ? 'transform 250ms ease-out' : 'transform 0s' };
 
-  /* --- NEW: compute badges for display (title first, then slots 1-4) --- */
+  /* compute badges for display (title first, then slots 1-4) */
   const equipped = Array.isArray(user.badgesEquipped) ? user.badgesEquipped.slice(0, 5) : [];
   const title = user.titleBadge || equipped[0] || null;
   const badgeLine = (() => {
