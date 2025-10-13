@@ -71,7 +71,7 @@ const PostHeader = styled.div`
    align-items: center;
    margin-bottom: 12px;
    position: relative;
-   z-index: 6;       /* stays above stickers (z=4) */
+   z-index: 10;       /* stays above stickers (z=4) */
  `;
 const ProfilePic = styled(SmartImg)` width: 42px; height: 42px; border-radius: 50%; background-color: #eee; margin-right: 12px; object-fit: cover; `;
 const UserInfo = styled.div` display: flex; flex-direction: column; flex-grow: 1; `;

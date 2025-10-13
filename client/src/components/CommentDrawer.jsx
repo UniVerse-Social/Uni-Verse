@@ -93,7 +93,7 @@ const SendButton = styled.button`
   font-weight:600;
   cursor:pointer;
   min-width:66px;
-  min-height:64px;
+  min-height:54px;
   display:flex;
   align-items:center;
   justify-content:center;
