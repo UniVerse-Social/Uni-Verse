@@ -17,17 +17,30 @@ module.exports = function attachCheckers(io) {
     return B;
   }
 
+  function packState(state) {
+    return {
+      board: state.board,
+      turn: state.turn,
+      lockFrom: state.lockFrom,
+    };
+  }
+
   function legalMovesFor(B, r, c) {
     const p = B[r][c];
     if (!p) return [];
     const col = colorOf(p);
-    const dirs = isKing(p) ? [[-1,-1],[-1,1],[1,-1],[1,1]] : (col === 'w' ? [[-1,-1],[-1,1]] : [[1,-1],[1,1]]);
+    const king = (p === 'W' || p === 'B');
+
+    const dirs = [];
+    if (king || col === 'w') dirs.push([-1, -1], [-1, 1]);
+    if (king || col === 'b') dirs.push([1, -1], [1, 1]);
+
     const moves = [];
     for (const [dr, dc] of dirs) {
-      const nr = r + dr, nc = c + dc;
-      if (!inBounds(nr,nc)) continue;
-      if ((nr + nc) % 2 !== 1) continue;
-      if (B[nr][nc] === EMPTY) moves.push({ from:[r,c], to:[nr,nc], capture:null });
+      const r2 = r + dr, c2 = c + dc;
+      if (!inBounds(r2, c2)) continue;
+      if ((r2 + c2) % 2 !== 1) continue;
+      if (B[r2][c2] === EMPTY) moves.push({ from:[r,c], to:[r2,c2] });
     }
     for (const [dr, dc] of dirs) {
       const mr = r + dr, mc = c + dc;
@@ -61,34 +74,22 @@ module.exports = function attachCheckers(io) {
   }
   function noMovesOrPieces(B,color){
     let any=false; for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=B[r][c]; if(p&&colorOf(p)===color){any=true;break;}}
-    if(!any) return true;
+    if (!any) return true;
     return allMoves(B,color).length===0;
   }
-  const packState = (state, room) => ({
-    board: state.board,
-    turn: state.turn,
-    lockFrom: state.lockFrom||null,
-    lastMove: state.lastMove||null,
-    white: room.players.w.user,
-    black: room.players.b.user,
-  });
 
   io.on('connection', (socket) => {
     let roomJoined = null;
-    // small server-side log helps verify both clients hit the same backend
-    // console.log('[checkers] socket connected', socket.id);
 
+    // ---------- Matchmaking ----------
     socket.on('checkers:queue', ({ userId, username }) => {
-      if (!userId) userId = socket.id;
-      // prevent duplicates
       if (waiting.find(w => w.socketId === socket.id)) {
         socket.emit('checkers:queued');
         return;
       }
-      waiting.push({ socketId: socket.id, user: { userId, username } });
+      waiting.push({ socketId: socket.id, user: { _id: userId, username } });
       socket.emit('checkers:queued');
 
-      // Pair if we have two or more
       if (waiting.length >= 2) {
         const a = waiting.shift();
         const b = waiting.shift();
@@ -97,7 +98,7 @@ module.exports = function attachCheckers(io) {
         const white = Math.random() < 0.5 ? a : b;
         const black = white === a ? b : a;
 
-        const state = { board: initialBoard(), turn: 'w', lockFrom: null, lastMove: null };
+        const state = { board: initialBoard(), turn: 'w', lockFrom: null };
         const room = {
           id: roomId,
           state,
@@ -105,28 +106,33 @@ module.exports = function attachCheckers(io) {
         };
         rooms.set(roomId, room);
 
-        // This line works even if we can't access the Socket instance directly.
-        io.in(white.socketId).socketsJoin(roomId);
-        io.in(black.socketId).socketsJoin(roomId);
-        roomJoined = roomId;
+        const whiteSock = io.sockets.sockets.get(white.socketId);
+        const blackSock = io.sockets.sockets.get(black.socketId);
+        if (!whiteSock || !blackSock) { rooms.delete(roomId); return; }
+        whiteSock.join(roomId);
+        blackSock.join(roomId);
+
+        if (whiteSock.id === socket.id) roomJoined = roomId;
+        if (blackSock.id === socket.id) roomJoined = roomId;
 
         const payload = {
           roomId,
-          state: packState(state, room),
+          state: packState(state),
           white: room.players.w.user,
           black: room.players.b.user,
         };
 
-        io.to(white.socketId).emit('checkers:start', { ...payload, color: 'w' });
-        io.to(black.socketId).emit('checkers:start', { ...payload, color: 'b' });
-        // console.log('[checkers] match started', roomId, payload.white.username, 'vs', payload.black.username);
+        whiteSock.emit('checkers:start', { ...payload, color: 'w' });
+        blackSock.emit('checkers:start', { ...payload, color: 'b' });
       }
     });
 
-    socket.on('checkers:move', ({ roomId, move, chain }) => {
+    // ---------- Moves ----------
+    socket.on('checkers:move', ({ roomId, move }) => {
       const room = rooms.get(roomId);
       if (!room) return;
       const { state, players } = room;
+
       const moverColor =
         players.w.socketId === socket.id ? 'w' :
         players.b.socketId === socket.id ? 'b' : null;
@@ -142,18 +148,18 @@ module.exports = function attachCheckers(io) {
         legals = legals.filter(m => !!m.capture);
       }
 
-      const same = (a,b)=>a&&b&&a[0]===b[0]&&a[1]===b[1];
-      const legal = legals.find(m =>
-        same(m.from, move.from) && same(m.to, move.to) &&
-        ((m.capture && move.capture && same(m.capture, move.capture)) || (!m.capture && !move.capture))
+      const ok = legals.find(m =>
+        m.from[0]===move.from[0] && m.from[1]===move.from[1] &&
+        m.to[0]===move.to[0] && m.to[1]===move.to[1] &&
+        (!!m.capture)===!!(move.capture) &&
+        (!m.capture || (m.capture[0]===move.capture[0] && m.capture[1]===move.capture[1]))
       );
-      if (!legal) return;
+      if (!ok) return;
 
-      const res = applyMove(state.board, legal);
+      const res = applyMove(state.board, move);
       state.board = res.board;
-      state.lastMove = legal;
 
-      let keepTurn = !!chain && !!legal.capture && !res.justPromoted;
+      let keepTurn = !!move.capture && !res.justPromoted;
       if (keepTurn) {
         const fut = captureMovesFor(state.board, res.to[0], res.to[1]);
         if (fut.length) {
@@ -168,22 +174,23 @@ module.exports = function attachCheckers(io) {
         state.lockFrom = null;
       }
 
-      io.to(roomId).emit('checkers:state', { state: packState(state, room) });
+      io.to(roomId).emit('checkers:state', { roomId, state: packState(state) });
 
       const opp = state.turn;
       if (noMovesOrPieces(state.board, opp)) {
         const winner = opp === 'w' ? 'Black' : 'White';
-        io.to(roomId).emit('checkers:gameover', { result: `${winner} wins`, reason: 'no moves' });
+        io.to(roomId).emit('checkers:gameover', { roomId, result: `${winner} wins`, reason: 'no moves' });
         rooms.delete(roomId);
       }
     });
 
+    // ---------- Resign / Leave ----------
     socket.on('checkers:resign', ({ roomId }) => {
       const room = rooms.get(roomId);
       if (!room) return;
       const loser = (room.players.w.socketId === socket.id) ? 'White' : 'Black';
       const winner = loser === 'White' ? 'Black' : 'White';
-      io.to(roomId).emit('checkers:gameover', { result: `${winner} wins`, reason: 'resign' });
+      io.to(roomId).emit('checkers:gameover', { roomId, result: `${winner} wins`, reason: 'resign' });
       rooms.delete(roomId);
     });
 
@@ -193,25 +200,31 @@ module.exports = function attachCheckers(io) {
         waiting.splice(qi, 1);
         socket.emit('checkers:queue-cancelled');
       }
-      const room = rooms.get(roomId);
+      const room = roomId && rooms.get(roomId);
       if (room) {
         const loser = (room.players.w.socketId === socket.id) ? 'White' : 'Black';
         const winner = loser === 'White' ? 'Black' : 'White';
-        io.to(roomId).emit('checkers:gameover', { result: `${winner} wins`, reason: 'leave' });
+        io.to(roomId).emit('checkers:gameover', { roomId, result: `${winner} wins`, reason: 'leave' });
         rooms.delete(roomId);
       }
     });
 
+    // ---------- Disconnect ----------
     socket.on('disconnect', () => {
       const qi = waiting.findIndex(w => w.socketId === socket.id);
       if (qi >= 0) waiting.splice(qi, 1);
 
-      for (const [rid, room] of rooms.entries()) {
-        if (room.players.w.socketId === socket.id || room.players.b.socketId === socket.id) {
-          const loser = (room.players.w.socketId === socket.id) ? 'White' : 'Black';
-          const winner = loser === 'White' ? 'Black' : 'White';
-          io.to(rid).emit('checkers:gameover', { result: `${winner} wins`, reason: 'disconnect' });
-          rooms.delete(rid);
+      if (roomJoined && rooms.has(roomJoined)) {
+        io.to(roomJoined).emit('checkers:gameover', { roomId: roomJoined, result: 'Opponent wins', reason: 'disconnect' });
+        rooms.delete(roomJoined);
+      } else {
+        for (const [rid, room] of rooms.entries()) {
+          if (room.players.w.socketId === socket.id || room.players.b.socketId === socket.id) {
+            const loser = (room.players.w.socketId === socket.id) ? 'White' : 'Black';
+            const winner = loser === 'White' ? 'Black' : 'White';
+            io.to(rid).emit('checkers:gameover', { roomId: rid, result: `${winner} wins`, reason: 'disconnect' });
+            rooms.delete(rid);
+          }
         }
       }
     });

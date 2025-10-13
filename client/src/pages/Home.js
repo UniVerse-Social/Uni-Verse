@@ -1,5 +1,5 @@
 // client/src/pages/Home.js
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext} from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';

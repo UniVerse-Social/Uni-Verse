@@ -1,5 +1,5 @@
 // client/src/components/GameSidebar.jsx
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
@@ -180,59 +180,67 @@ export default function GameSidebar({ gameKey, title }) {
 
   const myScore = useMemo(() => stats.trophies ?? 0, [stats]);
 
-  useEffect(() => {
+  // single fetcher we can reuse (initial load, event-driven refresh, visibility change)
+  const loadAll = useCallback(async () => {
     if (!user?._id || !gameKey) return;
+    setLoading(true);
+    try {
+      const [stRes, lbRes, hiRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/games/stats/${user._id}`),
+        axios.get(`${API_BASE_URL}/api/games/leaderboard/${gameKey}?limit=10`),
+        axios.get(`${API_BASE_URL}/api/games/history/${user._id}/${gameKey}?limit=100`),
+      ]);
 
-    const controller = new AbortController();
-    let mounted = true;
+      // ---- Normalize stats: take per-game trophies from trophiesByGame ----
+      const rawStats = stRes?.data || {};
+      const trophiesByGame = rawStats?.trophiesByGame || {};
+      const t = Number(trophiesByGame?.[gameKey] ?? 0);
+      const hi = (hiRes?.data?.history ?? hiRes?.data ?? []);
+      const wins = hi.filter(h => !!h.didWin).length;
+      const losses = hi.filter(h => !h.didWin).length;
 
-    const loadAll = async () => {
-      setLoading(true);
-      try {
-        const [stRes, lbRes, hiRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/api/games/stats/${user._id}`, { signal: controller.signal }),
-          axios.get(`${API_BASE_URL}/api/games/leaderboard/${gameKey}?limit=10`, { signal: controller.signal }),
-          axios.get(`${API_BASE_URL}/api/games/history/${user._id}/${gameKey}?limit=100`, { signal: controller.signal }),
-        ]);
+      setStats({
+        trophies: t,
+        wins,
+        losses,
+        rankName: perGameRank(t),
+      });
 
-        if (!mounted) return;
+      // ---- Normalize leaderboard rows (server uses `score` & `username`) ----
+      const lbRaw = lbRes?.data?.leaders ?? lbRes?.data ?? [];
+      setLeaders(normalizeLeaders(lbRaw));
 
-        // ---- Normalize stats: take per-game trophies from trophiesByGame ----
-        const rawStats = stRes?.data || {};
-        const trophiesByGame = rawStats?.trophiesByGame || {};
-        const t = Number(trophiesByGame?.[gameKey] ?? 0); // server returns map of game trophies
-        const hi = (hiRes?.data?.history ?? hiRes?.data ?? []);
-        const wins = hi.filter(h => !!h.didWin).length;
-        const losses = hi.filter(h => !h.didWin).length;
+      setHistory(Array.isArray(hi) ? hi : []);
+    } catch (e) {
+      console.error('GameSidebar load error', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?._id, gameKey]);
 
-        setStats({
-          trophies: t,
-          wins,
-          losses,
-          rankName: perGameRank(t),
-        });
+  // initial load and when user/gameKey changes
+  useEffect(() => { loadAll(); }, [loadAll]);
 
-        // ---- Normalize leaderboard rows (server uses `score` & `username`) ----
-        const lbRaw = lbRes?.data?.leaders ?? lbRes?.data ?? [];
-        setLeaders(normalizeLeaders(lbRaw));
-
-        setHistory(Array.isArray(hi) ? hi : []);
-      } catch (e) {
-        if (e.name !== 'CanceledError' && e.name !== 'AbortError') {
-          console.error('GameSidebar load error', e);
-        }
-      } finally {
-        if (mounted) setLoading(false);
+  // refresh automatically when games award trophies
+  useEffect(() => {
+    const onRefresh = (e) => {
+      const changedKey = e?.detail?.gameKey;
+      if (!changedKey || changedKey === gameKey) loadAll();
+      else {
+        // Even if another game changed, overall positions can shift; refresh anyway if you prefer:
+        // loadAll();
       }
     };
+    window.addEventListener('games:statsUpdated', onRefresh);
+    return () => window.removeEventListener('games:statsUpdated', onRefresh);
+  }, [gameKey, loadAll]);
 
-    loadAll();
-
-    return () => {
-      mounted = false;
-      controller.abort();
-    };
-  }, [user?._id, gameKey]);
+  // optional: refresh when user returns to the tab
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === 'visible') loadAll(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [loadAll]);
 
   const wins = stats.wins ?? 0;
   const losses = stats.losses ?? 0;

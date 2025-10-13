@@ -27,8 +27,8 @@ const GamesFonts = createGlobalStyle`
 const Page = styled.div`
   max-width: 1160px;
   margin: 0 auto;
-  padding: 16px;
-  min-height: calc(100vh - 101px);
+  padding: 12px 12px 10px;
+  min-height: calc(100svh - 98px);
 `;
 
 const TopBar = styled.nav`
@@ -121,7 +121,7 @@ const Pill = styled.span`
 
 /* Customization scroll box */
 const ScrollCard = styled(Card)`
-  max-height: min(44vh, 420px);
+  max-height: clamp(180px, 30vh, 340px);
   overflow: auto;
 `;
 
@@ -159,8 +159,8 @@ const RightCol = styled.div`
 const LeaderCard = styled(Card)`
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 260px);
-  min-height: 420px;
+  height: calc(100svh - 300px);
+  min-height: 380px;
 `;
 
 const PodiumWrap = styled.div`
@@ -569,7 +569,15 @@ export default function Games() {
   const [chessSet, setChessSet] = useState('Classic');
   const [checkersSet, setCheckersSet] = useState('Red/Black');
 
+  // Initial fetch
   useEffect(() => { if (user?._id) load(); }, [user?._id, load]);
+
+  // 🔄 Live refresh when arenas broadcast updated trophies
+  useEffect(() => {
+    const handler = () => load();
+    window.addEventListener('games:statsUpdated', handler);
+    return () => window.removeEventListener('games:statsUpdated', handler);
+  }, [load]);
 
   const onResult = async (gameKey, delta, didWin) => {
     try { await addResult(gameKey, delta, didWin); }

@@ -818,6 +818,12 @@ export default function ChessArena() {
         userId: user._id, gameKey: 'chess', delta, didWin: kind === 'win',
       });
       awardedRef.current = true;
+
+      // 🔔 notify sidebar & other widgets to refresh immediately
+      try {
+        window.dispatchEvent(new CustomEvent('games:statsUpdated', { detail: { gameKey: 'chess' } }));
+      } catch {}
+
       // Read back fresh trophies to ensure UI shows updated total
       const t = await fetchMyChessTrophies();
       return t;
@@ -898,8 +904,20 @@ export default function ChessArena() {
     s.emit('chess:queue', { userId: user?._id, username: user?.username });
   };
 
-  const leaveOnline = () => {
+  // Leave Online should RESIGN if a live match is in progress.
+  const leaveOnline = useCallback(() => {
     const s = socketRef.current;
+
+    // In an active game? Treat this as a proper resign so the result + trophies are correct.
+    if (mode === 'online' && s && roomId) {
+      s.emit('chess:resign', { roomId });
+      setStatus('You resigned.');
+      // Important: do NOT disconnect here. Wait for `chess:gameover`
+      // so awardOutcome + modal flow run correctly.
+      return;
+    }
+
+    // Not in a live game (e.g., still matchmaking/queued) — safe to leave & disconnect.
     if (s) {
       s.emit('chess:leave', { roomId });
       s.disconnect();
@@ -910,14 +928,7 @@ export default function ChessArena() {
     setBotProfile(null);
     setStatus('Left online mode.');
     clearNotice();
-  };
-
-  useEffect(() => {
-    return () => {
-      if (noticeTimer.current) clearTimeout(noticeTimer.current);
-      if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
-    };
-  }, []);
+  }, [mode, roomId, clearNotice]);
 
   /* helpers */
   const endMessage = (chess) => {
