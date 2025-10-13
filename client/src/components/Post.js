@@ -1081,6 +1081,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated }) => {
           ) : (
             <FaRegCommentAlt size={ICON_SIZE} color={COMMENT_COLOR} />
           )}
+          {commentCount}
         </Action>
       </div>
 
