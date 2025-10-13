@@ -15,6 +15,10 @@
 
 - [✅] Refine and fix sticker system, add custom sticker tab, add sticker settings in user's post options
 
+- [ ] Add sticker settings option button in create post
+
+- [ ] Game invite system in dms/clubs?
+
 - [ ] Refine and fix the Home Page Preferences button for better/clearer filtering; add a Save Settings Button
 
 - [✅] make the homepage screen flush with the designs (homepage, club page, titantap page)
