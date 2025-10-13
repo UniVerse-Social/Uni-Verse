@@ -81,11 +81,33 @@ const PostButton = styled.button`
   &:disabled { opacity: .6; cursor: not-allowed; }
 `;
 
+const CharPopup = styled.div`
+  position: absolute;
+  right: 200px;
+  bottom: -35px;
+  background: #333;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
+  &.show { opacity: 1; }
+`;
+
+const TextAreaWrapper = styled.div`
+  position: relative;
+  display: inline-block;
+  width 100%;
+`;
+
 const CreatePost = ({ onPostCreated }) => {
   const { user } = useContext(AuthContext);
   const [textContent, setTextContent] = useState('');
   const [files, setFiles] = useState([]);         // File[]
   const [busy, setBusy] = useState(false);
+  const [remaining, setRemaining] = useState(280);
 
   const previews = useMemo(
     () => files.map(f => ({ name: f.name, url: URL.createObjectURL(f) })),
@@ -154,12 +176,21 @@ const CreatePost = ({ onPostCreated }) => {
           </Grid>
         )}
 
+       <TextAreaWrapper>
         <TextArea
           placeholder={`What's on your mind, ${user.username}?`}
           value={textContent}
-          onChange={(e) => setTextContent(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setTextContent(val);
+            setRemaining(280 - val.length);
+          }}
           maxLength={280}
         />
+        <CharPopup className={remaining <= 30 ? 'show' : ''}>
+          {remaining} characters remaining
+        </CharPopup>
+       </TextAreaWrapper>
         <Actions>
           <AttachBtn htmlFor="feed-attach">Add photos</AttachBtn>
           <HiddenInput id="feed-attach" type="file" accept="image/*" multiple onChange={onPick} />
