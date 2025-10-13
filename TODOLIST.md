@@ -35,7 +35,7 @@
   
 - [✅] Fix 'Unfollow User' button
 
-- [ ] Fix DM Search bar
+- [✅] Fix DM Search bar
 
 - [✅] Add tags to TitanTap page so you can sort through database using tags instead of needing to search
 
@@ -51,6 +51,6 @@
 
 - [✅] move the "Add Photo" button from the top of posts and to the left of "Post" button instead
 
-- [ ] add a character limit countdown when you only have 30 characters left to use on your post
+- [✅] add a character limit countdown when you only have 30 characters left to use on your post
 
 Done
