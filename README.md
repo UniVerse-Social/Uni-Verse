@@ -10,19 +10,32 @@ A full‑stack MERN social app with posts, profiles, DMs, and image upload/cropp
 ## Project structure( Run: (tree -I 'node_modules|.git|build') for full structure)
 ```
 fullerton-connect/
-├─ client/            # React app
-│  ├─ public/
-│  └─ src/
+├── README.md
+├── TODOLIST.md
+├── client/
+│   ├── public/
+│   └── src/          # App.css, App.js, config.js, index.css, index.js, reportWebVitals.js, setupTests.js
 │     ├─ components/  # Post, Navbar, modals, etc.
 │     ├─ pages/       # Home, Login, Signup, Profile, DMs, TitanTap, etc.
-│     └─ utils/
-├─ server/            # Node/Express API
-│  ├─ models/         # User, Post, Message, Conversation, etc.
-│  ├─ routes/         # auth, users, posts, messages, etc.
-│  ├─ scripts/        # maintenance scripts (e.g., hash_existing_passwords.js)
-│  ├─ seed.js         # seeding database option from local files (Not Reccomended)
-│  └─ server.js
-└─ package.json
+│     ├─ context/     # Sticker context
+│     ├─ engine/      # sfEngine.js
+│     ├─ games/       # Chess, Checkers, Fishing, Tetris, Asteroids, etc
+│     ├─ hooks/       # useCustomStickers.js
+│     ├─ assets/      # logo.svg
+│     ├─ Not-Used/    # unused games
+│     └─ utils/       # misc utilities
+├── public/
+└── server/           # Node/Express API
+    ├── data/         # stickers.js
+    ├── middleware/   # Moderation, requireAdmin
+    ├── models/       # User, Post, Message, Conversation, etc.
+    ├── realtime/     # games being played in real time
+    ├── routes/       # auth, users, posts, messages, etc.
+    ├── scripts/      # maintenance scripts (e.g., hash_existing_passwords.js)
+    ├── seed.js       # seeding database option from local files (Not Reccomended)
+    ├── server.js
+    ├── services/     # badges
+    └── uploads/      # stored user uploaded data 
 ```
 
 ## Prerequisites
