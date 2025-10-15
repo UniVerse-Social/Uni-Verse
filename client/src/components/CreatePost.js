@@ -20,13 +20,9 @@ const TextArea = styled.textarea`
   min-height: 88px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
-<<<<<<< Updated upstream
-  padding: 7px;
-=======
   padding-top: 7px;
   padding-bottom: 0px;
   padding-left: 5px;
->>>>>>> Stashed changes
   font-size: 16px;
   resize: none;
   overflow: hidden;
