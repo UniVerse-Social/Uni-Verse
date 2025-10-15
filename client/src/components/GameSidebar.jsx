@@ -38,8 +38,9 @@ const Row = styled.div`
   grid-template-columns: 1fr auto;
   gap: 8px;
   align-items: center;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
   background: #fff;
   border: 1px solid var(--border-color);
 `;
@@ -99,7 +100,7 @@ const List = styled.div`
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
-  max-height: 150px;          /* fixed area for the rest of the leaderboard */
+  max-height: 76px;          /* fixed area for the rest of the leaderboard */
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;         /* space for scrollbar */
@@ -109,8 +110,8 @@ const Item = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
-  padding: 5px 8px;
+  font-size: 11px;
+  padding: 4px 8px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
   background: #fff;
@@ -120,7 +121,7 @@ const HistoryList = styled.div`
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
-  max-height: 220px;          /* fixed area for recent games */
+  max-height: 280px;          /* fixed area for recent games */
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
@@ -278,15 +279,15 @@ export default function GameSidebar({ gameKey, title }) {
           {!loading && (
             <>
               <Podium>
-                <Ped $h={60}>
+                <Ped $h={44}>
                   <PedName>{podium[1]?.name ?? '—'}</PedName>
                   <PedScore>{podium[1]?.trophies ?? 0} 🏆</PedScore>
                 </Ped>
-                <Ped $h={80}>
+                <Ped $h={60}>
                   <PedName>{podium[0]?.name ?? '—'}</PedName>
                   <PedScore>{podium[0]?.trophies ?? 0} 🏆</PedScore>
                 </Ped>
-                <Ped $h={50}>
+                <Ped $h={40}>
                   <PedName>{podium[2]?.name ?? '—'}</PedName>
                   <PedScore>{podium[2]?.trophies ?? 0} 🏆</PedScore>
                 </Ped>

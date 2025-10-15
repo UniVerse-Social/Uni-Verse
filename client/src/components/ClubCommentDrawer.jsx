@@ -6,13 +6,91 @@ import { AuthContext } from '../App';
 import { API_BASE_URL, toMediaUrl } from '../config';
 import UserLink from './UserLink';
 
-const Backdrop = styled.div`position: fixed; inset:0; background: rgba(0,0,0,0.12); z-index:1600;`;
+const Backdrop = styled.div`position: fixed; inset:0; background: rgba(0,0,0,0.40); z-index:1500;`;
 const Drawer = styled.aside`
-  position: fixed; top:0; right:0; height:100vh; width:min(540px,96vw);
-  background:#fff; box-shadow:-2px 0 12px rgba(0,0,0,0.2); z-index:1601;
+  position: fixed;
+  left:50%; top:50%;
+  transform: translate(-50%, -50%);
+  width: min(900px, 94vw);
+  height: min(90vh, 900px);
+  background:#fff;
+  border-radius:14px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.30);
+  z-index:1501;
   display:flex; flex-direction:column;
+  overflow:hidden;
 `;
-const Header = styled.div`padding:14px 16px; border-bottom:1px solid #eee; font-weight:600;`;
+const Header = styled.div`position:relative; padding:14px 16px; border-bottom:1px solid #eee; font-weight:600;`;
+
+const CloseButton = styled.button`
+  position:absolute; top:10px; right:10px;
+  width:36px; height:36px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer;
+  font-size:18px; line-height:1;
+  &:hover { background:#f9fafb; }
+`;
+
+// --- Original Post block (same as main) ---
+const OPWrapper = styled.div`position: sticky; top:0; z-index:1; background:#fff; border-bottom:1px solid #eee;`;
+const OPInner = styled.div`padding:14px 16px;`;
+const OPTitle = styled.div`font-weight:600; font-size:14px; color:#374151; margin-bottom:6px;`;
+const OPText = styled.div`font-size:14px; color:#111827; white-space:pre-wrap;`;
+const OPGrid = styled.div`
+  margin-top:10px;
+  display:grid; gap:8px;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+`;
+const OPImg = styled.img`width:100%; height:160px; object-fit:cover; border-radius:10px; border:1px solid #eee;`;
+
+// Util: detect image-ish url
+const isImageUrl = (u) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(u || '');
+
+// Normalize to full URLs and accept common shapes (string | {url,type})
+function extractImageUrls(p) {
+  if (!p) return [];
+  const candidates = [p.photos, p.images, p.media, p.attachments, p.files];
+  const urls = [];
+  for (const arr of candidates) {
+    if (!arr) continue;
+    for (const it of arr) {
+      if (typeof it === 'string') {
+        if (isImageUrl(it)) urls.push(toMediaUrl(it));
+      } else if (it?.url && (isImageUrl(it.url) || /image/i.test(it.type || ''))) {
+        urls.push(toMediaUrl(it.url));
+      }
+    }
+  }
+  return urls;
+}
+
+function getPostText(p) {
+  const candidates = [p?.body, p?.text, p?.content, p?.caption, p?.message, p?.description];
+  return candidates.find((v) => typeof v === 'string' && v.trim()) || '';
+}
+
+function OriginalPost({ post }) {
+  const imgs = extractImageUrls(post);
+  const text = getPostText(post);
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(text);
+
+  return (
+    <OPWrapper>
+      <OPInner>
+        <OPTitle>Original Post{post?.username ? ` — ${post.username}` : ''}</OPTitle>
+        {looksLikeHtml
+          ? <OPText dangerouslySetInnerHTML={{ __html: text }} />
+          : <OPText>{text}</OPText>}
+        {imgs.length > 0 && (
+          <OPGrid>
+            {imgs.map((src, i) => <OPImg key={src + i} src={src} alt={`post image ${i+1}`} loading="lazy" />)}
+          </OPGrid>
+        )}
+      </OPInner>
+    </OPWrapper>
+  );
+}
+
 const List = styled.div`
   flex:1;
   overflow:auto;
@@ -278,6 +356,12 @@ export default function ClubCommentDrawer({ post, onClose, onCountChange, onPrev
     setFiles([]);
   }, [load]);
 
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const previews = useMemo(() => files.map((file, idx) => ({
     key: `${file.name}-${file.size}-${file.lastModified}-${idx}`,
     url: URL.createObjectURL(file),
@@ -404,8 +488,9 @@ export default function ClubCommentDrawer({ post, onClose, onCountChange, onPrev
   return (
     <>
       <Backdrop onClick={onClose} />
-      <Drawer>
+      <Drawer role="dialog" aria-modal="true" aria-label="Comments">
         <Header>
+          <CloseButton aria-label="Close comments" onClick={onClose}>×</CloseButton>
           Comments · {items.length}
           {teaser && (
             <CommentTop>
@@ -414,6 +499,7 @@ export default function ClubCommentDrawer({ post, onClose, onCountChange, onPrev
             </CommentTop>
           )}
         </Header>
+        <OriginalPost post={post} />
 
         <List>
           {topLevel.map((c) => renderThread(c))}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { createGlobalStyle } from 'styled-components';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AuthContext } from '../App';
@@ -19,21 +19,49 @@ const Page = styled.div`
   background: var(--background-grey);
   color: var(--text-color);
   min-height: 100vh;
+  width: 100%;
+  position: relative;
+  width: 100%;
+  overflow-x: hidden; 
+
+  /* guard rails: children can't widen the page */
+  & * { box-sizing: border-box; }
+  & img, & video { max-width: 100%; height: auto; }
 `;
 
 const Content = styled.div`
   max-width: 975px;
+  width: 100%;
   margin: 0 auto;
   padding: 0 20px;
+  box-sizing: border-box;
+
+  @media (max-width: 480px) { padding: 0 12px; }
+`;
+
+const GlobalClamp = createGlobalStyle`
+  html, body, #root {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;      /* ← hard stop for the right overhang */
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  img, video { max-width: 100%; height: auto; }
 `;
 
 const BannerWrap = styled.div`
   position: relative;
-  height: 300px;
-  background-color: var(--border-color);
+  height: 250px;
+  background-color: none;
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
   overflow: hidden;
+  object-fit: cover;
+
+  @media (max-width: 768px) { height: 220px; }
+  @media (max-width: 480px) { height: 109px; }
 `;
 
 const BannerImage = styled.img`
@@ -59,6 +87,13 @@ const BannerEditButton = styled.label`
   transition: all 0.2s ease-in-out;
 
   &:hover { background-color: #fff; transform: translateY(-2px); }
+
+  @media (max-width: 480px) {
+    bottom: 10px;
+    right: 10px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
 `;
 
 const HiddenFileInput = styled.input` display: none; `;
@@ -72,6 +107,16 @@ const Header = styled.div`
   position: relative;
   border-bottom: 1px solid #ddd;
   margin-bottom: 20px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) { gap: 16px; margin-top: -70px; }
+  @media (max-width: 480px) {
+    gap: 12px;
+    padding: 0 12px 12px 12px;
+    margin-top: -56px;
+  }
 `;
 
 const AvatarWrap = styled.div`
@@ -79,6 +124,9 @@ const AvatarWrap = styled.div`
   width: 168px;
   height: 168px;
   flex-shrink: 0;
+
+  @media (max-width: 800px) { width: 120px; height: 120px; }
+  @media (max-width: 300px) { width: 96px; height: 120px; }
 `;
 
 const AvatarFrame = styled.div`
@@ -127,16 +175,26 @@ const InfoAndActions = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  gap: 12px;
   padding-bottom: 10px;
+  min-width: 0;
 `;
 
-const Info = styled.div` padding-top: 80px; `;
+const Info = styled.div`
+  padding-top: 80px;
+
+  @media (max-width: 768px) { padding-top: 60px; }
+  @media (max-width: 100px) { padding-top: 40px; }
+`;
 
 const Username = styled.h3`
   font-size: 32px;
   font-weight: 700;
   margin: 0 0 4px 0;
   color: #fff;
+
+  @media (max-width: 768px) { font-size: 28px; }
+  @media (max-width: 480px) { font-size: 22px; }
 `;
 
 const Stats = styled.div`
@@ -145,6 +203,9 @@ const Stats = styled.div`
   font-size: 16px;
   color: #fff;
   margin-bottom: 4px;
+
+  @media (max-width: 768px) { gap: 16px; }
+  @media (max-width: 480px) { gap: 12px; font-size: 14px; white-space: nowrap; }
 `;
 
 const CountNumber = styled.strong`
@@ -177,21 +238,33 @@ const InterestsBar = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   color: #f9fafb;
+
+  @media (max-width: 480px) {
+    margin: 12px 0 0;   /* flush to edges like Clubs chips row */
+    gap: 8px;
+  }
 `;
 
 const InterestsTitle = styled.span`
   font-size: 13px;
   font-weight: 650;
   letter-spacing: 0.15px;
+  flex: 0 0 auto; /* do not shrink away */
+  white-space: nowrap;
 `;
 
 const InterestsList = styled.div`
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 `;
 
 const InterestDot = styled.span`
@@ -204,12 +277,19 @@ const InterestDot = styled.span`
   border: 1px solid rgba(255, 255, 255, 0.3);
   font-size: 24px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+
+  @media (max-width: 480px) { width: 30px; height: 30px; font-size: 18px; }
 `;
 
 const InterestsHint = styled.span`
   font-size: 12px;
   color: rgba(249, 250, 251, 0.75);
   flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  @media (max-width: 480px) { display: none; } /* keep it one line on phones */
 `;
 
 const ManageInterestsButton = styled.button`
@@ -223,31 +303,35 @@ const ManageInterestsButton = styled.button`
   margin-left: auto;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.1s ease;
-  &:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-1px);
-  }
+  flex-shrink: 0; /* don’t compress into the right edge */
+
+  &:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-1px); }
+  @media (max-width: 480px) { padding: 4px 10px; font-size: 12px; }
 `;
 
-/* ---- NEW: Badges row + slots ---- */
-
 const BadgesRow = styled.div`
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin-top: 10px;
   align-items: center;
+  width: 100%;
+  max-width: 100%;
 `;
 
 const SlotWrap = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-width: 0;
 `;
 
 const SlotLabel = styled.span`
   margin-top: 6px;
   font-size: 11px;
   color: #e5e7eb;
+  @media (max-width: 480px) { display: none; }
 `;
 
 const BadgeSlot = styled.button`
@@ -256,22 +340,27 @@ const BadgeSlot = styled.button`
   border-radius: 50%;
   border: ${p => p.$filled ? '2px solid transparent' : '2px dashed var(--border-color)'};
   background: ${p => p.$filled ? 'var(--container-white)' : 'transparent'};
-  color: var(--text-color);
+  color: ${p => p.theme?.text || 'var(--text-color)'};
   display: grid;
   place-items: center;
   position: relative;
   cursor: ${p => p.$clickable ? 'pointer' : 'default'};
   box-shadow: ${p => p.$filled ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'};
   transition: transform .1s ease;
+
   &:hover { transform: ${p => p.$clickable ? 'translateY(-1px)' : 'none'}; }
+
+  @media (max-width: 768px) { width: 44px; height: 44px; }
+  @media (max-width: 480px) { width: 36px; height: 36px; }
 `;
 
 const PlusDot = styled.span`
   position: absolute;
-  right: -4px;
-  bottom: -4px;
-  width: 12px;
-  height: 12px;
+  right: 0;
+  bottom: 0;
+  transform: translate(35%, 35%);
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #1877f2;
   color: #fff;
@@ -280,11 +369,14 @@ const PlusDot = styled.span`
   font-size: 12px;
   border: 2px solid var(--container-white);
   font-weight: 200;
+  pointer-events: none;
 `;
 
 const BadgeEmoji = styled.span`
   font-size: 20px;
   line-height: 1;
+
+  @media (max-width: 480px) { font-size: 18px; }
 `;
 
 /* ---- Badges Modal ---- */
@@ -379,7 +471,14 @@ const PrimaryButton = styled.button`
   &:hover { filter: brightness(0.95); }
 `;
 
-const PostsGrid = styled.div` padding-top: 20px; `;
+const PostsGrid = styled.div`
+  padding-top: 20px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+
+  & > * { max-width: 100%; }
+`;
 
 /* ---------- Settings UI (gear + dropdown) ---------- */
 
@@ -413,6 +512,7 @@ const SettingsMenu = styled.div`
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.08);
   min-width: 240px;
+  max-width: 92vw;   /* prevents right overflow */
   overflow: hidden;
   padding: 6px 0;
 `;
@@ -742,6 +842,7 @@ const Profile = () => {
 
   return (
     <>
+      <GlobalClamp />
       {/* Crop modals */}
       {imageToCrop && (
         <ImageCropModal

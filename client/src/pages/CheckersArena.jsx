@@ -709,7 +709,7 @@ export default function CheckersArena() {
     <Wrap>
       <Panel>
         {/* Opponent name + clock (top) */}
-        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13}}>
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13, width: boardSize, boxSizing: 'border-box',}}>
           <div style={{display:'flex', alignItems:'center', gap:8}}>
             {mode === 'online'}
             <span>{oppName || (mode==='bot' ? 'Bot' : oppCol==='w'?'White':'Black')}</span>
@@ -726,7 +726,7 @@ export default function CheckersArena() {
         />
 
         {/* My name + clock (bottom) */}
-        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13}}>
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13, width: boardSize, boxSizing: 'border-box',}}>
           <span>{user?.username || 'You'}</span>
           <div style={{fontVariantNumeric:'tabular-nums'}}>{fmtClock(myTime)}</div>
         </div>

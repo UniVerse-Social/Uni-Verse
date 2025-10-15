@@ -1,10 +1,10 @@
 // src/pages/Game.js
-import React, { useEffect, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
 import axios from 'axios';
 
 import { AuthContext } from '../App';
-import { API_BASE_URL, toMediaUrl} from '../config';
+import { API_BASE_URL, toMediaUrl } from '../config';
 import UserLink from '../components/UserLink';
 
 // Arenas
@@ -29,9 +29,12 @@ const Page = styled.div`
   margin: 0 auto;
   padding: 12px 12px 10px;
   min-height: calc(100svh - 98px);
+  /* Prevent any accidental horizontal jiggle/cutoff while keeping internals responsible */
+  overflow-x: hidden;
 `;
 
 const TopBar = styled.nav`
+  position: relative; /* anchor dropdown */
   display: flex;
   align-items: center;
   gap: 10px;
@@ -65,6 +68,11 @@ const TitleButton = styled.button`
   &:active { transform: translateY(0) scale(.99); }
 `;
 
+const TabsRow = styled.div`
+  display: flex; gap: 10px; flex-wrap: wrap;
+  @media (max-width: 900px) { display: none; }
+`;
+
 const TabButton = styled.button`
   appearance: none;
   border: 1px solid ${p => (p.$active ? '#111' : 'var(--border-color)')};
@@ -82,9 +90,26 @@ const TabButton = styled.button`
   &:active { transform: translateY(0); }
 `;
 
-const BarSeparator = styled.div` height: 10px; pointer-events: none; `;
-const FlexGrow = styled.div` flex: 1; `;
+const MenuPanel = styled.div`
+  display: none;
+  @media (max-width: 900px) {
+    display: ${p => (p.$open ? 'grid' : 'none')};
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: calc(100% + 8px);
+    padding: 10px;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(0,0,0,.14);
+    z-index: 2000; /* ensure above everything */
+  }
+`;
 
+const FlexGrow = styled.div` flex: 1; `;
 const CoinStat = styled.div`
   display:flex; align-items:center; gap:8px;
   margin-left:auto; padding:6px 10px;
@@ -92,13 +117,19 @@ const CoinStat = styled.div`
   font-weight:900; font-size:13px;
 `;
 
-/* ------------------- Cards & Grids ------------------- */
+/* Use minmax(0,1fr) so the right column never overflows and gets "cut off" */
 const Row = styled.div`
   display:grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 360px minmax(0, 1fr);
   gap:16px;
   align-items:start;
+  @media (max-width: 900px){
+    grid-template-columns: 1fr;
+    justify-items: center; /* center children on phones */
+  }
 `;
+
+/* Generic card */
 const Card = styled.div`
   background: var(--container-white);
   border: 1px solid var(--border-color);
@@ -106,10 +137,10 @@ const Card = styled.div`
   padding: 14px;
   box-shadow: 0 10px 24px rgba(0,0,0,.06);
 `;
+
 const SectionTitle = styled.div` font-weight:900; margin-bottom:8px; `;
 const Subtle = styled.div` font-size:12px; color:#6b7280; `;
 
-/* Rank pill */
 const Pill = styled.span`
   padding: 3px 10px; border-radius: 999px; font-weight: 900; font-size: 11px; color:#fff;
   background: ${p => ({
@@ -119,13 +150,6 @@ const Pill = styled.span`
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.12);
 `;
 
-/* Customization scroll box */
-const ScrollCard = styled(Card)`
-  max-height: clamp(180px, 30vh, 340px);
-  overflow: auto;
-`;
-
-/* ------------------- Podium & List ------------------- */
 const LeaderHeader = styled.div`
   display:flex; align-items:center; justify-content:space-between; gap:12px;
 `;
@@ -134,42 +158,39 @@ const RankBox = styled.div`
   display:flex; align-items:center; gap:8px; font-weight:900;
 `;
 
-const ScrollList = styled.div`
-  overflow: auto;
-  flex: 1;
-  min-height: 140px;
-  display: grid;
-  gap: 6px;
-`;
-
-const RowItem = styled.div`
-  display:flex; align-items:center; justify-content:space-between;
-  padding: 6px 8px;
-  border:1px solid var(--border-color);
-  border-radius:10px; background:#fff;
-  font-size:13px;
-`;
-
-const RightCol = styled.div`
-  display: grid;
-  gap: 12px;
-  grid-auto-rows: minmax(0, 1fr);
-`;
-
+/* Desktop: fills column.
+   Phone (compact): centered and capped so it aligns visually with the top bar. */
 const LeaderCard = styled(Card)`
   display: flex;
   flex-direction: column;
-  height: calc(100svh - 300px);
-  min-height: 380px;
+  width: ${p => (p.$compact ? 'auto' : '100%')};
+  height: ${p => (p.$compact ? 'auto' : 'calc(100svh - 300px)')};
+  min-height: ${p => (p.$compact ? 'auto' : '380px')};
+  /* IMPORTANT for reliable nested scrolling on all platforms */
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;            /* isolate the internal scroller */
+  contain: content;            /* avoids layout bleed that could cause cut-offs */
+
+  /* Center & cap width on phones so the card is perfectly centered */
+  ${p => p.$compact ? `
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 560px;
+    align-self: center;
+  ` : ''}
 `;
 
 const PodiumWrap = styled.div`
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
+  justify-items: center;
   align-items: end;
-  gap: 12px;
-  margin: 10px 0 14px;
+  gap: 10px;
+  margin: 6px auto 10px;
+  width: 100%;
+  max-width: ${p => (p.$compact ? '520px' : 'unset')};
 `;
 
 const Pedestal = styled.div`
@@ -181,27 +202,27 @@ const Pedestal = styled.div`
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding-bottom: 10px;
+  padding-bottom: 8px;
   box-shadow: inset 0 8px 16px rgba(0,0,0,.04);
 `;
 
 const RankBadge = styled.div`
   position: absolute;
-  top: -12px;
+  top: -10px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 3px 9px;
+  padding: 2px 8px;
   background: #111;
   color: #fff;
   font-weight: 900;
-  font-size: 12px;
+  font-size: 11px;
   border-radius: 999px;
   box-shadow: 0 6px 16px rgba(0,0,0,.15);
 `;
 
 const AvatarRing = styled.div`
   position: absolute;
-  top: -38px;
+  top: ${p => (p.$compact ? '-28px' : '-38px')};
   left: 50%;
   transform: translateX(-50%);
   width: ${p => p.$size}px;
@@ -226,12 +247,82 @@ const PodiumScore = styled.div`
   text-align: center;
 `;
 
-/* New: used for the #4/#5 row */
-const Duo = styled.div`
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+const RowItem = styled.div`
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 6px 8px;
+  border:1px solid var(--border-color);
+  border-radius:10px; background:#fff;
+  font-size:13px;
   margin-bottom: 6px;
+`;
+
+/* Smooth, easy scrolling area for the extended leaderboard list */
+const ScrollArea = styled.div`
+  overflow: auto;
+  flex: 1;
+  min-height: 140px;
+  display: grid;
+  gap: 6px;
+  padding-right: 6px;
+
+  /* Make scrolling "stick-free" on touch & trackpads */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable both-edges;
+`;
+
+/* Mobile buttons under the leaderboard */
+const ActionsBar = styled.div`
+  display: none;
+  @media (max-width: 900px){
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+`;
+
+const ActionBtn = styled.button`
+  appearance: none;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  font-weight: 900;
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+`;
+
+/* Centered modal for mobile */
+const Backdrop = styled.div`
+  position: fixed; inset: 0; background: rgba(0,0,0,.38);
+  opacity: ${p => (p.$open ? 1 : 0)};
+  pointer-events: ${p => (p.$open ? 'auto' : 'none')};
+  transition: opacity .18s ease;
+  z-index: 1600;
+`;
+const CenterModal = styled.div`
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(${p => (p.$open ? 1 : .96)});
+  opacity: ${p => (p.$open ? 1 : 0)};
+  transition: all .2s ease;
+  z-index: 1601;
+  width: min(680px, calc(100vw - 24px));
+  max-height: min(80vh, 720px);
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  display: flex; flex-direction: column;
+`;
+const ModalHead = styled.div`
+  padding: 12px 14px; border-bottom: 1px solid #eee;
+  display:flex; align-items:center; gap:8px; font-weight:900;
+`;
+const ModalBody = styled.div`
+  padding: 12px; overflow:auto; min-height:0; flex:1;
 `;
 
 /* ------------------- Game metadata ------------------- */
@@ -288,7 +379,7 @@ function useGameStats(userId) {
   return { stats, load, addResult };
 }
 
-/* -------- Normalize overall leaderboard rows from various API shapes -------- */
+/* -------- Normalize leaderboard rows -------- */
 function normalizeOverallRows(arr) {
   if (!Array.isArray(arr)) return [];
   return arr.map((r, i) => {
@@ -305,7 +396,7 @@ function normalizeOverallRows(arr) {
   });
 }
 
-/* --- Fallback: merge all game leaderboards into an overall list --- */
+/* --- Aggregate fallback --- */
 async function fetchAggregatedOverall() {
   try {
     const endpoints = GAMES.map(g => `${API_BASE_URL}/api/games/leaderboard/${g.key}?limit=100`);
@@ -313,7 +404,7 @@ async function fetchAggregatedOverall() {
       endpoints.map(u => fetch(u).then(r => r.json()))
     );
 
-    const map = new Map(); // key: id/username -> { username, score, avatarUrl, _id }
+    const map = new Map();
     for (const r of results) {
       if (r.status !== 'fulfilled') continue;
       const raw = Array.isArray(r.value) ? r.value
@@ -329,17 +420,13 @@ async function fetchAggregatedOverall() {
     }
     const list = Array.from(map.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
     return list;
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
-/* ---------- Avatar utilities (strict + safe default) ---------- */
-/** Use the exact same safe image Profile uses */
+/* ---------- Avatar utilities ---------- */
 const TUFFY_SAFE_DEFAULT =
   'https://www.clipartmax.com/png/middle/72-721825_tuffy-tuffy-the-titan-csuf.png';
 
-/** Treat any placeholder-ish values as NOT meaningful so we force our default */
 function isMeaningfulAvatar(val) {
   if (val == null) return false;
   if (typeof val !== 'string') return false;
@@ -347,22 +434,19 @@ function isMeaningfulAvatar(val) {
   if (!s || s === 'default' || s === 'tuffy' || s === 'tuffy-default' || s === 'default-avatar') return false;
   if (s === 'null' || s === 'undefined') return false;
   if (s.endsWith('/null') || s.endsWith('/undefined')) return false;
-  if (s.includes('tuffy') || s.includes('default-avatar')) return false; // catch broken default file paths
+  if (s.includes('tuffy') || s.includes('default-avatar')) return false;
   return true;
 }
-
 function resolveAvatarUrlMaybe(val) {
-  if (!isMeaningfulAvatar(val)) return TUFFY_SAFE_DEFAULT; // hard safe default
+  if (!isMeaningfulAvatar(val)) return TUFFY_SAFE_DEFAULT;
   if (/^https?:\/\//i.test(val) || /^data:/i.test(val)) return val;
   if (val.startsWith('/')) return val;
   const m = typeof toMediaUrl === 'function' ? toMediaUrl(val) : null;
   return m || TUFFY_SAFE_DEFAULT;
 }
-
 function Avatar({ size = 32, src, name }) {
   const [currentSrc, setCurrentSrc] = React.useState(() => resolveAvatarUrlMaybe(src));
   useEffect(() => { setCurrentSrc(resolveAvatarUrlMaybe(src)); }, [src]);
-
   return (
     <img
       src={currentSrc || TUFFY_SAFE_DEFAULT}
@@ -370,15 +454,13 @@ function Avatar({ size = 32, src, name }) {
       width={size}
       height={size}
       style={{ width: size, height: size, objectFit: 'cover', borderRadius: 999, border:'1px solid var(--border-color)' }}
-      onError={() => {
-        if (currentSrc !== TUFFY_SAFE_DEFAULT) setCurrentSrc(TUFFY_SAFE_DEFAULT);
-      }}
+      onError={() => { if (currentSrc !== TUFFY_SAFE_DEFAULT) setCurrentSrc(TUFFY_SAFE_DEFAULT); }}
     />
   );
 }
 
 /* ================= Overall Leaderboard ================= */
-function OverallLeaderboard({ myTotal }) {
+function OverallLeaderboard({ myTotal, compact = false }) {
   const { user } = useContext(AuthContext);
   const userId = user?._id;
   const userName = user?.username;
@@ -387,8 +469,6 @@ function OverallLeaderboard({ myTotal }) {
   const [leaders, setLeaders] = React.useState([]);
   const [me, setMe] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
-
-  // cache: username -> profilePicture (from /api/users/profile/:username)
   const [avatarCache, setAvatarCache] = React.useState({});
 
   React.useEffect(() => {
@@ -430,17 +510,11 @@ function OverallLeaderboard({ myTotal }) {
     return () => { alive = false; };
   }, [userId, userName, userAvatarUrl, myTotal]);
 
-  // Enrich missing avatars by hitting /api/users/profile/:username (same as Profile page)
   React.useEffect(() => {
     let alive = true;
     (async () => {
       const need = leaders
-        .filter(l =>
-          l.username &&
-          l.username !== '—' &&
-          (!isMeaningfulAvatar(l.avatarUrl)) &&
-          !avatarCache[l.username]
-        )
+        .filter(l => l.username && l.username !== '—' && (!isMeaningfulAvatar(l.avatarUrl)) && !avatarCache[l.username])
         .slice(0, 100);
 
       if (need.length === 0) return;
@@ -463,20 +537,16 @@ function OverallLeaderboard({ myTotal }) {
         if (!alive) return;
         setAvatarCache(prev => ({ ...prev, ...patch }));
 
-        // update leaders so UI refreshes immediately
         setLeaders(prev =>
           prev.map(x => (isMeaningfulAvatar(x.avatarUrl) || !patch[x.username]) ? x : { ...x, avatarUrl: patch[x.username] })
         );
-      } catch {
-        // ignore
-      }
+      } catch {/* ignore */}
     })();
     return () => { alive = false; };
   }, [leaders, avatarCache]);
 
   const tier = perGameRank(myTotal ?? 0);
 
-  // Build 100 positions (leaders + placeholders)
   const positions = React.useMemo(() => {
     const mk = (i) => ({ place: i + 1, username: '—', score: '—', avatarUrl: '', placeholder: true });
     return Array.from({ length: 100 }, (_, i) =>
@@ -487,8 +557,13 @@ function OverallLeaderboard({ myTotal }) {
   const P = (i) => positions[i];
   const resolvedAvatar = (p) => avatarCache[p.username] ?? p.avatarUrl;
 
+  // Podium sizes
+  const S = compact
+    ? [{i:1,h:84,s:44,label:2},{i:0,h:104,s:50,label:1},{i:2,h:76,s:40,label:3}]
+    : [{i:1,h:110,s:56,label:2},{i:0,h:140,s:64,label:1},{i:2,h:96,s:52,label:3}];
+
   return (
-    <LeaderCard aria-label="Overall Leaderboard">
+    <LeaderCard aria-label="Overall Leaderboard" $compact={compact}>
       <LeaderHeader>
         <SectionTitle>Overall Leaderboard</SectionTitle>
         <RankBox>
@@ -503,19 +578,18 @@ function OverallLeaderboard({ myTotal }) {
         <Subtle>Loading…</Subtle>
       ) : (
         <>
-          {/* Olympic-style podium: 2 (left), 1 (center), 3 (right) */}
-          <PodiumWrap>
-            {[{i:1,h:110,s:56,label:2},{i:0,h:140,s:64,label:1},{i:2,h:96,s:52,label:3}].map(({i,h,s,label}) => {
+          <PodiumWrap $compact={compact}>
+            {S.map(({i,h,s,label}) => {
               const p = P(i);
               const opacity = p.placeholder ? 0.5 : 1;
               return (
-                <div key={label} style={{ position:'relative' }}>
+                <div key={label} style={{ position:'relative', width:'100%', maxWidth: 240 }}>
                   <Pedestal $h={h} style={{opacity}}>
                     <RankBadge>#{label}</RankBadge>
-                    <AvatarRing $size={s}>
+                    <AvatarRing $size={s} $compact={compact}>
                       <Avatar size={s} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
                     </AvatarRing>
-                    <div>
+                    <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
                       <PodiumName>
                         {p.placeholder ? '—' : <UserLink username={p.username}>{p.username}</UserLink>}
                       </PodiumName>
@@ -527,36 +601,105 @@ function OverallLeaderboard({ myTotal }) {
             })}
           </PodiumWrap>
 
-          {/* #4 & #5 side-by-side */}
-          <Duo>
-            {[P(3), P(4)].map((p) => (
-              <RowItem key={p.place} style={{opacity: p.placeholder ? .5 : 1}}>
-                <div style={{display:'flex', alignItems:'center', gap:8}}>
-                  <span style={{fontSize:12, color:'#6b7280'}}>#{p.place}</span>
-                  <Avatar size={32} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
-                  {p.placeholder ? '—' : <UserLink username={p.username}>{p.username}</UserLink>}
-                </div>
-                <div>{p.score} 🏆</div>
-              </RowItem>
-            ))}
-          </Duo>
-
-          {/* Top 100 — internal scroll */}
-          <ScrollList role="list" aria-label="Top 100">
-            {positions.slice(5).map((p) => (
-              <RowItem key={p.place} role="listitem" style={{opacity: p.placeholder ? .45 : 1}}>
-                <div style={{display:'flex', alignItems:'center', gap:8}}>
-                  <span style={{fontSize:12, color:'#6b7280'}}>#{p.place}</span>
-                  <Avatar size={28} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
-                  {p.placeholder ? '—' : <UserLink username={p.username}>{p.username}</UserLink>}
-                </div>
-                <div>{p.score} 🏆</div>
-              </RowItem>
-            ))}
-          </ScrollList>
+          {/* Compact: short list; Desktop: long list below */}
+          {compact ? (
+            <>
+              {[P(3), P(4), P(5)].map((p) => (
+                <RowItem key={p.place} style={{opacity: p.placeholder ? .5 : 1}}>
+                  <div style={{display:'flex', alignItems:'center', gap:8}}>
+                    <span style={{fontSize:12, color:'#6b7280'}}>#{p.place}</span>
+                    <Avatar size={28} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
+                    {p.placeholder ? '—' : <UserLink username={p.username}>{p.username}</UserLink>}
+                  </div>
+                  <div>{p.score} 🏆</div>
+                </RowItem>
+              ))}
+            </>
+          ) : (
+            <ScrollArea>
+              {positions.slice(3).map((p) => (
+                <RowItem key={p.place} style={{opacity: p.placeholder ? .45 : 1}}>
+                  <div style={{display:'flex', alignItems:'center', gap:8}}>
+                    <span style={{fontSize:12, color:'#6b7280'}}>#{p.place}</span>
+                    <Avatar size={28} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
+                    {p.placeholder ? '—' : <UserLink username={p.username}>{p.username}</UserLink>}
+                  </div>
+                  <div>{p.score} 🏆</div>
+                </RowItem>
+              ))}
+            </ScrollArea>
+          )}
         </>
       )}
     </LeaderCard>
+  );
+}
+
+/* ------------------- Cards reused in both layouts ------------------- */
+function RanksCard({ getGame }) {
+  return (
+    <Card>
+      <SectionTitle>Your Game Ranks</SectionTitle>
+      <div style={{display:'grid', gap:8}}>
+        {GAMES.map(g => {
+          const s = getGame(g.key);
+          const r = perGameRank(s.trophies);
+          return (
+            <div key={g.key} style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+              <div style={{display:'flex', alignItems:'center', gap:8}}>
+                <span aria-hidden style={{fontSize:16}}>{g.icon}</span>
+                <strong>{g.name}</strong>
+              </div>
+              <Pill $rank={r}>{r} · 🏆 {s.trophies}</Pill>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function CustomizationCard({ chessSet, setChessSet, checkersSet, setCheckersSet }) {
+  return (
+    <Card style={{maxHeight:'30vh', overflow:'auto'}}>
+      <SectionTitle>Customization</SectionTitle>
+
+      <div style={{fontWeight:800, marginTop:4}}>Chess Set</div>
+      <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop:6}}>
+        {['Classic','Neo','Wood'].map(s=>(
+          <button
+            key={s}
+            onClick={()=>setChessSet(s)}
+            style={{
+              appearance:'none',
+              border:'1px solid var(--border-color)',
+              background: '#fff',
+              color: '#111',
+              borderRadius:10, padding:'8px 10px', fontWeight:800, fontSize:12, cursor:'pointer'
+            }}
+          >{s}</button>
+        ))}
+      </div>
+
+      <div style={{fontWeight:800, marginTop:10}}>Checkers Set</div>
+      <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop:6}}>
+        {['White/Black','Cream/Brown','Blue/White'].map(s=>(
+          <button
+            key={s}
+            onClick={()=>setCheckersSet(s)}
+            style={{
+              appearance:'none',
+              border:'1px solid var(--border-color)',
+              background: '#fff',
+              color: '#111',
+              borderRadius:10, padding:'8px 10px', fontWeight:800, fontSize:12, cursor:'pointer'
+            }}
+          >{s}</button>
+        ))}
+      </div>
+
+      <Subtle style={{marginTop:12}}>More cosmetics soon.</Subtle>
+    </Card>
   );
 }
 
@@ -569,95 +712,76 @@ export default function Games() {
   const [chessSet, setChessSet] = useState('Classic');
   const [checkersSet, setCheckersSet] = useState('Red/Black');
 
-  // Initial fetch
+  // Dropdown
+  const [menuOpen, setMenuOpen] = useState(false);
+  const topRef = useRef(null);
+
+  // Mobile modals
+  const [openRanks, setOpenRanks] = useState(false);
+  const [openCustom, setOpenCustom] = useState(false);
+
+  // Responsive flag
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)');
+    const apply = () => setIsNarrow(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!menuOpen) return;
+      if (topRef.current && !topRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [menuOpen]);
+
   useEffect(() => { if (user?._id) load(); }, [user?._id, load]);
 
-  // 🔄 Live refresh when arenas broadcast updated trophies
   useEffect(() => {
     const handler = () => load();
     window.addEventListener('games:statsUpdated', handler);
     return () => window.removeEventListener('games:statsUpdated', handler);
   }, [load]);
 
+  const byGame = stats.byGame || {};
+  const getGame = (k) => byGame[k] || { trophies:0 };
+
   const onResult = async (gameKey, delta, didWin) => {
     try { await addResult(gameKey, delta, didWin); }
     catch (e) { console.error(e); alert('Failed to save result'); }
   };
 
-  const byGame = stats.byGame || {};
-  const getGame = (k) => byGame[k] || { trophies:0 };
-
-  const Home = (
+  /* ---------- Home layouts ---------- */
+  const HomeDesktop = (
     <Row>
-      {/* LEFT: Your Game Ranks + Customization */}
-      <div style={{ display:'grid', gap:12 }}>
-        <Card>
-          <SectionTitle>Your Game Ranks</SectionTitle>
-          <div style={{display:'grid', gap:8}}>
-            {GAMES.map(g => {
-              const s = getGame(g.key);
-              const r = perGameRank(s.trophies);
-              return (
-                <div key={g.key} style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-                  <div style={{display:'flex', alignItems:'center', gap:8}}>
-                    <span aria-hidden style={{fontSize:16}}>{g.icon}</span>
-                    <strong>{g.name}</strong>
-                  </div>
-                  <Pill $rank={r}>{r} · 🏆 {s.trophies}</Pill>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        <ScrollCard>
-          <SectionTitle>Customization</SectionTitle>
-
-          <div style={{fontWeight:800, marginTop:4}}>Chess Set</div>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop:6}}>
-            {['Classic','Neo','Wood'].map(s=>(
-              <button
-                key={s}
-                onClick={()=>setChessSet(s)}
-                style={{
-                  appearance:'none',
-                  border:'1px solid ' + (chessSet===s?'#111':'var(--border-color)'),
-                  background: chessSet===s? '#111':'#fff',
-                  color: chessSet===s? '#fff':'#111',
-                  borderRadius:10, padding:'8px 10px', fontWeight:800, fontSize:12,
-                  boxShadow: chessSet===s ? '0 3px 10px rgba(0,0,0,.12)' : 'none', cursor:'pointer'
-                }}
-              >{s}</button>
-            ))}
-          </div>
-
-          <div style={{fontWeight:800, marginTop:10}}>Checkers Set</div>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop:6}}>
-            {['White/Black','Cream/Brown','Blue/White'].map(s=>(
-              <button
-                key={s}
-                onClick={()=>setCheckersSet(s)}
-                style={{
-                  appearance:'none',
-                  border:'1px solid ' + (checkersSet===s?'#111':'var(--border-color)'),
-                  background: checkersSet===s? '#111':'#fff',
-                  color: checkersSet===s? '#fff':'#111',
-                  borderRadius:10, padding:'8px 10px', fontWeight:800, fontSize:12,
-                  boxShadow: checkersSet===s ? '0 3px 10px rgba(0,0,0,.12)' : 'none', cursor:'pointer'
-                }}
-              >{s}</button>
-            ))}
-          </div>
-
-          <Subtle style={{marginTop:12}}>More cosmetics soon.</Subtle>
-        </ScrollCard>
+      <div style={{ display:'grid', gap:12, minWidth: 0 }}>
+        <RanksCard getGame={getGame} />
+        <CustomizationCard
+          chessSet={chessSet} setChessSet={setChessSet}
+          checkersSet={checkersSet} setCheckersSet={setCheckersSet}
+        />
       </div>
-
-      {/* RIGHT: Overall leaderboard */}
-      <RightCol>
+      <div style={{ display:'grid', gap:12, minWidth: 0 }}>
+        {/* Leaderboard width now perfectly matches the TopBar area */}
         <OverallLeaderboard myTotal={stats.totalTrophies || 0} />
-      </RightCol>
+      </div>
     </Row>
+  );
+
+  const HomeMobile = (
+    <div style={{ display:'grid', gap:12, justifyItems:'center' }}>
+      {/* Centered card on phones */}
+      <OverallLeaderboard myTotal={stats.totalTrophies || 0} compact />
+      <ActionsBar>
+        <ActionBtn onClick={() => setOpenRanks(true)}>Your Game Ranks</ActionBtn>
+        <ActionBtn onClick={() => setOpenCustom(true)}>Customization</ActionBtn>
+      </ActionsBar>
+    </div>
   );
 
   const GameView = (
@@ -679,33 +803,109 @@ export default function Games() {
   return (
     <Page>
       <GamesFonts />
-      <TopBar role="tablist" aria-label="Games">
-        <TitleButton role="tab" aria-selected={view === 'home'} onClick={() => setView('home')} title="Back to Games profile">
+
+      {/* Top bar */}
+      <TopBar ref={topRef} role="tablist" aria-label="Games">
+        <TitleButton
+          role="tab"
+          aria-selected={view === 'home'}
+          onClick={() => {
+            // On phones: if on home, toggle dropdown; if not, go home.
+            if (isNarrow) {
+              if (view === 'home') setMenuOpen(v => !v);
+              else setView('home');
+            } else {
+              setView('home');
+            }
+          }}
+          title={isNarrow ? (view === 'home' ? 'Choose a game' : 'Back to Games') : 'Games'}
+        >
           Games
         </TitleButton>
-        {GAMES.map(g => (
-          <TabButton
-            key={g.key}
-            role="tab"
-            $active={view === g.key}
-            aria-selected={view === g.key}
-            onClick={() => setView(g.key)}
-            title={g.name}
-          >
-            {g.name}
-          </TabButton>
-        ))}
+
+        {/* Desktop tabs */}
+        <TabsRow>
+          {GAMES.map(g => (
+            <TabButton
+              key={g.key}
+              role="tab"
+              $active={view === g.key}
+              aria-selected={view === g.key}
+              onClick={() => setView(g.key)}
+              title={g.name}
+            >
+              {g.name}
+            </TabButton>
+          ))}
+        </TabsRow>
+
         <FlexGrow />
+
         <CoinStat title="Your coin balance">
           <span aria-hidden>🪙</span>
           <span>Coins</span>
           <span style={{opacity:.6}}>·</span>
           <span>{(stats.coins ?? 0).toLocaleString()}</span>
         </CoinStat>
+
+        {/* Mobile dropdown anchored to the colorful Games title */}
+        <MenuPanel $open={isNarrow && view === 'home' && menuOpen} role="menu" aria-label="Game selector">
+          {GAMES.map(g => (
+            <TabButton
+              key={g.key}
+              type="button"
+              role="menuitem"
+              $active={false}
+              onMouseDown={(e) => {
+                // Ensure selection happens before the outside-click closer
+                e.preventDefault();
+                e.stopPropagation();
+                setMenuOpen(false);
+                setView(g.key);
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setMenuOpen(false);
+                setView(g.key);
+              }}
+              title={g.name}
+            >
+              {g.name}
+            </TabButton>
+          ))}
+        </MenuPanel>
       </TopBar>
 
-      <BarSeparator />
-      {view === 'home' ? Home : GameView}
+      {/* Content */}
+      <div style={{ height: 10 }} />
+      {view === 'home' ? (isNarrow ? HomeMobile : HomeDesktop) : GameView}
+
+      {/* Mobile center modals */}
+      <Backdrop $open={openRanks} onClick={() => setOpenRanks(false)} />
+      <CenterModal $open={openRanks} aria-hidden={!openRanks}>
+        <ModalHead>
+          Your Game Ranks
+          <span style={{ marginLeft: 'auto', cursor: 'pointer' }} onClick={() => setOpenRanks(false)}>×</span>
+        </ModalHead>
+        <ModalBody>
+          <RanksCard getGame={getGame} />
+        </ModalBody>
+      </CenterModal>
+
+      <Backdrop $open={openCustom} onClick={() => setOpenCustom(false)} />
+      <CenterModal $open={openCustom} aria-hidden={!openCustom}>
+        <ModalHead>
+          Customization
+          <span style={{ marginLeft: 'auto', cursor: 'pointer' }} onClick={() => setOpenCustom(false)}>×</span>
+        </ModalHead>
+        <ModalBody>
+          <CustomizationCard
+            chessSet={chessSet} setChessSet={setChessSet}
+            checkersSet={checkersSet} setCheckersSet={setCheckersSet}
+          />
+        </ModalBody>
+      </CenterModal>
     </Page>
   );
 }

@@ -5,15 +5,93 @@ import { getHobbyEmoji } from '../utils/hobbies';
 
 // ---------- Minimal styles (scoped via classNames) ----------
 const styles = `
-.titantap-page { max-width: 900px; margin: 0 auto; padding: 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; min-height: calc(100vh - 101px);}
+:root { --nav-mobile: 58px; --topbar-mobile: 56px; }
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { width: 100%; min-width: 0; overflow-x: hidden; }
+html, body { height: 100%; }
+body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none; }
+
+.titantap-viewport {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh; /* avoids mobile URL-bar jumps */
+  overflow: hidden; /* no page scroll */
+}
+.titantap-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  min-height: calc(100vh - 101px);
+}
+
+/* Mobile/tablet: account for the fixed bottom nav and the small top bar */
+@media (max-width: 600px) {
+  .titantap-page {
+    padding: 12px 12px calc(16px + var(--nav-mobile) + env(safe-area-inset-bottom, 0px));
+    min-height: calc(100vh - var(--topbar-mobile) - var(--nav-mobile) - env(safe-area-inset-bottom, 0px));
+  }
+}
+
 .titantap-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.titantap-header input { flex: 1; /* take remaining space but keep left-aligned */ }
-.titantap-header h2 { margin: 0; color: white}
-.titantap-header input { width: 100%; padding: 10px 12px; border: 1px solid #e3e3e3; border-radius: 10px; font-size: 14px; }
+.titantap-header h2 { margin: 0; color: white; }
+.titantap-header input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e3e3e3;
+  border-radius: 10px;
+  font-size: 14px;
+  flex: 1; /* keep left-aligned on desktop */
+}
+
+/* Mobile: lay out title on its own row; input + tags on the next row */
+@media (max-width: 768px) {
+  .titantap-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "title title"
+      "input tags";
+    gap: 8px;
+    align-items: center;
+  }
+  .titantap-header h2 { grid-area: title; font-size: 20px; }
+  .titantap-header input { grid-area: input; }
+  .titantap-header .tag-trigger { grid-area: tags; }
+}
 
 .note { text-align: center; padding: 16px 0; color: #666; }
 
-.search-results { position: fixed; left: 50%; transform: translateX(-50%); top: 120px; width: min(900px, calc(100vw - 32px)); z-index: 1550; background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 6px; max-height: 360px; overflow: auto; margin: 0; box-shadow: 0 18px 42px rgba(0,0,0,0.18); }
+/* Search results — centered, clamped to viewport */
+.search-results {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 120px;
+  width: min(900px, calc(100vw - 32px));
+  z-index: 1550;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 6px;
+  max-height: 360px;
+  overflow: auto;
+  margin: 0;
+  box-shadow: 0 18px 42px rgba(0,0,0,0.18);
+}
+@media (max-width: 768px) {
+  .search-results {
+    top: calc(var(--topbar-mobile) + 72px); /* below the small top bar + header */
+    width: min(520px, calc(100vw - 24px));
+    max-height: calc(
+      100vh - var(--topbar-mobile) - 72px - var(--nav-mobile)
+      - 24px - env(safe-area-inset-bottom, 0px)
+    );
+  }
+}
+
 .result-row { background: #fff; display: flex; align-items: center; gap: 12px; padding: 8px; border-bottom: 1px solid #f3f3f3; }
 .result-row:last-child { border-bottom: none; }
 .res-avatar { width: 44px; height: 44px; border-radius: 50%; background: #f0f0f0; display: grid; place-items: center; overflow: hidden; flex: 0 0 auto; }
@@ -24,15 +102,49 @@ const styles = `
 .chip { background: #f4f6f8; border: 1px solid #e5e8eb; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
 .chip .chip-emoji { margin-right: 4px; font-size: 13px; display: inline-block; }
 
-/* --- NEW: badges row on the card --- */
+/* --- badges row on the card --- */
 .badges { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
 .badge { background: #f3f4f6; border: 1px solid #e5e8eb; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #111; }
 .badge.title { background: #111; color: #fff; border-color: #111; }
 
-.deck { position: relative; height: 480px; margin-top: 20px; perspective: 10px; }
-.card-wrap { position: absolute; left: 50%; transform: translateX(-50%); touch-action: none; width: 100%; max-width: 520px; top: 0; }
+/* Deck & cards — responsive height/width */
+.deck {
+  position: relative;
+  height: 480px;
+  margin-top: 20px;
+  perspective: 10px;
+  padding: 0 8px; /* keep edges off the screen on phones */
+}
+.card-wrap {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  touch-action: none;
+  width: min(520px, calc(100vw - 32px));
+  max-width: 520px;
+  top: 0;
+}
+.card {
+  width: 100%;
+  max-width: 520px;
+  height: 420px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+  padding: 16px;
+  position: relative;
+}
+@media (max-width: 768px) {
+  .deck {
+    /* viewport minus header/search/buttons and mobile nav */
+    height: calc(100vh - 280px - var(--nav-mobile) - env(safe-area-inset-bottom, 0px));
+  }
+  .card {
+    /* never exceed viewport; still looks like the desktop card */
+    height: min(420px, calc(100vh - 340px - var(--nav-mobile) - env(safe-area-inset-bottom, 0px)));
+  }
+}
 
-.card { width: 100%; max-width: 520px; height: 420px; background: #fff; border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); padding: 16px; position: relative; }
 .card .header { display: flex; align-items: center; gap: 12px; }
 .card .avatar { width: 64px; height: 64px; border-radius: 50%; background: #f0f0f0; display: grid; place-items: center; overflow: hidden; }
 .card .avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -45,13 +157,57 @@ const styles = `
 .controls button { padding: 10px 16px; border-radius: 999px; border: 1px solid #111; background: #fff; color: #111; cursor: pointer; }
 .controls .ghost { background: #fff; color: #111; }
 
-.tag-trigger { padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.12); color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; transition: background 0.2s ease; }
+/* Mobile: ensure controls never sit under the fixed nav */
+@media (max-width: 600px) {
+  .controls { padding-bottom: calc(8px + var(--nav-mobile) + env(safe-area-inset-bottom, 0px)); }
+}
+
+.tag-trigger {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
 .tag-trigger:hover { background: rgba(255,255,255,0.2); }
 .tag-active-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .tag-chip-active { display: inline-flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(37,99,235,0.28); }
 .tag-chip-active span { font-weight: 600; }
 
-.tag-modal { position: fixed; top: 120px; right: 40px; width: 280px; max-width: 90vw; max-height: 70vh; overflow: auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 18px 42px rgba(0,0,0,0.18); padding: 18px; z-index: 1600; }
+/* Tag modal — center and clamp on mobile */
+.tag-modal {
+  position: fixed;
+  top: 120px;
+  right: 40px;
+  width: 280px;
+  max-width: 90vw;
+  max-height: 70vh;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 18px 42px rgba(0,0,0,0.18);
+  padding: 18px;
+  z-index: 1600;
+}
+@media (max-width: 768px) {
+  .tag-modal {
+    left: 50%;
+    transform: translateX(-50%);
+    right: auto;
+    top: calc(var(--topbar-mobile) + 8px);
+    width: min(520px, calc(100vw - 24px));
+    max-height: calc(
+      100vh - var(--topbar-mobile) - 24px - var(--nav-mobile)
+      - env(safe-area-inset-bottom, 0px)
+    );
+  }
+}
+
 .tag-modal header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .tag-modal h3 { margin: 0; font-size: 16px; color: #111827; }
 .tag-modal button.close { border: none; background: transparent; font-size: 20px; line-height: 1; cursor: pointer; color: #6b7280; }
@@ -240,6 +396,19 @@ const TitanTap = () => {
     }
   }, [tagData.loaded, tagLoading, userId]);
 
+  useEffect(() => {
+    document.body.classList.add('no-scroll');
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevHtmlOB = document.documentElement.style.overscrollBehavior;
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.overscrollBehavior = 'none';
+    return () => {
+      document.body.classList.remove('no-scroll');
+      document.documentElement.style.overflow = prevHtmlOverflow || '';
+      document.documentElement.style.overscrollBehavior = prevHtmlOB || '';
+    };
+  }, []);
+  
   useEffect(() => {
     (async () => {
       if (!userId) { setLoading(false); setError('Sign in required to load suggestions.'); return; }

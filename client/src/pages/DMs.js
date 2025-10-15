@@ -5,15 +5,59 @@ import { AuthContext } from '../App';
 import UserLink from '../components/UserLink';
 import { API_BASE_URL, toMediaUrl } from '../config';
 
-const Page = styled.div`max-width: 980px; margin: 0 auto; padding: 16px;`;
-const Title = styled.h2` color: #e5e7eb; margin: 0 0 12px 0; `;
+const Page = styled.div`
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 16px;
+  overflow: hidden; /* keep the page static; internal panes handle scroll */
+`;
+
+// Make title tappable on mobile to toggle the DM list
+const Title = styled.button`
+  color: #e5e7eb;
+  margin: 0 0 12px 0;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.2;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+
+  /* Desktop: keep normal header behavior */
+  @media (min-width: 768px) { cursor: default; }
+
+  /* Optional chevron for mobile */
+  position: relative;
+  @media (max-width: 767px) {
+    &::after{
+      content: attr(data-chevron);
+      position: absolute;
+      right: 0;
+      top: 0.1rem;
+      font-size: 16px;
+      color: #e5e7eb;
+    }
+  }
+`;
+
 const Layout = styled.div`
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 16px;
   height: calc(100vh - 120px);
   min-height: 0;
+  position: relative; /* enables overlay positioning on mobile */
+
+  /* Stack on phones: chat takes full width; left is an overlay */
+  @media (max-width: 767px) {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 100px);
+  }
 `;
+
 const Left = styled.div`
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -22,7 +66,19 @@ const Left = styled.div`
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+
+  /* On mobile, turn into an overlay with its own scroll */
+  @media (max-width: 767px) {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 30;
+    display: ${p => (p.$mobileOpen ? 'flex' : 'none')};
+    max-height: 70vh;
+    overflow: auto; /* scrolling contained to this box */
+    box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+  }
 `;
+
 const Right = styled.div`
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -31,6 +87,32 @@ const Right = styled.div`
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+`;
+
+const MsgContent = styled.div`
+  max-width: 70%;
+  @media (max-width: 767px) { max-width: 90%; }
+`;
+
+const Bubble = styled.div`
+  background: ${p => (p.$mine ? '#111' : '#f1f3f5')};
+  color: ${p => (p.$mine ? '#fff' : '#111')};
+  padding: 10px 12px;
+  border-radius: 12px;
+
+  img {
+    display: block;
+    max-width: 260px;
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    margin-top: 6px;
+  }
+
+  @media (max-width: 767px) {
+    img { max-width: 100%; }
+  }
 `;
 const SearchBox = styled.div`
   padding: 8px; border-bottom: 1px solid var(--border-color);
@@ -80,15 +162,9 @@ const MsgAvatar = styled.div`
   width: 32px; height: 32px; border-radius: 50%; overflow: hidden; background: #eef2f7; flex: 0 0 auto;
   img { width: 100%; height: 100%; object-fit: cover; display: block; }
 `;
-const MsgContent = styled.div` max-width: 70%; `;
 const MsgHeader = styled.div`
   font-size: 12px; margin: 0 0 4px 0; color: #6b7280;
   display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
-`;
-const Bubble = styled.div`
-  background: ${p => (p.$mine ? '#111' : '#f1f3f5')}; color: ${p => (p.$mine ? '#fff' : '#111')};
-  padding: 10px 12px; border-radius: 12px;
-  img { display: block; max-width: 260px; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--border-color); margin-top: 6px; }
 `;
 const Compose = styled.form`
   display: grid; grid-template-columns: auto 1fr auto; gap: 8px; padding: 10px; border-top: 1px solid var(--border-color);
@@ -145,6 +221,7 @@ const media = (url) => {
 
 const DMPage = () => {
   const { user } = useContext(AuthContext);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [q, setQ] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -169,6 +246,14 @@ const DMPage = () => {
   const [avatarForConv, setAvatarForConv] = useState(null);
 
   const isGroup = useMemo(() => active?.isGroup, [active]);
+
+  // Lock the body scroll when the mobile dropdown is open
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isPhone = window.innerWidth < 768;
+    if (isPhone) document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => { if (isPhone) document.body.style.overflow = ''; };
+  }, [mobileOpen]);
 
   useEffect(() => {
     if (!messagesRef.current) return;
@@ -259,8 +344,12 @@ const DMPage = () => {
       await fetchConversationDetails(conv._id);
     }
     await loadMessages(conv._id);
-  };
 
+    // Collapse the left panel on small screens after selection
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setMobileOpen(false);
+    }
+  };
   useEffect(() => {
     if (!messages.length) return;
     ensureUsers(messages.map(m => m.senderId));
@@ -428,9 +517,20 @@ const DMPage = () => {
 
   return (
     <Page>
-      <Title>Messages</Title>
+      <Title
+        onClick={() => {
+          if (typeof window !== 'undefined' && window.innerWidth < 768) {
+            setMobileOpen(prev => !prev);
+          }
+        }}
+        data-chevron={mobileOpen ? '▴' : '▾'}
+        aria-expanded={mobileOpen}
+        aria-controls="dm-list"
+      >
+        Messages
+      </Title>
       <Layout>
-        <Left>
+        <Left id="dm-list" $mobileOpen={mobileOpen}>
           <SearchBox>
             <input
               value={q}

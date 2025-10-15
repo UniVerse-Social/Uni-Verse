@@ -13,7 +13,13 @@ const HomeContainer = styled.div`
   display: flex;
   justify-content: center;
   padding: 20px;
-  min-height: calc(100vh - 101px);
+  min-height: calc(100vh - 101px); /* desktop unchanged */
+
+  @media (max-width: 600px) {
+    /* Make space for fixed bottom nav on phones */
+    padding: 12px 12px calc(74px + env(safe-area-inset-bottom, 0px));
+    min-height: 100vh;
+  }
 `;
 
 const Feed = styled.div`
