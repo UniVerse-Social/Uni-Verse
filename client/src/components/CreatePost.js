@@ -20,7 +20,7 @@ const TextArea = styled.textarea`
   min-height: 88px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 12px;
+  padding: 7px;
   font-size: 16px;
   resize: none;
   margin-bottom: 8px;

@@ -36,7 +36,7 @@ const Shell = styled.div`
   display: flex;
   flex-direction: column;
   /* Desktop: lock to viewport height so inner panels can scroll */
-  height: calc(105vh - 101px);
+  height: calc(100vh - 95px);
   padding-bottom: 70px;
 
   @media (max-width: 900px) {
@@ -80,7 +80,7 @@ const Page = styled.div`
   flex:1; overflow:hidden;     /* grid never exceeds viewport */
 
   @media (max-width: 1024px) {
-    grid-template-columns: 240px 1fr 300px;
+    grid-template-columns: 280px 1fr 300px;
   }
   @media (max-width: 900px) {
     grid-template-columns: 1fr; /* phones keep single column */

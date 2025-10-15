@@ -9,7 +9,7 @@ const Page = styled.div`
   max-width: 980px;
   margin: 0 auto;
   padding: 16px;
-  overflow: hidden; /* keep the page static; internal panes handle scroll */
+  overflow: hidden;
 `;
 
 // Make title tappable on mobile to toggle the DM list
@@ -47,14 +47,14 @@ const Layout = styled.div`
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 16px;
-  height: calc(100vh - 120px);
+  height: calc(100vh - 140px);
   min-height: 0;
   position: relative; /* enables overlay positioning on mobile */
 
   /* Stack on phones: chat takes full width; left is an overlay */
   @media (max-width: 767px) {
     grid-template-columns: 1fr;
-    height: calc(100vh - 100px);
+    height: calc(100vh - 180px);
   }
 `;
 
