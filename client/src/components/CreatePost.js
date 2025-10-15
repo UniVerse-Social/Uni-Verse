@@ -16,7 +16,7 @@ const CreatePostContainer = styled.div`
 `;
 
 const TextArea = styled.textarea`
-  width: 95%;
+  width: 98%;
   min-height: 88px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
