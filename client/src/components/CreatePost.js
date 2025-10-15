@@ -191,6 +191,7 @@ const CreatePost = ({ onPostCreated }) => {
             setTextContent(val);
             setRemaining(560 - val.length);
 
+
             const el = textAreaRef.current;
             if (el) {
               el.style.height = 'auto';

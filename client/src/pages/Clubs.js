@@ -36,8 +36,8 @@ const Shell = styled.div`
   display: flex;
   flex-direction: column;
   /* Desktop: lock to viewport height so inner panels can scroll */
-  height: calc(100vh - 95px);
-  padding-bottom: 70px;
+  height: calc(100vh - 101px);
+  overflow-x: hidden;
 
   @media (max-width: 900px) {
     /* Keep your mobile behavior */
@@ -76,8 +76,10 @@ const Subbar = styled.div`
 `;
 
 const Page = styled.div`
-  display:grid; gap:16px; grid-template-columns: 280px 1fr 320px;
-  flex:1; overflow:hidden;     /* grid never exceeds viewport */
+  display:grid; 
+  gap:16px; 
+  grid-template-columns: 280px 1fr 320px;
+  auto; overflow:hidden;     /* grid never exceeds viewport */
 
   @media (max-width: 1024px) {
     grid-template-columns: 280px 1fr 300px;

@@ -307,7 +307,9 @@ const CenterModal = styled.div`
   top: 50%; left: 50%;
   transform: translate(-50%, -50%) scale(${p => (p.$open ? 1 : .96)});
   opacity: ${p => (p.$open ? 1 : 0)};
-  transition: all .2s ease;
+  pointer-events: ${p => (p.$open ? 'auto' : 'none')};
+  visibility: ${p => (p.$open ? 'visible' : 'hidden')};
+  transition: opacity .2s ease, transform .2s ease;
   z-index: 1601;
   width: min(680px, calc(100vw - 24px));
   max-height: min(80vh, 720px);
@@ -883,7 +885,7 @@ export default function Games() {
 
       {/* Mobile center modals */}
       <Backdrop $open={openRanks} onClick={() => setOpenRanks(false)} />
-      <CenterModal $open={openRanks} aria-hidden={!openRanks}>
+      <CenterModal $open={openRanks} aria-hidden={!openRanks} role="dialog" aria-modal="true">
         <ModalHead>
           Your Game Ranks
           <span style={{ marginLeft: 'auto', cursor: 'pointer' }} onClick={() => setOpenRanks(false)}>×</span>
@@ -894,7 +896,7 @@ export default function Games() {
       </CenterModal>
 
       <Backdrop $open={openCustom} onClick={() => setOpenCustom(false)} />
-      <CenterModal $open={openCustom} aria-hidden={!openCustom}>
+      <CenterModal $open={openCustom} aria-hidden={!openCustom} role="dialog" aria-modal="true">
         <ModalHead>
           Customization
           <span style={{ marginLeft: 'auto', cursor: 'pointer' }} onClick={() => setOpenCustom(false)}>×</span>
