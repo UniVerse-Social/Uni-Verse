@@ -53,4 +53,6 @@
 
 - [✅] add a character limit countdown when you only have 30 characters left to use on your post
 
+- [✅] remove scroll bar in your post text area and make it so it grows and shrinks depending on how much text you have
+
 Done
