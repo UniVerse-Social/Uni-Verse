@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useContext, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';
@@ -20,12 +20,20 @@ const TextArea = styled.textarea`
   min-height: 88px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
+<<<<<<< Updated upstream
   padding: 7px;
+=======
+  padding-top: 7px;
+  padding-bottom: 0px;
+  padding-left: 5px;
+>>>>>>> Stashed changes
   font-size: 16px;
   resize: none;
+  overflow: hidden;
   margin-bottom: 8px;
   background: #fff;
   color: #111;
+  line-height: 1.4;
 `;
 
 const AttachBtn = styled.label`
@@ -99,7 +107,7 @@ const CharPopup = styled.div`
 const TextAreaWrapper = styled.div`
   position: relative;
   display: inline-block;
-  width 100%;
+  width: 100%;
 `;
 
 const CreatePost = ({ onPostCreated }) => {
@@ -108,6 +116,7 @@ const CreatePost = ({ onPostCreated }) => {
   const [files, setFiles] = useState([]);         // File[]
   const [busy, setBusy] = useState(false);
   const [remaining, setRemaining] = useState(280);
+  const textAreaRef = useRef(null);
 
   const previews = useMemo(
     () => files.map(f => ({ name: f.name, url: URL.createObjectURL(f) })),
@@ -178,12 +187,19 @@ const CreatePost = ({ onPostCreated }) => {
 
        <TextAreaWrapper>
         <TextArea
+          ref = {textAreaRef}
           placeholder={`What's on your mind, ${user.username}?`}
           value={textContent}
           onChange={(e) => {
             const val = e.target.value;
             setTextContent(val);
             setRemaining(280 - val.length);
+
+            const el = textAreaRef.current;
+            if (el) {
+              el.style.height = 'auto';
+              el.style.height = `${el.scrollHeight}px`;
+            }
           }}
           maxLength={280}
         />
