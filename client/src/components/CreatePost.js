@@ -189,7 +189,7 @@ const CreatePost = ({ onPostCreated }) => {
           onChange={(e) => {
             const val = e.target.value;
             setTextContent(val);
-            setRemaining(280 - val.length);
+            setRemaining(560 - val.length);
 
             const el = textAreaRef.current;
             if (el) {
@@ -197,7 +197,7 @@ const CreatePost = ({ onPostCreated }) => {
               el.style.height = `${el.scrollHeight}px`;
             }
           }}
-          maxLength={280}
+          maxLength={560}
         />
         <CharPopup className={remaining <= 30 ? 'show' : ''}>
           {remaining} characters remaining
