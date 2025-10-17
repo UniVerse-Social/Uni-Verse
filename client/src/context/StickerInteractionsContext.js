@@ -8,8 +8,9 @@ import React, {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { toMediaUrl } from '../config';
 
-const STICKER_MIN_SCALE = 0.4;
+const STICKER_MIN_SCALE = 0.25;
 const STICKER_MAX_SCALE = 2.5;
 
 const StickerInteractionsContext = createContext({
@@ -48,13 +49,16 @@ const computeNormalizedPosition = (point, rect) => ({
 
 const sanitizeSticker = (raw, origin = 'catalog') => {
   const assetType = raw.assetType || (raw.type === 'custom' ? 'image' : raw.type) || 'emoji';
-  const assetValue = raw.assetValue || raw.value || '';
+  let assetValue = raw.assetValue || raw.value || '';
   const key = raw.key || raw.stickerKey || raw.id;
   const placedBy = raw.placedBy
     ? String(raw.placedBy)
     : raw.placedByUser?._id
     ? String(raw.placedByUser._id)
     : null;
+  if (assetType === 'video') {
+    assetValue = toMediaUrl(assetValue);
+  }
   return {
     id: raw.id || raw._id || key,
     key,
@@ -62,11 +66,16 @@ const sanitizeSticker = (raw, origin = 'catalog') => {
     label: raw.label || 'Sticker',
     assetType,
     assetValue,
-    type: raw.type || (assetType === 'image' ? 'custom' : 'emoji'),
+    poster: raw.poster ? toMediaUrl(raw.poster) : raw.meta?.poster ? toMediaUrl(raw.meta.poster) : null,
+    mediaSize: raw.mediaSize || raw.meta?.mediaSize || null,
+    format: raw.format || raw.meta?.format || null,
+    type: raw.type || (assetType === 'emoji' ? 'emoji' : 'custom'),
     value: raw.value !== undefined ? raw.value : raw.assetValue || '',
     origin,
     placedBy,
     placedByUser: raw.placedByUser || null,
+    anchor: raw.anchor || 'card',
+    anchorRect: raw.anchorRect || null,
     meta: raw,
   };
 };
@@ -117,8 +126,20 @@ export const StickerInteractionsProvider = ({ children }) => {
     const draft = dragRef.current;
     if (!draft) return;
     event.preventDefault();
-    const delta = event.deltaY < 0 ? 0.08 : -0.08;
-    draft.scale = clamp(draft.scale + delta, STICKER_MIN_SCALE, STICKER_MAX_SCALE);
+
+    const absX = Math.abs(event.deltaX);
+    const absY = Math.abs(event.deltaY);
+    const rotateGesture = absX > absY;
+
+    if (rotateGesture) {
+      const deltaDegrees = clamp(event.deltaX * -0.4, -12, 12);
+      draft.rotation = clamp(draft.rotation + deltaDegrees, -180, 180);
+    } else {
+      const speed = event.ctrlKey || event.metaKey ? 0.12 : 0.08;
+      const delta = event.deltaY < 0 ? speed : -speed;
+      draft.scale = clamp(draft.scale + delta, STICKER_MIN_SCALE, STICKER_MAX_SCALE);
+    }
+
     scheduleStateUpdate(dragRef, setDragState, rafRef);
   }, []);
 
@@ -381,7 +402,7 @@ const StickerPreview = ({ state }) => {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: state.sticker.assetType === 'image' ? 0 : 48,
+    fontSize: state.sticker.assetType === 'image' || state.sticker.assetType === 'video' ? 0 : 48,
   };
 
   return (
@@ -389,6 +410,12 @@ const StickerPreview = ({ state }) => {
       {state.sticker.assetType === 'image' ? (
         <img
           src={state.sticker.assetValue}
+          alt={state.sticker.label}
+          style={{ maxWidth: 64, maxHeight: 64, borderRadius: 12 }}
+        />
+      ) : state.sticker.assetType === 'video' ? (
+        <img
+          src={state.sticker.poster || state.sticker.assetValue}
           alt={state.sticker.label}
           style={{ maxWidth: 64, maxHeight: 64, borderRadius: 12 }}
         />

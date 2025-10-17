@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { API_BASE_URL, toMediaUrl } from '../config';
 
 const STORAGE_PREFIX = 'fc.customStickers';
 const MAX_CUSTOM_COUNT = 150;
 const MAX_DIMENSION = 160;
+const MAX_GIF_BYTES = 4 * 1024 * 1024;
 
 const readFileAsDataURL = (file) =>
   new Promise((resolve, reject) => {
@@ -64,8 +66,11 @@ const normalizeSticker = (raw) => ({
   key: raw.key || `custom-${raw.id}`,
   label: raw.label || 'Custom sticker',
   type: 'custom',
-  assetType: 'image',
-  assetValue: raw.assetValue || raw.value,
+  assetType: raw.assetType || 'image',
+  assetValue: raw.assetValue ? toMediaUrl(raw.assetValue) : raw.value,
+  poster: raw.poster ? toMediaUrl(raw.poster) : null,
+  mediaSize: typeof raw.mediaSize === 'number' ? raw.mediaSize : null,
+  format: raw.format || null,
   width: raw.width,
   height: raw.height,
   createdAt: raw.createdAt || new Date().toISOString(),
@@ -107,36 +112,77 @@ export default function useCustomStickers(user) {
       if (customStickers.length >= MAX_CUSTOM_COUNT) {
         throw new Error('Custom sticker limit reached');
       }
+      const isGif = file.type === 'image/gif';
+      if (isGif) {
+        if (file.size > MAX_GIF_BYTES) {
+          throw new Error('GIF stickers must be under 4MB.');
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        const headers = {};
+        if (user?._id) headers['x-user-id'] = user._id;
+        const res = await fetch(`${API_BASE_URL}/api/uploads/image`, {
+          method: 'POST',
+          body: formData,
+          headers,
+        });
+        const payload = await res.json();
+        if (!res.ok) {
+          throw new Error(payload?.message || 'Failed to process animated sticker');
+        }
+        const id = makeId();
+        const label = file.name ? file.name.split('.').slice(0, -1).join('.') || 'Custom sticker' : 'Custom sticker';
+        const nextSticker = normalizeSticker({
+          id,
+          key: `custom-${id}`,
+          label,
+          assetType: payload.type === 'video' ? 'video' : 'image',
+          assetValue: toMediaUrl(payload.url),
+          poster: payload.poster ? toMediaUrl(payload.poster) : null,
+          mediaSize: payload.size || null,
+          format: payload.format || null,
+          width: payload.width,
+          height: payload.height,
+          createdAt: new Date().toISOString(),
+        });
+        persist([...customStickers, nextSticker]);
+        return nextSticker;
+      }
       const dataUrl = await readFileAsDataURL(file);
-      const { dataUrl: shrunk, width, height } = await shrinkImage(dataUrl);
+      const resized = await shrinkImage(dataUrl);
       const id = makeId();
       const label = file.name ? file.name.split('.').slice(0, -1).join('.') || 'Custom sticker' : 'Custom sticker';
       const nextSticker = normalizeSticker({
         id,
         key: `custom-${id}`,
         label,
-        assetValue: shrunk,
-        width,
-        height,
+        assetType: 'image',
+        assetValue: resized.dataUrl,
+        width: resized.width,
+        height: resized.height,
         createdAt: new Date().toISOString(),
       });
       persist([...customStickers, nextSticker]);
       return nextSticker;
     },
-    [customStickers, persist]
+    [customStickers, persist, user?._id]
   );
 
   const addStickerFromPlacement = useCallback(
     (placement) => {
-      if (!placement || placement.assetType !== 'image' || !placement.assetValue) return null;
-      const already = customStickers.some((item) => item.assetValue === placement.assetValue);
+      if (!placement || !placement.assetType || !placement.assetValue) return null;
+      const already = customStickers.some((item) => item.assetValue === placement.assetValue && item.assetType === placement.assetType);
       if (already) return null;
       const id = makeId();
       const nextSticker = normalizeSticker({
         id,
         key: `custom-${id}`,
         label: placement.label || 'Saved sticker',
+        assetType: placement.assetType,
         assetValue: placement.assetValue,
+        poster: placement.poster || null,
+        mediaSize: placement.mediaSize || null,
+        format: placement.format || null,
         width: placement.width || MAX_DIMENSION,
         height: placement.height || MAX_DIMENSION,
         createdAt: new Date().toISOString(),

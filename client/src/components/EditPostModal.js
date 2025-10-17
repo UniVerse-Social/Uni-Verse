@@ -1,7 +1,8 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';
+import { createPortal } from 'react-dom';
 
 const ModalBackdrop = styled.div`
   position: fixed;
@@ -13,7 +14,7 @@ const ModalBackdrop = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1050;
+  z-index: 1600;
 `;
 
 const ModalContainer = styled.form`
@@ -63,6 +64,24 @@ const EditPostModal = ({ post, onClose, onPostUpdated }) => {
     const { user: currentUser } = useContext(AuthContext);
     const [textContent, setTextContent] = useState(post.textContent);
 
+    useEffect(() => {
+        const onKey = (event) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        const prevBodyOverflow = document.body.style.overflow;
+        const prevHtmlOverflow = document.documentElement.style.overflow;
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+        return () => {
+          window.removeEventListener('keydown', onKey);
+          document.body.style.overflow = prevBodyOverflow;
+          document.documentElement.style.overflow = prevHtmlOverflow;
+        };
+    }, [onClose]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -78,9 +97,9 @@ const EditPostModal = ({ post, onClose, onPostUpdated }) => {
         }
     };
 
-    return (
-        <ModalBackdrop>
-            <ModalContainer onSubmit={handleSubmit}>
+    const content = (
+        <ModalBackdrop onClick={onClose}>
+            <ModalContainer onSubmit={handleSubmit} onClick={(e) => e.stopPropagation()}>
                 <ModalHeader>Edit Post</ModalHeader>
                 <Textarea
                     value={textContent}
@@ -93,6 +112,11 @@ const EditPostModal = ({ post, onClose, onPostUpdated }) => {
             </ModalContainer>
         </ModalBackdrop>
     );
+
+    const portalTarget = typeof document !== 'undefined' ? document.body : null;
+    if (!portalTarget) return null;
+
+    return createPortal(content, portalTarget);
 };
 
 export default EditPostModal;

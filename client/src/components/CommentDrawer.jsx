@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import axios from 'axios';
 import { FaHeart, FaRegHeart, FaTrash, FaPlus } from 'react-icons/fa';
@@ -6,19 +7,39 @@ import { AuthContext } from '../App';
 import { API_BASE_URL, toMediaUrl } from '../config';
 import UserLink from './UserLink';
 
-const Backdrop = styled.div`position: fixed; inset:0; background: rgba(0,0,0,0.40); z-index:1600;`;
-const Drawer = styled.aside`
+const Backdrop = styled.div`
+  --gutter: clamp(16px, 4vh, 32px);
+  --topbar-offset: var(--fc-topbar-height, 72px);
   position: fixed;
-  left:50%; top:50%;
-  transform: translate(-50%, -50%);
-  width: min(900px, 94vw);
-  height: min(90vh, 900px);
-  background:#fff;
-  border-radius:14px;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.30);
-  z-index:1601;
-  display:flex; flex-direction:column;
-  overflow:hidden;
+  inset: 0;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 4200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(var(--topbar-offset) + var(--gutter)) var(--gutter) var(--gutter);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+`;
+const Drawer = styled.aside`
+  width: min(920px, 96vw);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: calc(100vh - (var(--topbar-offset) + var(--gutter) * 2));
+
+  @supports (height: 100dvh) {
+    max-height: calc(100dvh - (var(--topbar-offset) + var(--gutter) * 2));
+  }
+
+  @media (max-width: 640px) {
+    width: min(100%, 600px);
+    border-radius: 14px;
+  }
 `;
 const Header = styled.div`position:relative; padding:14px 16px; border-bottom:1px solid #eee; font-weight:600;`;
 const CloseButton = styled.button`
@@ -45,6 +66,8 @@ const OPGrid = styled.div`
 const OPImg = styled.img`
   width:100%; height:160px; object-fit:cover; border-radius:10px; border:1px solid #eee;
 `;
+
+const PortalTarget = typeof document !== 'undefined' ? document.body : null;
 
 /** Robust post text extraction (covers more fields) */
 function getPostText(p) {
@@ -93,14 +116,15 @@ function OriginalPost({ post }) {
 }
 
 const List = styled.div`
-  flex:1;
-  overflow:auto;
-  padding:12px 24px;
-  box-sizing:border-box;
+  flex: 1;
+  overflow: auto;
+  padding: 12px 24px;
+  box-sizing: border-box;
+  width: 100%;
 `;
 const Row = styled.div`
-  margin-bottom:12px;
-  min-width:max-content;
+  margin-bottom: 12px;
+  min-width: 0;
 `;
 const Meta = styled.div`
   font-size:12px;
@@ -274,6 +298,22 @@ export default function CommentDrawer({ post, onClose, onCountChange, onPreviewC
   const fileInputRef = useRef(null);
 
   const api = `${API_BASE_URL}/api/comments`;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const prevOverflow = document.body.style.overflow;
+    const prevPadding = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    window.dispatchEvent(new CustomEvent('fc-modal-open', { detail: 'comment-drawer' }));
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPadding;
+    };
+  }, []);
 
   const repliesOf = useCallback((id) => items.filter(i => String(i.parentId) === String(id)), [items]);
   const topLevel = useMemo(() => items.filter(i => !i.parentId), [items]);
@@ -487,10 +527,16 @@ export default function CommentDrawer({ post, onClose, onCountChange, onPreviewC
     );
   };
 
-  return (
-    <>
-      <Backdrop onClick={onClose} />
-      <Drawer role="dialog" aria-modal="true" aria-label="Comments">
+  if (!PortalTarget) return null;
+
+  return createPortal(
+    <Backdrop onClick={onClose}>
+      <Drawer
+        role="dialog"
+        aria-modal="true"
+        aria-label="Comments"
+        onClick={(event) => event.stopPropagation()}
+      >
         <Header>
           <CloseButton aria-label="Close comments" onClick={onClose}>×</CloseButton>
           Comments · {items.length}
@@ -548,7 +594,8 @@ export default function CommentDrawer({ post, onClose, onCountChange, onPreviewC
           </AttachmentTray>
         )}
       </Drawer>
-    </>
+    </Backdrop>,
+    PortalTarget
   );
 }
 

@@ -15,8 +15,24 @@ const postRoute = require('./routes/posts');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const RAW_ALLOWED_ORIGINS = process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000';
+const ALLOWED_ORIGINS = RAW_ALLOWED_ORIGINS.split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true); // allow same-origin / server-side requests
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true,
+};
+
 /* -------------------- MIDDLEWARE -------------------- */
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -26,6 +42,7 @@ app.use(
   express.static(path.join(__dirname, 'uploads'), {
     setHeaders: (res, p) => {
       if (p.endsWith('.webp')) res.set('Content-Type', 'image/webp');
+      if (p.endsWith('.mp4')) res.set('Content-Type', 'video/mp4');
     },
   })
 );
@@ -63,7 +80,10 @@ mongoose
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: { origin: '*' }, // relax for dev; tighten in prod
+  cors: {
+    origin: ALLOWED_ORIGINS,
+    credentials: true,
+  },
 });
 
 // attach chess matchmaking/realtime handlers

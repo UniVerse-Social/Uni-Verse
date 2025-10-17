@@ -146,6 +146,19 @@ router.put('/:id/follow', async (req, res) => {
   }
 });
 
+router.get('/:id/follow-stats', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('followers following').lean();
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({
+      followers: Array.isArray(user.followers) ? user.followers.length : 0,
+      following: Array.isArray(user.following) ? user.following.length : 0,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load follow stats' });
+  }
+});
+
 // ---------- ACCOUNT (PROFILE) UPDATE, INCLUDING PASSWORD ----------
 router.put('/:id/account', async (req, res) => {
   try {
@@ -722,6 +735,119 @@ router.post('/:id/badges/unlock', async (req, res) => {
     console.error('Unlock badge error:', e);
     res.status(500).json({ message: 'Failed to unlock badge' });
   }
+});
+
+/* --------------------- STICKER SETTINGS ROUTES --------------------- */
+function sanitizeUserStickerSettings(raw = {}) {
+  if (!raw || typeof raw !== 'object') return {};
+  const out = {};
+  const okModes = new Set(['everyone', 'followers', 'none']);
+  if (typeof raw.allowMode === 'string' && okModes.has(raw.allowMode)) {
+    out.allowMode = raw.allowMode;
+  }
+  if (typeof raw.allowstickytext === 'boolean') {
+    out.allowstickytext = !!raw.allowstickytext;
+  }
+  if (typeof raw.allowstickymedia === 'boolean') {
+    out.allowstickymedia = !!raw.allowstickymedia;
+  }
+  if (typeof raw.hideFeedStickers === 'boolean') {
+    out.hideFeedStickers = !!raw.hideFeedStickers;
+  }
+  if (typeof raw.showStickerPanel === 'boolean') {
+    out.showStickerPanel = !!raw.showStickerPanel;
+  }
+  if (Array.isArray(raw.allowlist)) out.allowlist = raw.allowlist;
+  if (Array.isArray(raw.denylist))  out.denylist  = raw.denylist;
+  if (raw.maxCount !== undefined) {
+    const count = Number(raw.maxCount);
+    if (Number.isFinite(count)) {
+      out.maxCount = Math.min(30, Math.max(1, Math.round(count)));
+    }
+  }
+  return out;
+}
+
+const FEED_DEFAULTS = {
+  showOwn: true,
+  showFollowing: true,
+  includeNonFollowers: false,
+  includeSameDepartment: false,
+  onlyInteracted: false,
+  sharedInterestsOnly: false,
+  showStickerPanel: true,
+  sort: 'newest',
+  dateRange: 'all',
+  disableAnimations: false,
+};
+
+const FEED_SORTS = new Set(['newest', 'mostLiked']);
+const FEED_RANGES = new Set(['today', 'week', 'month', 'year', 'all']);
+
+function sanitizeFeedPreferences(raw = {}) {
+  const prefs = { ...FEED_DEFAULTS };
+  if (!raw || typeof raw !== 'object') return prefs;
+  if ('showOwn' in raw) prefs.showOwn = !!raw.showOwn;
+  if ('showFollowing' in raw) prefs.showFollowing = !!raw.showFollowing;
+  if ('includeAllUsers' in raw && !('includeNonFollowers' in raw)) {
+    prefs.includeNonFollowers = !!raw.includeAllUsers;
+  }
+  if ('includeNonFollowers' in raw) prefs.includeNonFollowers = !!raw.includeNonFollowers;
+  if ('includeSameDepartment' in raw) prefs.includeSameDepartment = !!raw.includeSameDepartment;
+  if ('onlyInteracted' in raw) prefs.onlyInteracted = !!raw.onlyInteracted;
+  if ('sharedInterestsOnly' in raw) prefs.sharedInterestsOnly = !!raw.sharedInterestsOnly;
+  if ('stickerAccessOnly' in raw && !('showStickerPanel' in raw)) {
+    prefs.showStickerPanel = !raw.stickerAccessOnly;
+  }
+  if ('showStickerPanel' in raw) prefs.showStickerPanel = !!raw.showStickerPanel;
+  if ('disableAnimations' in raw) prefs.disableAnimations = !!raw.disableAnimations;
+  if (typeof raw.sort === 'string' && FEED_SORTS.has(raw.sort)) {
+    prefs.sort = raw.sort;
+  }
+  if (typeof raw.dateRange === 'string' && FEED_RANGES.has(raw.dateRange)) {
+    prefs.dateRange = raw.dateRange;
+  }
+  return prefs;
+}
+
+// GET per-user sticker defaults
+router.get('/:id/sticker-settings', async (req, res) => {
+  const user = await User.findById(req.params.id).select('stickerSettings').lean();
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  res.json(user.stickerSettings || {});
+});
+
+// PUT per-user sticker defaults
+router.put('/:id/sticker-settings', async (req, res) => {
+  if (String(req.body.userId) !== String(req.params.id)) {
+    return res.status(403).json({ message: 'Not authorized' });
+  }
+  const next = sanitizeUserStickerSettings(req.body);
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { $set: { stickerSettings: next } },
+    { new: true }
+  ).select('stickerSettings');
+  res.json(user.stickerSettings || {});
+});
+
+router.get('/:id/feed-preferences', async (req, res) => {
+  const user = await User.findById(req.params.id).select('feedPreferences').lean();
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  res.json(sanitizeFeedPreferences(user.feedPreferences || {}));
+});
+
+router.put('/:id/feed-preferences', async (req, res) => {
+  if (String(req.body.userId) !== String(req.params.id)) {
+    return res.status(403).json({ message: 'Not authorized' });
+  }
+  const next = sanitizeFeedPreferences(req.body);
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { $set: { feedPreferences: next } },
+    { new: true }
+  ).select('feedPreferences').lean();
+  res.json(sanitizeFeedPreferences(user?.feedPreferences || {}));
 });
 
 module.exports = router;

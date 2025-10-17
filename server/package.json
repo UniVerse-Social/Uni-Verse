@@ -24,6 +24,8 @@
     "leo-profanity": "^1.7.0",
     "mongoose": "^8.18.0",
     "multer": "^1.4.5-lts.1",
+    "fluent-ffmpeg": "^2.1.2",
+    "ffmpeg-static": "^5.1.0",
     "nsfwjs": "^2.4.2",
     "react-chessboard": "^5.6.1",
     "sharp": "^0.33.4",
