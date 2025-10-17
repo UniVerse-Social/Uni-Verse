@@ -5,17 +5,21 @@ const FeedPreferencesSchema = new mongoose.Schema(
   {
     showOwn: { type: Boolean, default: true },
     showFollowing: { type: Boolean, default: true },
-    showFollowers: { type: Boolean, default: false },
-    includeAllUsers: { type: Boolean, default: false },
+    includeNonFollowers: { type: Boolean, default: false },
     includeSameDepartment: { type: Boolean, default: false },
     onlyInteracted: { type: Boolean, default: false },
     sharedInterestsOnly: { type: Boolean, default: false },
-    withImagesOnly: { type: Boolean, default: false },
-    stickerAccessOnly: { type: Boolean, default: false },
+    showStickerPanel: { type: Boolean, default: true },
+    disableAnimations: { type: Boolean, default: false },
     sort: {
       type: String,
-      enum: ['newest', 'oldest', 'mostLiked'],
+      enum: ['newest', 'mostLiked'],
       default: 'newest',
+    },
+    dateRange: {
+      type: String,
+      enum: ['today', 'week', 'month', 'year', 'all'],
+      default: 'all',
     },
   },
   { _id: false }
@@ -49,8 +53,8 @@ const UserSchema = new mongoose.Schema(
     // - badgesEquipped: up to 5 equipped badge names (index 0 is the "Title" badge)
     badgesUnlocked: { type: [String], default: [] },
     badgesEquipped: { type: [String], default: [] },
-
     feedPreferences: { type: FeedPreferencesSchema, default: () => ({}) },
+    stickerSettings: { type: mongoose.Schema.Types.Mixed, default: {} }, // per-user default sticker settings
   },
   { timestamps: true }
 );

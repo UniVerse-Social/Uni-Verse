@@ -1,58 +1,115 @@
-import React, { useMemo, useRef, useState, useCallback } from 'react';
-import styled from 'styled-components';
+import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
+import styled, { css, keyframes } from 'styled-components';
+import { FaChevronLeft, FaChevronRight, FaInfoCircle } from 'react-icons/fa';
 import { useStickers } from '../context/StickersContext';
 import { useCustomStickerCatalog } from '../context/CustomStickerContext';
 import { useStickerInteractions } from '../context/StickerInteractionsContext';
+import { toMediaUrl } from '../config';
 
 const DEFAULT_TAB = 'catalog';
 const CUSTOM_TAB = 'custom';
 
+const useMediaQuery = (query) => {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mq = window.matchMedia(query);
+    const handler = (event) => setMatches(event.matches);
+    if (mq.addEventListener) {
+      mq.addEventListener('change', handler);
+    } else {
+      mq.addListener(handler);
+    }
+    setMatches(mq.matches);
+    return () => {
+      if (mq.removeEventListener) {
+        mq.removeEventListener('change', handler);
+      } else {
+        mq.removeListener(handler);
+      }
+    };
+  }, [query]);
+
+  return matches;
+};
+
 const DockWrap = styled.div`
   position: fixed;
-  left: 0;
-  top: 140px;
+  left: 24px;
+  bottom: 32px;
   z-index: 1400;
   display: flex;
+  flex-direction: column-reverse;
   align-items: flex-start;
+  gap: 14px;
   pointer-events: none;
 
-  @media (max-width: 1100px) {
-    display: none;
-  }
+  ${(p) =>
+    p.$compact &&
+    css`
+      top: auto;
+      bottom: 72px;
+      left: 12px;
+      right: 12px;
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: flex-start;
+    `}
+
+  ${(p) =>
+    p.$pocket &&
+    css`
+      left: 12px;
+      right: 12px;
+      bottom: 60px;
+      justify-content: center;
+      gap: 10px;
+    `}
 `;
 
 const DockTab = styled.button`
   pointer-events: auto;
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 8px;
   background: rgba(17, 24, 39, 0.62);
   color: #f1f5f9;
   border: 1px solid rgba(148, 163, 184, 0.45);
-  border-radius: 0 16px 16px 0;
-  padding: 18px 14px;
-  width: 52px;
+  border-radius: 999px;
+  padding: 12px 18px;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  font-weight: 700;
+  font-size: 13px;
 
   &:hover {
     background: rgba(37, 99, 235, 0.88);
     border-color: rgba(96, 165, 250, 0.85);
     color: #fff;
   }
-`;
 
-const DockTabLetter = styled.span`
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  ${(p) =>
+    p.$pocket &&
+    css`
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      padding: 0;
+      gap: 0;
+      font-size: 0;
+    `}
 `;
 
 const Drawer = styled.aside`
-  pointer-events: auto;
-  width: 420px;
+  pointer-events: ${(p) => (p.$open ? 'auto' : 'none')};
+  width: 360px;
+  min-width: 280px;
+  max-width: 520px;
   max-height: 76vh;
   overflow: hidden;
   background: #ffffff;
@@ -60,14 +117,38 @@ const Drawer = styled.aside`
   border: 1px solid var(--border-color);
   border-radius: 18px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
-  margin-left: 14px;
-  transform-origin: left top;
-  transform: ${(p) => (p.$open ? 'scale(1)' : 'scale(0.94) translateX(-8px)')};
+  margin-left: ${(p) => (p.$compact ? 10 : 0)}px;
+  transform-origin: ${(p) => (p.$compact || p.$pocket ? 'left top' : 'left bottom')};
+  transform: ${(p) => {
+    if (p.$open) return 'scale(1)';
+    if (p.$compact || p.$pocket) return 'scale(0.94) translateX(-8px)';
+    return 'scale(0.94) translateY(8px)';
+  }};
   opacity: ${(p) => (p.$open ? 1 : 0)};
   visibility: ${(p) => (p.$open ? 'visible' : 'hidden')};
   transition: transform 0.2s ease, opacity 0.2s ease, visibility 0.2s ease;
   display: flex;
   flex-direction: column;
+  resize: horizontal;
+
+  ${(p) =>
+    p.$compact &&
+    css`
+      width: min(360px, 92vw);
+      min-width: auto;
+      max-width: 92vw;
+      resize: none;
+      max-height: 70vh;
+    `}
+
+  ${(p) =>
+    p.$pocket &&
+    css`
+      width: min(360px, 94vw);
+      min-width: auto;
+      max-width: 94vw;
+      resize: none;
+    `}
 `;
 
 const DrawerHeader = styled.div`
@@ -77,6 +158,8 @@ const DrawerHeader = styled.div`
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  position: relative;
+  flex-wrap: wrap;
 `;
 
 const HeaderTitle = styled.div`
@@ -87,6 +170,53 @@ const HeaderTitle = styled.div`
 const HeaderMeta = styled.span`
   font-size: 12px;
   color: #94a3b8;
+`;
+
+const HeaderGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const InfoButton = styled.button`
+  pointer-events: auto;
+  border: none;
+  background: none;
+  color: #1d4ed8;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: #1e3a8a;
+  }
+`;
+
+const InfoPopover = styled.div`
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 18px;
+  max-width: min(320px, 80vw);
+  background: rgba(15, 23, 42, 0.96);
+  color: #e2e8f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.4);
+  font-size: 12px;
+  line-height: 1.5;
+  z-index: 10;
+
+  p {
+    margin: 0 0 8px 0;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
 `;
 
 const TabsBar = styled.div`
@@ -122,6 +252,16 @@ const DrawerBody = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
   gap: 14px;
   background: #ffffff;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+    padding: 18px 18px 22px;
+    gap: 12px;
+  }
+`;
+
+const spinnerRotate = keyframes`
+  to { transform: rotate(360deg); }
 `;
 
 const StickerCard = styled.button`
@@ -159,6 +299,15 @@ const StickerCard = styled.button`
   }
 `;
 
+const PendingSpinner = styled.div`
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255, 255, 255, 0.6);
+  border-top-color: rgba(59, 130, 246, 0.9);
+  border-radius: 50%;
+  animation: ${spinnerRotate} 0.8s linear infinite;
+`;
+
 const StatusText = styled.div`
   padding: 40px 16px;
   text-align: center;
@@ -175,11 +324,20 @@ const CustomToolbar = styled.div`
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
 `;
 
 const HintText = styled.span`
   font-size: 12px;
   color: #64748b;
+  @media (max-width: 768px) {
+    text-align: center;
+  }
 `;
 
 const UploadButton = styled.button`
@@ -203,18 +361,62 @@ const tabs = [
   { id: CUSTOM_TAB, label: 'Custom Stickers' },
 ];
 
-export default function StickerDock() {
+export default function StickerDock({ animationsDisabled = false }) {
   const { catalog, loading, error } = useStickers();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
   const fileInputRef = useRef(null);
   const removeClickRef = useRef({ id: null, ts: 0 });
   const { beginPickerDrag } = useStickerInteractions();
+  const isCompact = useMediaQuery('(max-width: 1100px)');
+  const isPocket = useMediaQuery('(max-width: 768px)');
+  const infoButtonRef = useRef(null);
+  const infoPopoverRef = useRef(null);
+  const drawerRef = useRef(null);
+  const [pendingItems, setPendingItems] = useState([]);
+  const [showInfo, setShowInfo] = useState(false);
   const {
     customStickers,
     addStickerFromImage,
     removeCustomSticker,
   } = useCustomStickerCatalog();
+
+  useEffect(() => {
+    if (!showInfo) return undefined;
+    const handleOutside = (event) => {
+      if (infoPopoverRef.current?.contains(event.target)) return;
+      if (infoButtonRef.current?.contains(event.target)) return;
+      setShowInfo(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [showInfo]);
+
+  useEffect(() => {
+    if (!open) setShowInfo(false);
+  }, [open]);
+
+  useEffect(() => {
+    const handleModalOpen = () => setOpen(false);
+    window.addEventListener('fc-modal-open', handleModalOpen);
+    return () => window.removeEventListener('fc-modal-open', handleModalOpen);
+  }, []);
+
+  useEffect(() => {
+    if (!animationsDisabled) return;
+    const drawerEl = drawerRef.current;
+    if (!drawerEl) return;
+    const videos = drawerEl.querySelectorAll('video');
+    videos.forEach((video) => {
+      try {
+        video.pause();
+      } catch {}
+    });
+  }, [animationsDisabled]);
 
   const defaultStickers = useMemo(() => {
     if (!Array.isArray(catalog)) return [];
@@ -243,12 +445,16 @@ export default function StickerDock() {
       const file = event.target.files?.[0];
       event.target.value = '';
       if (!file) return;
+      const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setPendingItems((prev) => [...prev, { token }]);
       try {
         await addStickerFromImage(file);
         setActiveTab(CUSTOM_TAB);
+        setPendingItems((prev) => prev.filter((item) => item.token !== token));
       } catch (err) {
         console.error('Custom sticker add failed', err);
-        alert('Could not add that image as a sticker. Try a smaller file.');
+        setPendingItems((prev) => prev.filter((item) => item.token !== token));
+        alert(err?.message || 'Could not add that image as a sticker. Try a smaller file.');
       }
     },
     [addStickerFromImage]
@@ -274,22 +480,94 @@ export default function StickerDock() {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
-      beginPickerDrag({ sticker: item, point: { x: event.clientX, y: event.clientY }, origin });
+      const started = beginPickerDrag({ sticker: item, point: { x: event.clientX, y: event.clientY }, origin });
+      if (!started) return;
+      setShowInfo(false);
+
+      if (isCompact || isPocket) {
+        setTimeout(() => setOpen(false), 80);
+        return;
+      }
+
+      if (!open) return;
+
+      const drawerEl = drawerRef.current;
+      const feedEl = typeof document !== 'undefined'
+        ? document.querySelector('[data-feed-container]')
+        : null;
+
+      let overlapsFeed = false;
+      if (drawerEl && feedEl) {
+        const drawerRect = drawerEl.getBoundingClientRect();
+        const feedRect = feedEl.getBoundingClientRect();
+        overlapsFeed =
+          drawerRect.right > feedRect.left &&
+          drawerRect.left < feedRect.right &&
+          drawerRect.bottom > feedRect.top &&
+          drawerRect.top < feedRect.bottom;
+      }
+
+      if (overlapsFeed) {
+        setOpen(false);
+      }
     },
-    [beginPickerDrag]
+    [beginPickerDrag, isCompact, isPocket, open, drawerRef]
   );
 
+  const arrowIcon = open
+    ? <FaChevronLeft size={isPocket ? 18 : 12} />
+    : <FaChevronRight size={isPocket ? 18 : 12} />;
+
   return (
-    <DockWrap>
-      <DockTab type="button" onClick={() => setOpen((prev) => !prev)} aria-expanded={open}>
-        {['S', 't', 'i', 'c', 'k', 'e', 'r', 's'].map((letter, idx) => (
-          <DockTabLetter key={`${letter}-${idx}`}>{letter}</DockTabLetter>
-        ))}
+    <DockWrap $compact={isCompact} $pocket={isPocket}>
+      <DockTab
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-label={open ? 'Hide sticker drawer' : 'Show sticker drawer'}
+        $pocket={isPocket}
+      >
+        {isPocket ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+            {arrowIcon}
+          </span>
+        ) : (
+          <>
+            {arrowIcon}
+            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em' }}>Stickers</span>
+          </>
+        )}
       </DockTab>
-      <Drawer $open={open} role="dialog" aria-label="Sticker catalog">
+      <Drawer
+        $open={open}
+        $compact={isCompact}
+        $pocket={isPocket}
+        role="dialog"
+        aria-label="Sticker catalog"
+        ref={drawerRef}
+      >
         <DrawerHeader>
-          <HeaderTitle>Stickers</HeaderTitle>
+          <HeaderGroup>
+            <HeaderTitle>Stickers</HeaderTitle>
+            <InfoButton
+              type="button"
+              ref={infoButtonRef}
+              aria-label="How stickers work"
+              aria-expanded={showInfo}
+              onClick={() => setShowInfo((prev) => !prev)}
+            >
+              <FaInfoCircle size={12} />
+            </InfoButton>
+          </HeaderGroup>
           <HeaderMeta>{loading ? 'Loading…' : `${totalCount} items`}</HeaderMeta>
+          {showInfo && (
+            <InfoPopover ref={infoPopoverRef}>
+              <p>Drag and drop stickers onto posts you have access to. Owners always keep control and can adjust limits.</p>
+              <p>While dragging, scroll with two fingers to resize. Swipe horizontally on a touchpad (or hold the right mouse button) to rotate before releasing.</p>
+              <p>Double right-click a sticker you own to remove it. Double left-click a custom sticker to save it to your catalog.</p>
+              <p>You can upload PNG, JPG, WebP, and animated GIFs — GIFs convert to lightweight looping video for better performance.</p>
+            </InfoPopover>
+          )}
         </DrawerHeader>
 
         <TabsBar>
@@ -334,13 +612,43 @@ export default function StickerDock() {
                     : undefined
                 }
               >
-                {item.assetType === 'image' || activeTab === CUSTOM_TAB ? (
+                {item.assetType === 'video' ? (
+                  <video
+                    src={toMediaUrl(item.assetValue)}
+                    poster={item.poster ? toMediaUrl(item.poster) : undefined}
+                    autoPlay={!animationsDisabled}
+                    loop={!animationsDisabled}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    style={{ width: '100%', height: '100%', borderRadius: 12 }}
+                  />
+                ) : item.assetType === 'image' || activeTab === CUSTOM_TAB ? (
                   <img src={item.assetValue || item.value} alt={item.label} />
                 ) : (
                   item.value
                 )}
               </StickerCard>
             ))}
+          {!loading && !error && activeTab === CUSTOM_TAB && pendingItems.length > 0 && (
+            pendingItems.map((item) => (
+              <StickerCard key={`pending-${item.token}`} $isCustom>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(148, 163, 184, 0.25)',
+                  }}
+                >
+                  <PendingSpinner />
+                </div>
+              </StickerCard>
+            ))
+          )}
         </DrawerBody>
 
         <CustomToolbar>

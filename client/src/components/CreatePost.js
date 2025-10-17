@@ -1,13 +1,15 @@
-import React, { useState, useContext, useMemo, useRef } from 'react';
+import React, { useState, useContext, useRef, useCallback, useEffect } from 'react';
+import { FaPlus } from 'react-icons/fa';
 import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';
 import { API_BASE_URL } from '../config';
+import CustomStickerContext from '../context/CustomStickerContext';
 
 const CreatePostContainer = styled.div`
   width: 100%;
   box-sizing: border-box;
-  padding: 16px;
+  padding: 16px 16px 8px;
   background-color: var(--container-white);
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -26,21 +28,48 @@ const TextArea = styled.textarea`
   font-size: 16px;
   resize: none;
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   background: #fff;
   color: #111;
-  line-height: 1.4;
+  line-height: 2;
+`;
+
+const ControlsRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `;
 
 const AttachBtn = styled.label`
-  padding: 10px 18px;
-  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
   border: 1px solid var(--border-color);
   background: #fff;
   color: #111;
   cursor: pointer;
   font-weight: 600;
+  line-height: 0; /* kill baseline extra space from inline SVG */
   &:hover { background: #f8fafc; }
+`;
+
+const PostButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background-color: var(--primary-orange);
+  color: #fff;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  &:disabled { opacity: .6; cursor: not-allowed; }
 `;
 
 const HiddenInput = styled.input` display: none; `;
@@ -59,7 +88,12 @@ const Thumb = styled.div`
   border: 1px solid var(--border-color);
   background: #f8f9fb;
   aspect-ratio: 1/1;
-  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  img, video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
   button {
     position: absolute; top: 6px; right: 6px;
     border: none; background: rgba(0,0,0,0.6); color: #fff;
@@ -72,17 +106,6 @@ const Actions = styled.div`
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-`;
-
-const PostButton = styled.button`
-  background-color: var(--primary-orange);
-  color: white;
-  border: none;
-  border-radius: 999px;
-  padding: 10px 18px;
-  font-weight: 700;
-  cursor: pointer;
-  &:disabled { opacity: .6; cursor: not-allowed; }
 `;
 
 const CharPopup = styled.div`
@@ -106,59 +129,156 @@ const TextAreaWrapper = styled.div`
   width: 100%;
 `;
 
+const MAX_ATTACHMENTS = 10;
+const VIDEO_MAX_SECONDS = 20;
+
 const CreatePost = ({ onPostCreated }) => {
   const { user } = useContext(AuthContext);
+  const { stickerDefaults } = useContext(CustomStickerContext);
   const [textContent, setTextContent] = useState('');
-  const [files, setFiles] = useState([]);         // File[]
+  const [attachments, setAttachments] = useState([]); // { id, file, kind, duration?, preview }
   const [busy, setBusy] = useState(false);
-  const [remaining, setRemaining] = useState(280);
+  const MAX_LEN = 560;                  // single source of truth
+  const [remaining, setRemaining] = useState(MAX_LEN);
+
+
   const textAreaRef = useRef(null);
 
-  const previews = useMemo(
-    () => files.map(f => ({ name: f.name, url: URL.createObjectURL(f) })),
-    [files]
-  );
+  const revokePreview = useCallback((entry) => {
+    if (entry?.preview) {
+      URL.revokeObjectURL(entry.preview);
+    }
+  }, []);
 
-  const onPick = (e) => {
-    const next = Array.from(e.target.files || []).slice(0, 10 - files.length);
-    if (next.length) setFiles(prev => [...prev, ...next]);
-    e.target.value = null;
-  };
+  useEffect(() => {
+    return () => {
+      attachments.forEach(revokePreview);
+    };
+  }, [attachments, revokePreview]);
 
-  const removeAt = (i) => setFiles(prev => prev.filter((_, idx) => idx !== i));
+  const makeAttachmentEntry = useCallback((file, kind, extra = {}) => ({
+    id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    file,
+    kind,
+    duration: typeof extra.duration === 'number' ? extra.duration : null,
+    preview: URL.createObjectURL(file),
+  }), []);
 
-  const uploadOne = async (file) => {
+  const getVideoDuration = useCallback((file) => {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const duration = video.duration;
+        URL.revokeObjectURL(url);
+        resolve(Number.isFinite(duration) ? duration : 0);
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Unable to read video metadata'));
+      };
+      video.src = url;
+    });
+  }, []);
+
+  const onPick = useCallback(async (event) => {
+    const fileList = Array.from(event.target.files || []);
+    event.target.value = null;
+    if (!fileList.length) return;
+    const capacity = MAX_ATTACHMENTS - attachments.length;
+    if (capacity <= 0) return;
+
+    const selected = fileList.slice(0, capacity);
+    const nextEntries = [];
+    for (const file of selected) {
+      const mime = (file.type || '').toLowerCase();
+      try {
+        if (mime.startsWith('video/')) {
+          const duration = await getVideoDuration(file);
+          if (duration > VIDEO_MAX_SECONDS) {
+            alert(`Skipped ${file.name}: videos must be ${VIDEO_MAX_SECONDS} seconds or shorter.`);
+            continue;
+          }
+          nextEntries.push(makeAttachmentEntry(file, 'video', { duration }));
+        } else if (mime.startsWith('image/')) {
+          nextEntries.push(makeAttachmentEntry(file, 'image'));
+        } else {
+          alert(`Unsupported file type: ${file.name}`);
+        }
+      } catch (err) {
+        console.error('Attachment load failed', err);
+        alert(`Could not add ${file.name}. Please try another file.`);
+      }
+    }
+    if (nextEntries.length) {
+      setAttachments((prev) => [...prev, ...nextEntries]);
+    }
+  }, [attachments.length, getVideoDuration, makeAttachmentEntry]);
+
+  const removeAttachment = useCallback((id) => {
+    setAttachments((prev) => {
+      const target = prev.find((entry) => entry.id === id);
+      if (target) revokePreview(target);
+      return prev.filter((entry) => entry.id !== id);
+    });
+  }, [revokePreview]);
+
+  const uploadOne = async (entry) => {
     const fd = new FormData();
-    fd.append('file', file);
-    const res = await axios.post(`${API_BASE_URL}/api/uploads/image`, fd, {
+    fd.append('file', entry.file);
+    if (entry.kind === 'video' && entry.duration != null) {
+      fd.append('duration', String(entry.duration));
+    }
+    const endpoint = entry.kind === 'video' ? 'video' : 'image';
+    const res = await axios.post(`${API_BASE_URL}/api/uploads/${endpoint}`, fd, {
       headers: { 'Content-Type': 'multipart/form-data', 'x-user-id': user._id }
     });
-    return res.data; // { url, type, width, height, scan }
+    return res.data;
   };
+
+  const parseListInput = useCallback((value) => {
+    if (Array.isArray(value)) return value.map((token) => String(token)).filter(Boolean);
+    return String(value || '')
+      .split(',')
+      .map((token) => token.trim())
+      .filter(Boolean);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!textContent.trim() && files.length === 0) return;
+    if (!textContent.trim() && attachments.length === 0) return;
     setBusy(true);
     try {
-      const attachments = [];
-      for (const f of files) {
-        const up = await uploadOne(f);
-        attachments.push(up);
+      const uploaded = [];
+      for (const entry of attachments) {
+        const up = await uploadOne(entry);
+        uploaded.push(up);
       }
 
       const payload = {
         userId: user._id,
         username: user.username,
         textContent: textContent.trim(),
-        attachments
+        attachments: uploaded,
+        // NEW: Logic for per-post sticker settings, deviatinng from the user defaults
+        stickerSettings: {
+          allowMode: stickerDefaults?.allowMode || 'everyone',
+          allowlist: parseListInput(stickerDefaults?.allowlist),
+          denylist: parseListInput(stickerDefaults?.denylist),
+          allowstickytext: !!stickerDefaults?.allowstickytext,
+          allowstickymedia: !!stickerDefaults?.allowstickymedia,
+          maxCount: Number(stickerDefaults?.maxCount) || 20,
+        }
       };
 
       const res = await axios.post(`${API_BASE_URL}/api/posts`, payload);
       const postWithPic = { ...res.data, profilePicture: user.profilePicture };
       onPostCreated?.(postWithPic);
       setTextContent('');
-      setFiles([]);
+      attachments.forEach(revokePreview);
+      setAttachments([]);
+      setRemaining(MAX_LEN);
     } catch (err) {
       console.error(err);
       alert(err?.response?.data?.message || 'Failed to create post');
@@ -170,12 +290,21 @@ const CreatePost = ({ onPostCreated }) => {
   return (
     <CreatePostContainer className="surface">
       <form onSubmit={handleSubmit}>
-        {previews.length > 0 && (
-          <Grid aria-label="Selected images">
-            {previews.map((p, i) => (
-              <Thumb key={p.name}>
-                <img src={p.url} alt={`selected ${p.name}`} />
-                <button type="button" onClick={() => removeAt(i)}>✕</button>
+        {attachments.length > 0 && (
+          <Grid aria-label="Selected media">
+            {attachments.map((item) => (
+              <Thumb key={item.id}>
+                {item.kind === 'video' ? (
+                  <video
+                    src={item.preview}
+                    controls
+                    preload="metadata"
+                    style={{ borderRadius: 10 }}
+                  />
+                ) : (
+                  <img src={item.preview} alt={`selected ${item.file.name}`} />
+                )}
+                <button type="button" onClick={() => removeAttachment(item.id)}>✕</button>
               </Thumb>
             ))}
           </Grid>
@@ -189,7 +318,7 @@ const CreatePost = ({ onPostCreated }) => {
           onChange={(e) => {
             const val = e.target.value;
             setTextContent(val);
-            setRemaining(560 - val.length);
+            setRemaining(MAX_LEN - val.length);
 
 
             const el = textAreaRef.current;
@@ -198,18 +327,28 @@ const CreatePost = ({ onPostCreated }) => {
               el.style.height = `${el.scrollHeight}px`;
             }
           }}
-          maxLength={560}
+          maxLength={MAX_LEN}
         />
         <CharPopup className={remaining <= 30 ? 'show' : ''}>
           {remaining} characters remaining
         </CharPopup>
        </TextAreaWrapper>
         <Actions>
-          <AttachBtn htmlFor="feed-attach">Add photos</AttachBtn>
-          <HiddenInput id="feed-attach" type="file" accept="image/*" multiple onChange={onPick} />
-          <PostButton type="submit" disabled={busy}>
+          <HiddenInput
+            id="feed-attach"
+            type="file"
+            accept="image/*,video/mp4,video/webm"
+            multiple
+            onChange={onPick}
+          />
+          <ControlsRight>
+            <AttachBtn htmlFor="feed-attach" aria-label="Add media">
+              <FaPlus size={14} />
+            </AttachBtn>
+            <PostButton type="submit" disabled={busy}>
             {busy ? 'Posting…' : 'Post'}
-          </PostButton>
+            </PostButton>
+          </ControlsRight>
         </Actions>
       </form>
     </CreatePostContainer>

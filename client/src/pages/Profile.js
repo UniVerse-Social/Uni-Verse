@@ -609,6 +609,42 @@ const Profile = () => {
   }, [userOnPage]);
 
   useEffect(() => {
+    if (!userOnPage?._id) return undefined;
+    let cancelled = false;
+
+    const refreshCounts = async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/users/${userOnPage._id}/follow-stats`);
+        if (cancelled) return;
+        const followers = Number(res.data?.followers) || 0;
+        const following = Number(res.data?.following) || 0;
+
+        setFollowerCount((prev) => {
+          if (prev !== followers) {
+            setFollowerAnim(followers > prev ? 'bump' : 'shake');
+          }
+          return followers;
+        });
+        setFollowingCount((prev) => {
+          if (prev !== following) {
+            setFollowingAnim(following > prev ? 'bump' : 'shake');
+          }
+          return following;
+        });
+      } catch (err) {
+        // best-effort; ignore errors
+      }
+    };
+
+    refreshCounts();
+    const timer = setInterval(refreshCounts, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [userOnPage?._id]);
+
+  useEffect(() => {
     if (!followerAnim) return;
     const id = setTimeout(() => setFollowerAnim(''), 450);
     return () => clearTimeout(id);

@@ -7,7 +7,7 @@ const Comment = require('../models/Comment');
 const { maskText, enforceNotBanned } = require('../middleware/moderation');
 const { checkAndUnlock } = require('../services/badges');
 
-const ALLOW_MODES = new Set(['everyone', 'followers', 'none']);
+const ALLOW_MODES = new Set(['everyone', 'followers', 'none', 'owner']); // 'owner' = myself only
 const uniqueStrings = (arr = []) => {
   const out = [];
   const seen = new Set();
@@ -39,10 +39,12 @@ const toObjectIds = (values = []) => {
   return out;
 };
 
+// Sticker placement permissions
 const sanitizeStickerSettings = (raw = {}) => {
   if (!raw || typeof raw !== 'object') return undefined;
   const settings = {};
-  const mode = typeof raw.allowMode === 'string' ? raw.allowMode : '';
+  let mode = typeof raw.allowMode === 'string' ? raw.allowMode : '';
+  if (mode === 'disabled' || mode === 'no one') mode = 'none'; // backward compat
   settings.allowMode = ALLOW_MODES.has(mode) ? mode : 'everyone';
   if (Array.isArray(raw.allowlist)) {
     settings.allowlist = toObjectIds(uniqueStrings(raw.allowlist));
@@ -50,8 +52,17 @@ const sanitizeStickerSettings = (raw = {}) => {
   if (Array.isArray(raw.denylist)) {
     settings.denylist = toObjectIds(uniqueStrings(raw.denylist));
   }
-  if (typeof raw.sticky === 'boolean') {
-    settings.sticky = raw.sticky;
+  if (typeof raw.allowstickytext === 'boolean') {
+    settings.allowstickytext = !!raw.allowstickytext;
+  }
+  if (typeof raw.allowstickymedia === 'boolean') {
+    settings.allowstickymedia = !!raw.allowstickymedia;
+  }
+  if (raw.maxCount !== undefined) {
+    const count = Number(raw.maxCount);
+    if (Number.isFinite(count)) {
+      settings.maxCount = Math.min(30, Math.max(1, Math.round(count)));
+    }
   }
   return settings;
 };
@@ -131,6 +142,25 @@ router.put('/:id', enforceNotBanned, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json(err);
+  }
+});
+
+// UPDATE STICKER SETTINGS (owner only)
+router.put('/:id/sticker-settings', enforceNotBanned, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+    if (String(post.userId) !== String(req.body.userId)) {
+      return res.status(403).json({ message: 'Only the post owner can update sticker settings' });
+    }
+
+    const next = sanitizeStickerSettings(req.body) || {};
+    post.stickerSettings = { ...(post.stickerSettings || {}), ...next };
+    await post.save();
+    return res.json(post.stickerSettings);
+  } catch (err) {
+    console.error('update sticker-settings error', err);
+    return res.status(500).json({ message: 'Failed to update sticker settings' });
   }
 });
 
@@ -278,9 +308,14 @@ const aggregatePostData = async (posts, viewerId) => {
           stickerKey: sticker.stickerKey,
           assetType: sticker.assetType,
           assetValue: sticker.assetValue,
+          poster: sticker.poster,
+          format: sticker.format,
+          mediaSize: sticker.mediaSize,
           position: sticker.position,
           scale: sticker.scale,
           rotation: sticker.rotation,
+          anchor: sticker.anchor || 'card',
+          anchorRect: sticker.anchorRect || { top: 0, left: 0, width: 1, height: 1 },
           placedBy: sticker.placedBy ? String(sticker.placedBy) : null,
           createdAt: sticker.createdAt,
           updatedAt: sticker.updatedAt,
@@ -298,13 +333,12 @@ const aggregatePostData = async (posts, viewerId) => {
       const settings = post.stickerSettings || {};
       obj.stickerSettings = {
         allowMode: settings.allowMode || 'everyone',
-        allowlist: Array.isArray(settings.allowlist)
-          ? settings.allowlist.map((id) => String(id))
-          : [],
-        denylist: Array.isArray(settings.denylist)
-          ? settings.denylist.map((id) => String(id))
-          : [],
-        sticky: Boolean(settings.sticky),
+        allowlist: Array.isArray(settings.allowlist) ? settings.allowlist.map((id) => String(id)) : [],
+        denylist: Array.isArray(settings.denylist) ? settings.denylist.map((id) => String(id)) : [],
+        // NEW: include the two placement booleans so the client sees them after reloads
+        allowstickytext: !!settings.allowstickytext,
+        allowstickymedia: !!settings.allowstickymedia,
+        maxCount: typeof settings.maxCount === 'number' ? settings.maxCount : undefined,
       };
 
       return obj;
@@ -356,6 +390,7 @@ const parseBool = (v, def = false) => {
  *  - showOwn, showFollowers, includeNonFollowers, includeSameDepartment,
  *    onlyInteracted, sharedInterestsOnly (all boolean-ish)
  *  - sort: 'newest' | 'mostLiked'
+ *  - dateRange: 'today' | 'week' | 'month' | 'year' | 'all'
  *  - limit: optional, default 250 (max 500)
  *
  * Note: `showFollowers` here means "people I follow" (to match existing timeline semantics)
@@ -375,6 +410,37 @@ router.get('/home-feed/:userId', async (req, res) => {
     const sharedInterestsOnly  = parseBool(req.query.sharedInterestsOnly, false);
     const sortKey              = req.query.sort === 'mostLiked' ? 'mostLiked' : 'newest';
     const limit                = Math.min(parseInt(req.query.limit, 10) || 250, 500);
+    const dateRange            = req.query.dateRange || 'all';
+
+    const computeStartDate = () => {
+      const now = new Date();
+      switch (dateRange) {
+        case 'today': {
+          const start = new Date(now);
+          start.setHours(0, 0, 0, 0);
+          return start;
+        }
+        case 'week': {
+          const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          start.setHours(0, 0, 0, 0);
+          return start;
+        }
+        case 'month': {
+          const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          start.setHours(0, 0, 0, 0);
+          return start;
+        }
+        case 'year': {
+          const start = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          start.setHours(0, 0, 0, 0);
+          return start;
+        }
+        default:
+          return null;
+      }
+    };
+
+    const createdAfter = computeStartDate();
 
     // Build author set if we're NOT exploring the whole network
     let match = {};
@@ -398,9 +464,20 @@ router.get('/home-feed/:userId', async (req, res) => {
       match = authorIds.length ? { userId: { $in: authorIds } } : { userId: null }; // empty result if none
     }
 
+    if (createdAfter) {
+      match.createdAt = { ...(match.createdAt || {}), $gte: createdAfter };
+    }
+
     // Pull a sufficiently large recent window
     const rawPosts = await Post.find(match).sort({ createdAt: -1 }).limit(limit);
     let hydrated = await aggregatePostData(rawPosts, me._id);
+
+    if (createdAfter) {
+      hydrated = hydrated.filter((p) => {
+        const created = new Date(p.createdAt);
+        return created >= createdAfter;
+      });
+    }
 
     // If we included "everyone", respect opt-outs (hide own / following if toggles are off)
     if (includeNonFollowers) {

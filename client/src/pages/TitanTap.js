@@ -349,14 +349,18 @@ const TitanTap = () => {
   const [justFollowed, setJustFollowed] = useState(null);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [activeTags, setActiveTags] = useState([]);
-  const [tagData, setTagData] = useState({ loaded: false, hobbies: [], departments: [], clubs: [], leaderboardIds: [] });
+  const [tagData, setTagData] = useState({ loaded: false, hobbies: [], departments: [], clubs: [], leaderboardMap: {} });
   const [tagLoading, setTagLoading] = useState(false);
   const [tagError, setTagError] = useState('');
 
   const userId = useMemo(() => getCurrentUserId(), []);
+  const leaderboardMap = useMemo(
+    () => tagData.leaderboardMap || {},
+    [tagData.leaderboardMap]
+  );
   const leaderboardSet = useMemo(
-    () => new Set((tagData.leaderboardIds || []).map(String)),
-    [tagData.leaderboardIds]
+    () => new Set(Object.keys(leaderboardMap)),
+    [leaderboardMap]
   );
 
   const ensureTagData = useCallback(async () => {
@@ -368,16 +372,22 @@ const TitanTap = () => {
         api(`/api/clubs?viewer=${encodeURIComponent(userId || '')}`),
         Promise.all(
           GAME_KEYS.map((key) =>
-            api(`/api/games/leaderboard/${key}?limit=3`).catch(() => ({ leaders: [] }))
+            api(`/api/games/leaderboard/${key}?limit=50`).catch(() => ({ leaders: [] }))
           )
         ),
       ]);
 
-      const leaderboardIds = new Set();
+      const leaderboardRanks = new Map();
       leaderboardRes.forEach((entry) => {
         const leaders = Array.isArray(entry?.leaders) ? entry.leaders : [];
-        leaders.forEach((leader) => {
-          if (leader?.userId) leaderboardIds.add(String(leader.userId));
+        leaders.forEach((leader, index) => {
+          if (!leader?.userId) return;
+          const key = String(leader.userId);
+          const rank = index + 1;
+          const existing = leaderboardRanks.get(key);
+          if (!existing || rank < existing) {
+            leaderboardRanks.set(key, rank);
+          }
         });
       });
 
@@ -386,7 +396,7 @@ const TitanTap = () => {
         hobbies: Array.isArray(signupRes?.hobbies) ? signupRes.hobbies : [],
         departments: Array.isArray(signupRes?.departments) ? signupRes.departments : [],
         clubs: Array.isArray(clubsRes) ? clubsRes : [],
-        leaderboardIds: Array.from(leaderboardIds),
+        leaderboardMap: Object.fromEntries(leaderboardRanks),
       });
       setTagError('');
     } catch (err) {
@@ -448,6 +458,21 @@ const TitanTap = () => {
     [activeTags]
   );
 
+  const leaderboardTagActive = isTagActive('leaderboard');
+
+  const sortByLeaderboardRank = useCallback(
+    (list) => {
+      if (!leaderboardTagActive) return list;
+      const ranked = [...list].sort((a, b) => {
+        const rankA = leaderboardMap[String(a?._id)] || Infinity;
+        const rankB = leaderboardMap[String(b?._id)] || Infinity;
+        return rankA - rankB;
+      });
+      return ranked;
+    },
+    [leaderboardTagActive, leaderboardMap]
+  );
+
   const toggleTag = useCallback((tag) => {
     setActiveTags((prev) => {
       const exists = prev.some((t) => t.key === tag.key);
@@ -464,7 +489,7 @@ const TitanTap = () => {
       const userDept = user?.department || '';
 
       return activeTags.every(({ key }) => {
-        if (key === 'leaderboardTop3') {
+        if (key === 'leaderboard') {
           return leaderboardSet.has(uid);
         }
         if (key.startsWith('hobby:')) {
@@ -489,19 +514,21 @@ const TitanTap = () => {
   );
 
   const filteredDeck = useMemo(() => {
-    if (!activeTags.length) return deck;
-    return deck.filter((user) => matchesAllTags(user));
-  }, [deck, activeTags, matchesAllTags]);
+    const base = !activeTags.length ? deck : deck.filter((user) => matchesAllTags(user));
+    return sortByLeaderboardRank(base);
+  }, [deck, activeTags, matchesAllTags, sortByLeaderboardRank]);
 
   const filteredSearchResults = useMemo(() => {
-    if (!activeTags.length) return searchResults;
-    return searchResults.filter((user) => matchesAllTags(user));
-  }, [searchResults, activeTags, matchesAllTags]);
+    const base = !activeTags.length
+      ? searchResults
+      : searchResults.filter((user) => matchesAllTags(user));
+    return sortByLeaderboardRank(base);
+  }, [searchResults, activeTags, matchesAllTags, sortByLeaderboardRank]);
 
   const tagsCatalog = useMemo(() => {
     const sections = [];
     const featuredTags = [
-      { key: 'leaderboardTop3', label: 'Leaderboard Top 3' },
+      { key: 'leaderboard', label: 'Leaderboard' },
       { key: 'club:any', label: 'In a Club' },
     ];
     sections.push({ id: 'featured', title: 'Featured', tags: featuredTags });

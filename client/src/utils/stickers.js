@@ -32,27 +32,41 @@ export const deleteStickerPlacement = async (postId, stickerId, payload) => {
   return res.data;
 };
 
+export const clearAllStickers = async (postId, payload) => {
+  // batch clear endpoint (owner only)
+  const res = await api.delete(`/post/${postId}`, { data: payload });
+  return res.data;
+};
+
 export const updateStickerSettings = async (postId, payload) => {
-  // Server expects sticker settings on the posts update route
-  const body = {
-    userId: payload.userId,
-    stickerSettings: {
-      allowMode: payload.allowMode,
-      allowlist: payload.allowlist,
-      denylist: payload.denylist,
-      sticky: !!payload.sticky,
-    },
-  };
-  const res = await axios.put(`${API_BASE_URL}/api/posts/${postId}`, body);
-  const s = res.data?.stickerSettings || {};
-  // Normalize to client shape (string ids, booleans)
+  const { data } = await axios.put(
+    `${API_BASE_URL}/api/posts/${postId}/sticker-settings`,
+    payload
+  );
   return {
-    allowMode: s.allowMode || payload.allowMode || 'everyone',
-    allowlist: Array.isArray(s.allowlist) ? s.allowlist.map(String) : [],
-    denylist: Array.isArray(s.denylist) ? s.denylist.map(String) : [],
-    sticky: Boolean(s.sticky),
+    allowMode: data.allowMode ?? 'everyone',
+    allowlist: Array.isArray(data.allowlist) ? data.allowlist.map(String) : [],
+    denylist: Array.isArray(data.denylist) ? data.denylist.map(String) : [],
+    allowstickytext: !!data.allowstickytext,
+    allowstickymedia: !!data.allowstickymedia,
+    maxCount: Number.isFinite(Number(data.maxCount))
+      ? Math.min(30, Math.max(1, Number(data.maxCount)))
+      : 20,
   };
 };
+
+
+export const saveUserStickerDefaults = async (userId, settings) => {
+  const body = { userId, ...settings };
+  const res = await axios.put(`${API_BASE_URL}/api/users/${userId}/sticker-settings`, body);
+  return res.data || {};
+};
+
+export const fetchUserStickerDefaults = async (userId) => {
+  const res = await axios.get(`${API_BASE_URL}/api/users/${userId}/sticker-settings`);
+  return res.data || {};
+};
+
 
 const stickersApi = {
   fetchStickerCatalog,
