@@ -26,6 +26,8 @@ const DEFAULT_PREFS = Object.freeze({
   disableAnimations: false,
 });
 
+const FEED_POST_LIMIT = 60;
+
 const HomeContainer = styled.div`
   display: flex;
   justify-content: center;
@@ -445,7 +447,9 @@ const Home = () => {
         const res = await axios.get(
           `${API_BASE_URL}/api/posts/home-feed/${user._id}?${params.toString()}`
         );
-        if (!cancelled) setPosts(res.data || []);
+        if (!cancelled) {
+          setPosts(Array.isArray(res.data) ? res.data.slice(0, FEED_POST_LIMIT) : []);
+        }
       } catch (err) {
         console.error('Failed to load home feed', err);
       }
@@ -466,15 +470,18 @@ const Home = () => {
 
   
   const handlePostCreated = (newPost) =>
-    setPosts((prev) => [
-      {
-        ...newPost,
-        commentCount: newPost.commentCount ?? 0,
-        commentPreview: newPost.commentPreview ?? null,
-        viewerCommented: false,
-      },
-      ...prev,
-    ]);
+    setPosts((prev) => {
+      const next = [
+        {
+          ...newPost,
+          commentCount: newPost.commentCount ?? 0,
+          commentPreview: newPost.commentPreview ?? null,
+          viewerCommented: false,
+        },
+        ...prev,
+      ];
+      return next.slice(0, FEED_POST_LIMIT);
+    });
 
   const handlePostDeleted = (postId) => {
     setPosts((prev) => prev.filter((p) => p._id !== postId));

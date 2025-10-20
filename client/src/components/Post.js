@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useMemo, useCallback, useRef } from 'react';
+﻿import React, { useState, useContext, useEffect, useMemo, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { Link } from 'react-router-dom';
 import { FaHeart, FaRegHeart, FaCommentAlt, FaRegCommentAlt, FaEllipsisH } from 'react-icons/fa';
@@ -129,8 +129,8 @@ const AnimatedVideoRegistry = (() => {
 })();
 
 const PostContainer = styled.div`
-  background: var(--container-white);
-  border: 1px solid ${(p) => (p.$dragOver ? 'rgba(59,130,246,0.75)' : 'var(--border-color)')};
+  background: var(-container-white);
+  border: 1px solid ${(p) => (p.$dragOver ? 'rgba(59,130,246,0.75)' : 'var(-border-color)')};
   border-radius: 12px;
   box-shadow: ${(p) =>
     p.$dragOver ? '0 0 0 3px rgba(59,130,246,0.18)' : '0 4px 16px rgba(0,0,0,0.06)'};
@@ -170,7 +170,7 @@ const TitleBadge = styled.span`
   border-radius: 999px;
   background: #f3f4f6;
   color: #111;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(-border-color);
 `;
 
 const Timestamp = styled.div`
@@ -211,7 +211,7 @@ const Action = styled.div` display: flex; align-items: center; gap: 6px; cursor:
 const OptionsButton = styled.div` cursor: pointer; padding: 6px; border-radius: 8px; &:hover { background-color: #f3f4f6; } `;
 const DropdownMenu = styled.div`
   position: absolute; background: #fff; border-radius: 12px;
-  border: 1px solid var(--border-color); box-shadow: 0 12px 28px rgba(0,0,0,0.12); z-index: 360; overflow: hidden;
+  border: 1px solid var(-border-color); box-shadow: 0 12px 28px rgba(0,0,0,0.12); z-index: 360; overflow: hidden;
   top: 44px; right: 16px;
 `;
 
@@ -382,6 +382,7 @@ const StickerVideo = React.memo(function StickerVideo({
           setInView(true);
         } else {
           setInView(false);
+          setShouldLoad(false);
         }
       },
       { rootMargin: '160px' }
@@ -430,11 +431,24 @@ const StickerVideo = React.memo(function StickerVideo({
       AnimatedVideoRegistry.play(video);
     } else {
       AnimatedVideoRegistry.pause(video);
+      if (!inView && shouldLoad) {
+        video.removeAttribute('src');
+        // force resource release
+        try {
+          video.load();
+        } catch {}
+      }
     }
     return () => {
       AnimatedVideoRegistry.pause(video);
+      if (video.hasAttribute('src')) {
+        video.removeAttribute('src');
+        try {
+          video.load();
+        } catch {}
+      }
     };
-  }, [effectiveAutoPlay]);
+  }, [effectiveAutoPlay, inView, shouldLoad]);
 
   useEffect(() => () => {
     const video = videoRef.current;
@@ -511,6 +525,7 @@ const AttachmentVideo = ({ src, poster, autoPlay, prefersReducedMotion, animatio
           setInView(true);
         } else {
           setInView(false);
+          setShouldLoad(false);
         }
       },
       { rootMargin: '160px' }
@@ -542,12 +557,26 @@ const AttachmentVideo = ({ src, poster, autoPlay, prefersReducedMotion, animatio
       video.play().catch(() => {});
     } else {
       video.pause();
+      if (!inView && shouldLoad) {
+        video.removeAttribute('src');
+        try {
+          video.load();
+        } catch {}
+      }
     }
   }, [shouldLoad, inView, prefersReducedMotion, autoPlay, animationsDisabled, hovering, manualPlay]);
 
   useEffect(() => () => {
     const video = videoRef.current;
-    if (video) video.pause();
+    if (video) {
+      video.pause();
+      if (video.hasAttribute('src')) {
+        video.removeAttribute('src');
+        try {
+          video.load();
+        } catch {}
+      }
+    }
   }, []);
 
   useEffect(() => () => {
@@ -595,14 +624,13 @@ const AttachmentVideo = ({ src, poster, autoPlay, prefersReducedMotion, animatio
           width: '100%',
           height: '100%',
           borderRadius: 10,
-          border: '1px solid var(--border-color)',
+          border: '1px solid var(-border-color)',
           background: autoPlay ? 'transparent' : '#000',
         }}
       />
     </div>
   );
 };
-
 const DAY_MS = 1000 * 60 * 60 * 24;
 
 const formatRelativeLabel = (createdAt) => {
@@ -712,7 +740,7 @@ const MediaGrid = styled.div`
    z-index: 2;   /* sit below stickers but above background */
    img {
     width: 100%; height: 100%; object-fit: cover; display: block;
-    border-radius: 10px; border: 1px solid var(--border-color);
+    border-radius: 10px; border: 1px solid var(-border-color);
     background: #f8f9fb;
   }
 `;
@@ -1928,7 +1956,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
                 rounded
               />
             ) : (
-              <span style={{ fontSize: `${baseEmojiSize}px` }}>{sticker.assetValue || '⭐'}</span>
+              <span style={{ fontSize: `${baseEmojiSize}px` }}>{sticker.assetValue || 'â­'}</span>
             )}
             </StickerItem>
           );
@@ -2135,3 +2163,10 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
 };
 
 export default Post;
+
+
+
+
+
+
+

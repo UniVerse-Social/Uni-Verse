@@ -1,6 +1,6 @@
 // src/pages/Game.js
 import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
-import styled, { createGlobalStyle } from 'styled-components';
+import styled from 'styled-components';
 import axios from 'axios';
 
 import { AuthContext } from '../App';
@@ -17,11 +17,6 @@ import JumpArena from './JumpArena';
 import MeteorArena from './MeteorArena';
 import TetrisArena from './TetrisArena';
 import GameSidebar from '../components/GameSidebar';
-
-/* ------------------- Global fonts ------------------- */
-const GamesFonts = createGlobalStyle`
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@700;800;900&display=swap');
-`;
 
 /* ------------------- Layout ------------------- */
 const Page = styled.div`
@@ -714,6 +709,25 @@ export default function Games() {
   const [chessSet, setChessSet] = useState('Classic');
   const [checkersSet, setCheckersSet] = useState('Red/Black');
 
+  useEffect(() => {
+    const href = 'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@700;800;900&display=swap';
+    let link = document.querySelector('link[data-game-fonts]');
+    let appended = false;
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      link.setAttribute('data-game-fonts', 'true');
+      document.head.appendChild(link);
+      appended = true;
+    }
+    return () => {
+      if (appended && link && link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+    };
+  }, []);
+
   // Dropdown
   const [menuOpen, setMenuOpen] = useState(false);
   const topRef = useRef(null);
@@ -804,7 +818,6 @@ export default function Games() {
 
   return (
     <Page>
-      <GamesFonts />
 
       {/* Top bar */}
       <TopBar ref={topRef} role="tablist" aria-label="Games">
