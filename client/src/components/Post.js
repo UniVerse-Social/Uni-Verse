@@ -382,6 +382,7 @@ const StickerVideo = React.memo(function StickerVideo({
           setInView(true);
         } else {
           setInView(false);
+          setShouldLoad(false);
         }
       },
       { rootMargin: '160px' }
@@ -430,11 +431,23 @@ const StickerVideo = React.memo(function StickerVideo({
       AnimatedVideoRegistry.play(video);
     } else {
       AnimatedVideoRegistry.pause(video);
+      if (!inView && shouldLoad) {
+        video.removeAttribute('src');
+        try {
+          video.load();
+        } catch {}
+      }
     }
     return () => {
       AnimatedVideoRegistry.pause(video);
+      if (video.hasAttribute('src')) {
+        video.removeAttribute('src');
+        try {
+          video.load();
+        } catch {}
+      }
     };
-  }, [effectiveAutoPlay]);
+  }, [effectiveAutoPlay, inView, shouldLoad]);
 
   useEffect(() => () => {
     const video = videoRef.current;
@@ -511,6 +524,7 @@ const AttachmentVideo = ({ src, poster, autoPlay, prefersReducedMotion, animatio
           setInView(true);
         } else {
           setInView(false);
+          setShouldLoad(false);
         }
       },
       { rootMargin: '160px' }
@@ -542,12 +556,26 @@ const AttachmentVideo = ({ src, poster, autoPlay, prefersReducedMotion, animatio
       video.play().catch(() => {});
     } else {
       video.pause();
+      if (!inView && shouldLoad) {
+        video.removeAttribute('src');
+        try {
+          video.load();
+        } catch {}
+      }
     }
   }, [shouldLoad, inView, prefersReducedMotion, autoPlay, animationsDisabled, hovering, manualPlay]);
 
   useEffect(() => () => {
     const video = videoRef.current;
-    if (video) video.pause();
+    if (video) {
+      video.pause();
+      if (video.hasAttribute('src')) {
+        video.removeAttribute('src');
+        try {
+          video.load();
+        } catch {}
+      }
+    }
   }, []);
 
   useEffect(() => () => {

@@ -38,5 +38,10 @@ Thumbs.db
 server/uploads/**
 !server/uploads/.gitkeep
 
+# --- server local data (keep required seeds only) ---
+server/data/**
+!server/data/stickers.js
+!server/data/.gitkeep
+
 # --- Windows ADS sidecar files that can appear when copying from Windows ---
 *:[Zz]one.Identifier
