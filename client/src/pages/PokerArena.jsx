@@ -116,8 +116,10 @@ function towardCenter(pos, ratio=0.65){
   return { left: cx + (pos.left - cx) * ratio, top: cy + (pos.top - cy) * ratio };
 }
 
-export default function PokerArena() {
+export default function PokerArena({ onResult }) {
   const { user } = useContext(AuthContext);
+  const buyInRef = useRef(0);
+  const lastStackRef = useRef(0);
   const [stake, setStake] = useState('100');
   const [tables, setTables] = useState([]);
   const [tableId, setTableId] = useState(null);
@@ -146,28 +148,44 @@ export default function PokerArena() {
     const socket = io(API_BASE_URL, { transports: ['websocket'] });
     socketRef.current = socket;
 
-    const list = () => socket.emit('poker:list', { stakes: stake });
+    // Ask the server for lobbies for this stake; support both payload keys.
+    const list = () => socket.emit('poker:list', { stake, stakes: stake });
     list();
     const poll = setInterval(list, 4000);
 
-    socket.on('poker:lobbies', (arr) => setTables(arr || []));
+    socket.on('poker:lobbies', (arr) => setTables(Array.isArray(arr) ? arr : []));
     socket.on('poker:joined', (payload) => {
       setTableId(payload.id);
       setState(payload);
       setChat((payload.chat || []).slice(-20));
       setMyCards([]);
+
+      // record buy-in for result tracking
+      const meIdx = (payload.seats || []).findIndex(
+        s => s && String(s.userId) === String(user?._id)
+      );
+      const start = meIdx >= 0 ? Number(payload.seats[meIdx].stack || 0) : 0;
+      buyInRef.current = start;
+      lastStackRef.current = start;
     });
     socket.on('poker:state', (s) => {
-      setPotPulse(p=> (s?.pot !== state?.pot));
+      setPotPulse(p => (s?.pot !== state?.pot));
       setState(s);
       if (s?.round === 'idle') setMyCards([]);
+
+      const meIdx = (s?.seats || []).findIndex(
+        x => x && String(x.userId) === String(user?._id)
+      );
+      if (meIdx >= 0) {
+        lastStackRef.current = Number(s.seats[meIdx]?.stack || 0);
+      }
     });
     socket.on('poker:hole', (cards) => setMyCards(Array.isArray(cards) ? cards : []));
     socket.on('poker:chat', (m) => setChat(x => [...x, m].slice(-20)));
     socket.on('poker:error', (e) => alert(e.message || 'Poker error'));
 
     return () => { clearInterval(poll); socket.disconnect(); };
-  }, [stake, state?.pot]);
+  }, [stake, user?._id]);     // <- stable: no more reconnects on pot changes
 
   useEffect(() => {
     let tId;
@@ -200,11 +218,21 @@ export default function PokerArena() {
     });
   };
   const leave = () => {
+    // compute net coins before leaving
+    const delta = Number(lastStackRef.current || 0) - Number(buyInRef.current || 0);
+    try {
+      if (typeof onResult === 'function') {
+        onResult('poker', delta, delta > 0); // store history row
+      }
+    } catch {}
+
     socketRef.current.emit('poker:leave', {});
     setTableId(null);
     setState(null);
     setChat([]);
     setMyCards([]);
+    buyInRef.current = 0;
+    lastStackRef.current = 0;
   };
   const act = (type, amount) => socketRef.current.emit('poker:action', { type, amount });
   const readyUp = () => socketRef.current.emit('poker:ready');

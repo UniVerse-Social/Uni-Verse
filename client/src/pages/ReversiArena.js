@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback, useContext, useRef } from 'react';
 import styled from 'styled-components';
 import { io } from 'socket.io-client';
-import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
 
 /* ---------- shared look & feel ---------- */
-const Wrap = styled.div`display:grid; grid-template-columns: 480px 1fr; gap:16px; align-items:start;`;
+const Wrap = styled.div`display:grid; grid-template-columns: 460px 1fr; gap:16px; align-items:start;`;
 const Panel = styled.div`
   border:1px solid var(--border-color); background:var(--container-white);
   border-radius:12px; padding:12px;
@@ -14,13 +13,23 @@ const Panel = styled.div`
 const Button = styled.button`
   padding: 8px 12px; border-radius: 10px; border: 1px solid #111; cursor: pointer;
   background: ${p=>p.$primary ? '#111' : '#fff'}; color: ${p=>p.$primary ? '#fff' : '#111'};
+  font-weight: 700; font-size: 14px;
 `;
 const Alert = styled.div`
-  margin-top: 10px; padding: 8px 10px; border-radius: 10px;
-  border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; font-size: 13px;
+  margin-top:12px; background:#fff7ed; border:1px solid #fed7aa; color:#9a3412;
+  padding:10px 12px; border-radius:10px; font-size:13px;
 `;
 
-/** Reversi/Othello – 8x8, bot = greedy flips */
+/* ---------- clock helpers (match Checkers style) ---------- */
+const START_MS = 4 * 60 * 1000; // 4 minutes
+const fmtClock = (ms) => {
+  ms = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(ms / 60);
+  const s = ms % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+};
+
+/* ---------- Arena ---------- */
 export default function ReversiArena() {
   const { user } = useContext(AuthContext);
   const SIZE = 8;
@@ -32,8 +41,9 @@ export default function ReversiArena() {
     return b;
   };
 
-  const [board, setBoard]   = useState(newBoard);
-  const [player, setPlayer] = useState(1);       // 1 = black (you), -1 = white (bot)
+  // use a lazy initializer to build the starting board
+  const [board, setBoard]   = useState(() => newBoard());
+  const [player, setPlayer] = useState(1);       // 1 = black (you), -1 = white (bot/opponent)
   const [status, setStatus] = useState('Pick a mode to start.');
   const [live, setLive]     = useState(false);
   const [mode, setMode]     = useState(null);    // null | 'bot' | 'online'
@@ -42,9 +52,49 @@ export default function ReversiArena() {
   // online bits
   const [roomId, setRoomId] = useState(null);
   const [myColor, setMyColor] = useState(1); // 1=black, -1=white
+  const [oppName, setOppName] = useState('');
   const socketRef = useRef(null);
-  const awardedRef = useRef(false);
 
+  // responsive board size to match Checkers' page proportions
+  const [boardSize, setBoardSize] = useState(432);
+  useEffect(() => {
+    const calc = () => {
+      const vh = window.innerHeight || 900;
+      // closely matches the Checkers arena sizing
+      const fit = Math.min(444, Math.floor(vh - 320));
+      setBoardSize(Math.max(380, fit));
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
+
+  /* ---------- clocks ---------- */
+  const [bMs, setBms] = useState(START_MS);
+  const [wMs, setWms] = useState(START_MS);
+  const [clockSince, setClockSince] = useState(null);
+  const [nowTs, setNowTs] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 200);
+    return () => clearInterval(id);
+  }, []);
+  const viewLeft = useCallback((side /* 1=Black, -1=White */) => {
+    const base = side === 1 ? bMs : wMs;
+    if (clockSince && player === side && live && (mode === 'bot' || mode === 'online')) {
+      const elapsed = nowTs - clockSince;
+      return Math.max(0, base - elapsed);
+    }
+    return base;
+  }, [bMs, wMs, clockSince, player, live, mode, nowTs]);
+  const chargeElapsedToCurrent = useCallback(() => {
+    if (!clockSince) return;
+    const elapsed = Date.now() - clockSince;
+    if (player === 1) setBms(ms => Math.max(0, ms - elapsed));
+    else setWms(ms => Math.max(0, ms - elapsed));
+    setClockSince(Date.now());
+  }, [clockSince, player]);
+
+  /* ---------- rules / move generation ---------- */
   const dirs = useMemo(() => (
     [-1,0,1].flatMap(dx=>[-1,0,1].map(dy=>[dx,dy])).filter(([dx,dy])=>dx||dy)
   ), []);
@@ -79,37 +129,128 @@ export default function ReversiArena() {
     return nb;
   };
 
-  /* ---------------- BOT ---------------- */
+  const endGame = useCallback((b) => {
+    setLive(false);
+    setClockSince(null);
+    const s = score(b);
+    if (s > 0) setStatus('Black wins!');
+    else if (s < 0) setStatus('White wins!');
+    else setStatus('Draw!');
+  }, []);
+
+  const passIfNeeded = useCallback((b, turn) => {
+    const myMoves = allMoves(b, turn);
+    if (myMoves.length) return;
+    const oppMoves = allMoves(b, -turn);
+    if (oppMoves.length) {
+      setPlayer(-turn);
+      setStatus('No legal move — pass.');
+      setClockSince(Date.now());
+    } else {
+      endGame(b);
+    }
+  }, [allMoves, endGame]);
+
+  /* ---------- derived state ---------- */
+  const moves = useMemo(() => allMoves(board, player), [board, player, allMoves]);
+  const legalMask = useMemo(() => new Set(moves.map(m=>`${m.x},${m.y}`)), [moves]);
+
+  /* ---------- actions ---------- */
   const startBot = () => {
     setBoard(newBoard());
     setPlayer(1);
     setLive(true);
     setMode('bot');
     setStatus('Practice vs Bot: you are Black. Highest flips wins.');
+    setMyColor(1);
+    setOppName('Bot');
+    // reset clocks and start my clock
+    setBms(START_MS); setWms(START_MS); setClockSince(Date.now());
   };
 
-  const passIfNeeded = useCallback((b, turn) => {
-    const myMoves  = allMoves(b, turn);
-    const oppMoves = allMoves(b, -turn);
-    if (!myMoves.length && !oppMoves.length) {
-      const s = score(b);
-      const msg = s===0 ? 'Draw.' : (s>0 ? 'You win.' : 'Bot wins.');
-      setStatus(`Game over · ${msg}  (B ${((s+64)/2)|0} – W ${((64-s)/2)|0})`);
-      setLive(false);
-      setMode(null);
-      return true;
+  // simple online stubs (socket wiring retained for compatibility)
+  const ensureSocket = () => {
+    if (!socketRef.current) {
+      socketRef.current = io(API_BASE_URL, { path: '/socket.io', transports: ['websocket'] });
     }
-    if (!myMoves.length) {
-      if (mode==='bot') setPlayer(-turn);
-      else setStatus('No legal move. Passing…');
-      return true;
-    }
-    return false;
-  }, [allMoves, mode]);
+    return socketRef.current;
+  };
 
+  const startOnline = async () => {
+    try {
+      ensureSocket();
+      setBoard(newBoard());
+      setLive(true);
+      setMode('online');
+      setMyColor(1);
+      setOppName('Opponent');
+      setStatus('Online match: waiting for move…');
+      setBms(START_MS); setWms(START_MS); setClockSince(Date.now());
+      // Attach minimal listeners if server broadcasts state (optional)
+      const s = ensureSocket();
+      s.off('reversi:state').on('reversi:state', (state) => {
+        // charge the side who just moved
+        chargeElapsedToCurrent();
+        setBoard(state.board);
+        setPlayer(state.turn);
+        setClockSince(Date.now());
+      });
+      s.off('reversi:start').on('reversi:start', ({ roomId, black, white, state, color }) => {
+        const mine = (color==='b') ? 1 : -1;
+        setRoomId(roomId);
+        setMyColor(mine);
+        setOppName(mine === 1 ? (white?.username || 'White') : (black?.username || 'Black'));
+        setBoard(state?.board || newBoard());
+        setPlayer(state?.turn ?? 1);
+        setStatus(`Match found: ${black?.username || 'Black'} vs ${white?.username || 'White'}. You are ${mine===1?'Black':'White'}.`);
+        setBms(START_MS); setWms(START_MS); setClockSince(Date.now());
+      });
+    } catch (e) {
+      console.error(e);
+      // could not start online match
+    }
+  };
+
+  const leaveOnline = () => {
+    setLive(false);
+    setMode(null);
+    setClockSince(null);
+    if (socketRef.current) socketRef.current.emit?.('reversi:leave', { roomId });
+  };
+
+  const resign = () => {
+    if (mode === 'online') socketRef.current?.emit('reversi:resign', { roomId });
+    setClockSince(null);
+    setLive(false);
+    setStatus('You resigned.');
+  };
+
+  const clickCell = (x,y) => {
+    if (!live) return;
+    // only allow when it's our turn
+    if (mode==='bot') {
+      if (player!==1) return;
+      const mv = moves.find(m=>m.x===x&&m.y===y); if (!mv) return;
+      chargeElapsedToCurrent();
+      const nb = applyMove(board, mv, 1);
+      setBoard(nb);
+      setPlayer(-1);
+      setClockSince(Date.now()); // start bot clock
+      passIfNeeded(nb, -1);
+      return;
+    }
+    if (mode==='online') {
+      if (player !== myColor) return;
+      const mv = moves.find(m=>m.x===x&&m.y===y); if (!mv) return;
+      chargeElapsedToCurrent();
+      socketRef.current?.emit('reversi:move', { roomId, x, y });
+      setClockSince(Date.now());
+    }
+  };
+
+  /* ---------- bot move ---------- */
   useEffect(() => {
-    if (!live || mode!=='bot') return;
-    if (player === -1) {
+    if (player === -1 && live && mode === 'bot') {
       const mv = allMoves(board, -1);
       if (!mv.length) { passIfNeeded(board, -1); return; }
       const best = mv.reduce((a,m)=>{
@@ -118,128 +259,42 @@ export default function ReversiArena() {
         return a;
       }, null);
       const t = setTimeout(()=>{
+        // bot is about to move — charge its elapsed first
+        chargeElapsedToCurrent();
         const nb = applyMove(board, best, -1);
         setBoard(nb);
         setPlayer(1);
+        setClockSince(Date.now()); // start my clock again
         passIfNeeded(nb, 1);
       }, 380);
       return () => clearTimeout(t);
     }
-  }, [player, live, mode, board, allMoves, passIfNeeded]);
-
-  const moves = live ? allMoves(board, mode==='bot' ? player : myColor) : [];
-  const legalMask = new Set(moves.map(m=>`${m.x},${m.y}`));
-
-  const clickCell = (x,y) => {
-    if (!live) return;
-    if (mode==='bot') {
-      if (player!==1) return;
-      const mv = moves.find(m=>m.x===x&&m.y===y); if (!mv) return;
-      const nb = applyMove(board, mv, 1);
-      setBoard(nb);
-      setPlayer(-1);
-      passIfNeeded(nb, -1);
-      return;
-    }
-    // online
-    if (mode==='online') {
-      if (myColor !== (Number.isInteger(board[0][0]) ? (myColor) : myColor)) {} // noop – keep types happy
-      if (myColor !== (board && myColor)) {} // no-op
-      if (myColor !== 1 && myColor !== -1) return;
-      if (myColor !== (moves.length ? (moves[0] && (myColor)) : myColor)) {} // noop
-
-      const mv = moves.find(m=>m.x===x&&m.y===y); if (!mv) return;
-      socketRef.current?.emit('reversi:move', { roomId, x, y });
-    }
-  };
-
-  /* ---------------- ONLINE (mirrors Checkers) ---------------- */
-  const awardWin = useCallback(async () => {
-    if (!user?._id || awardedRef.current) return;
-    try {
-      await axios.post(`${API_BASE_URL}/api/games/result`, {
-        userId: user._id, gameKey: 'reversi', delta: 6, didWin: true,
-      });
-      awardedRef.current = true;
-    } catch {}
-  }, [user?._id]);
-
-  const connectSocket = useCallback(() => {
-    if (socketRef.current) return socketRef.current;
-    const s = io(API_BASE_URL, { transports: ['websocket'] });
-    socketRef.current = s;
-
-    s.on('connect', () => setStatus('Connected. Queueing…'));
-    s.on('reversi:queued', () => setStatus('Looking for an opponent…'));
-
-    s.on('reversi:start', ({ roomId, color, state, black, white }) => {
-      setBoard(state?.board || newBoard());
-      setPlayer(color==='b' ? 1 : -1);
-      setRoomId(roomId);
-      setMode('online');
-      setLive(true);
-      setMyColor(color==='b' ? 1 : -1);
-      awardedRef.current = false;
-      setStatus(`Match found: ${black?.username || 'Black'} vs ${white?.username || 'White'}. You are ${color==='b'?'Black':'White'}.`);
-    });
-
-    s.on('reversi:state', ({ state }) => {
-      if (!state) return;
-      setBoard(state.board);
-      // compute who to move from state.turn (1/-1)
-      setPlayer(state.turn);
-    });
-
-    s.on('reversi:gameover', ({ result, reason }) => {
-      setStatus(`Game over: ${result}${reason ? ` (${reason})` : ''}`);
-      if (mode === 'online') {
-        const winColor = /black wins/i.test(result) ? 1 : (/white wins/i.test(result) ? -1 : null);
-        if (winColor && myColor === winColor) awardWin();
-      }
-      setLive(false);
-      setMode(null);
-    });
-
-    s.on('reversi:queue-cancelled', () => setStatus('Queue cancelled.'));
-    s.on('disconnect', () => setStatus('Disconnected.'));
-    return s;
-  }, [mode, myColor, awardWin]);
-
-  const startOnline = () => {
-    setMode('online');
-    setStatus('Queueing…');
-    const s = connectSocket();
-    s.emit('reversi:queue', { userId: user?._id, username: user?.username });
-  };
-
-  const leaveOnline = () => {
-    const s = socketRef.current;
-    if (s) {
-      s.emit('reversi:leave', { roomId });
-      s.disconnect();
-      socketRef.current = null;
-    }
-    setMode(null);
-    setRoomId(null);
-    setLive(false);
-    setStatus('Left online mode.');
-  };
-
-  const resign = () => {
-    if (mode === 'online' && socketRef.current && roomId) socketRef.current.emit('reversi:resign', { roomId });
-    else if (mode === 'bot') setStatus('You resigned.');
-  };
+  }, [player, live, mode, board, allMoves, passIfNeeded, chargeElapsedToCurrent]);
 
   useEffect(() => () => {
     if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
   }, []);
 
+  /* ---------- rendering helpers ---------- */
+  const cellSize = boardSize / SIZE;
+
   return (
     <Wrap>
       {/* Left: board */}
       <Panel>
+        {/* Opponent name + clock (top) */}
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13, width:boardSize, boxSizing:'border-box'}}>
+          <div style={{display:'flex', alignItems:'center', gap:8}}>
+            <span>{mode==='bot' ? 'Bot' : (oppName || (myColor===1 ? 'White' : 'Black'))}</span>
+          </div>
+          <div style={{fontVariantNumeric:'tabular-nums'}}>
+            {fmtClock(viewLeft(myColor===1 ? -1 : 1))}
+          </div>
+        </div>
+
+        {/* Board */}
         <div style={{
-          width:456, height:456, borderRadius:12, border:'1px solid #ddd',
+          width:boardSize, height:boardSize, borderRadius:12, border:'1px solid #ddd',
           background:'#0f5132', padding:8, boxShadow:'0 8px 24px rgba(0,0,0,.08)'
         }}>
           <div style={{
@@ -255,36 +310,54 @@ export default function ReversiArena() {
                      onClick={()=>isLegal && clickCell(x,y)}
                      style={{
                        background:'#136f43',
-                       position:'relative', cursor: isLegal ? 'pointer':'default',
-                       border:'1px solid rgba(0,0,0,.2)', borderRadius:6
+                       borderRadius:6,
+                       display:'flex', alignItems:'center', justifyContent:'center',
+                       cursor:isLegal ? 'pointer' : 'default',
+                       position:'relative',
+                       boxShadow:'inset 0 1px 0 rgba(255,255,255,.06), inset 0 -1px 0 rgba(0,0,0,.08)'
                      }}>
-                  {v!==0 && (
-                    <div style={{
-                      position:'absolute', inset:6, borderRadius:'50%',
-                      background: v===1 ? '#111' : '#f8fafc',
-                      boxShadow: v===1? 'inset 0 1px 0 rgba(255,255,255,.15)':'inset 0 1px 0 rgba(0,0,0,.15)'
-                    }}/>
+                  {/* legal move dot */}
+                  {isLegal && v===0 && (
+                    <div style={{width:cellSize*0.22, height:cellSize*0.22, borderRadius:'50%', background:'rgba(255,255,255,.8)'}} />
                   )}
-                  {v===0 && live && legalMask.has(`${x},${y}`) && (
+                  {/* discs */}
+                  {v !== 0 && (
                     <div style={{
-                      position:'absolute', inset:'calc(50% - 6px)',
-                      width:12, height:12, borderRadius:'50%',
-                      background:'rgba(255,255,255,.6)'
-                    }}/>
+                      width:cellSize*0.72, height:cellSize*0.72, borderRadius:'50%',
+                      background: v===1 ? '#111' : '#f9fafb',
+                      boxShadow: v===1
+                        ? 'inset 0 3px 8px rgba(255,255,255,.15), inset 0 -4px 8px rgba(0,0,0,.5)'
+                        : 'inset 0 3px 8px rgba(0,0,0,.15), inset 0 -4px 8px rgba(0,0,0,.25), 0 1px 0 rgba(0,0,0,.05)'
+                    }} />
                   )}
                 </div>
               );
             }))}
           </div>
         </div>
+
+        {/* My name + clock (bottom) */}
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13, width:boardSize, boxSizing:'border-box'}}>
+          <span>{user?.username || 'You'}</span>
+          <div style={{fontVariantNumeric:'tabular-nums'}}>
+            {fmtClock(viewLeft(myColor))}
+          </div>
+        </div>
       </Panel>
 
       {/* Right: controls */}
       <Panel>
-        <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-          <Button onClick={startBot}>Practice vs Bot</Button>
-          {mode !== 'online' ? (
-            <Button $primary onClick={startOnline}>Play Online</Button>
+        <div style={{display:'flex', gap:8}}>
+          {!live ? (
+            <>
+              <Button onClick={startBot}>Practice vs Bot</Button>
+              <Button $primary onClick={startOnline}>Play Online</Button>
+            </>
+          ) : mode==='bot' ? (
+            <>
+              <Button onClick={()=>startBot()}>Restart Bot</Button>
+              <Button onClick={()=>{ setLive(false); setMode(null); setClockSince(null); }}>End</Button>
+            </>
           ) : (
             <Button onClick={leaveOnline}>Leave Online</Button>
           )}

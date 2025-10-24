@@ -18,7 +18,7 @@ export function useMatchmaking(game, me) {
 
   const ensure = () => {
     if (socketRef.current) return socketRef.current;
-    const s = io(API_BASE_URL, { transports: ['websocket'] });
+    const s = io(API_BASE_URL || undefined, { transports: ['websocket'] });
     socketRef.current = s;
     s.on('connect', () => setConnected(true));
     s.on('disconnect', () => setConnected(false));

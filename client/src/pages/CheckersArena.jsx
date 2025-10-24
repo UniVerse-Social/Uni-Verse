@@ -1,20 +1,111 @@
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useContext } from 'react';
 import styled from 'styled-components';
 import { io } from 'socket.io-client';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
+import GameSidebar from '../components/GameSidebar';
 import GameRules from '../components/GameRules';
 
 /* ---------- shared look & feel ---------- */
-const Wrap = styled.div`display:grid; grid-template-columns: 460px 1fr; gap:16px; align-items:start;`;
+const Wrap = styled.div`
+  display:grid; grid-template-columns: 520px 1fr; gap:16px; align-items:start;
+
+  @media (max-width: 860px) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+`;
+
+// show only on phones
+const MobileOnly = styled.div`
+  display: none;
+  @media (max-width: 860px) { display: block; }
+`;
+
+// compact dropdown shell for the sidebar on mobile
+const MobileDropdown = styled.details`
+  background: var(--container-white);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.05);
+
+  summary {
+    list-style: none;
+    cursor: pointer;
+    font-weight: 800;
+  }
+  summary::-webkit-details-marker { display: none; }
+
+  /* Overlay behavior only on phones */
+/* Overlay behavior only on phones */
+@media (max-width: 860px) {
+  &[open] {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    z-index: 1000;                 /* match Chess */
+    background: rgba(0,0,0,.35);   /* dim backdrop */
+  }
+
+  /* keep the summary as a top bar you can also tap to close */
+  &[open] > summary {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: 8px; right: 8px;
+    margin: 0;
+    padding: 12px 14px;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    z-index: 1001;
+  }
+
+  /* Inner sheet that holds the sidebar content */
+  &[open] .content {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 56px); /* below summary bar */
+    left: 0; right: 0; bottom: 0;
+    background: var(--container-white);
+    border-radius: 12px 12px 0 0;
+    padding: 10px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* top-right X close button (same as Chess) */
+  &[open] .x {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    right: calc(env(safe-area-inset-right, 0px) + 10px);
+    z-index: 1002;
+    width: 36px; height: 36px;
+    border: 1px solid var(--border-color);
+    background: #fff;
+    border-radius: 999px;
+    box-shadow: 0 8px 18px rgba(0,0,0,.12);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 900; line-height: 1;
+  }
+
+  /* Bottom-right close (optional) */
+  &[open] .close {
+    position: fixed;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 1002;
+    border: 1px solid var(--border-color);
+    background: #fff;
+    border-radius: 999px;
+    padding: 10px 14px;
+    box-shadow: 0 8px 18px rgba(0,0,0,.12);
+    font-weight: 800;
+    }
+  }
+`;
 const Panel = styled.div`
   border:1px solid var(--border-color); background:var(--container-white);
   border-radius:12px; padding:12px;
@@ -172,7 +263,8 @@ function CheckersBoardInner({ board, onTryMove, orientation='white', onIllegal, 
       if (!d) return d;
       const dx = Math.abs(e.clientX - d.startX);
       const dy = Math.abs(e.clientY - d.startY);
-      const moved = d.moved || (dx > 3 || dy > 3);
+      // Slightly higher threshold avoids accidental taps being treated as drags
+      const moved = d.moved || (dx > 6 || dy > 6);
       return { ...d, x: e.clientX, y: e.clientY, moved };
     });
   }, []);
@@ -199,14 +291,23 @@ function CheckersBoardInner({ board, onTryMove, orientation='white', onIllegal, 
 
   const onPiecePointerDown = (e, r, c) => {
     e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+
     const piece = board[r][c];
     if (!piece) return;
+
     setSel([r, c]);
     const rect = boardRef.current?.getBoundingClientRect();
-    // snapshot piece so `toLowerCase()` never sees null mid-drag
-    setDrag({ from: [r, c], x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, moved: false, rect, piece });
-    window.addEventListener('pointermove', onWindowPointerMove);
-    window.addEventListener('pointerup', onWindowPointerUp);
+    setDrag({
+      from: [r, c],
+      x: e.clientX, y: e.clientY,
+      startX: e.clientX, startY: e.clientY,
+      moved: false, rect, piece
+    });
+
+    window.addEventListener('pointermove', onWindowPointerMove, { passive: false });
+    window.addEventListener('pointerup', onWindowPointerUp, { passive: false });
   };
 
   useEffect(() => {
@@ -238,14 +339,17 @@ function CheckersBoardInner({ board, onTryMove, orientation='white', onIllegal, 
   const draggingKey = drag?.from ? `${drag.from[0]}-${drag.from[1]}` : null;
 
   return (
-    <div
-      ref={boardRef}
-      style={{
-        width:size, height:size, borderRadius:12, overflow:'hidden',
-        boxShadow:'0 8px 24px rgba(0,0,0,.08)', border:'1px solid var(--border-color)',
-        position:'relative'
-      }}
-    >
+      <div
+        ref={boardRef}
+        style={{
+          width: size, height: size, borderRadius: 12, overflow: 'hidden',
+          boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid var(--border-color)',
+          position: 'relative',
+          // KEY lines for mobile touch-drag
+          touchAction: 'none', WebkitTouchCallout: 'none',
+          userSelect: 'none', WebkitUserSelect: 'none',
+        }}
+      >
       <div style={{ display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gridTemplateRows:'repeat(8, 1fr)' }}>
         {cells.map(([dr,dc]) => {
           const [r,c] = mapDisplayToLogical(dr, dc);
@@ -300,7 +404,7 @@ function CheckersBoardInner({ board, onTryMove, orientation='white', onIllegal, 
     </div>
   );
 }
-const CheckersBoard = React.memo(CheckersBoardInner);
+const LocalCheckersBoard = React.memo(CheckersBoardInner);
 
 /* ---------- time helpers ---------- */
 const START_MS = 4 * 60 * 1000; // 4 minutes
@@ -315,12 +419,16 @@ const fmtClock = (ms) => {
 export default function CheckersArena() {
   const { user } = useContext(AuthContext);
 
-  const [boardSize, setBoardSize] = useState(432);
+  const [boardSize, setBoardSize] = useState(360);
   useEffect(() => {
     const calc = () => {
       const vh = window.innerHeight || 900;
-      const fit = Math.min(444, Math.floor(vh - 320));
-      setBoardSize(Math.max(380, fit));
+      const vw = window.innerWidth  || 430;
+
+      // Fit to BOTH height and width. Keep some breathing room for header/nav.
+      const fitH = Math.max(300, Math.min(420, Math.floor(vh - 280)));
+      const fitW = Math.max(300, Math.floor(vw - 48)); // ~24px gutters each side
+      setBoardSize(Math.min(fitH, fitW));
     };
     calc();
     window.addEventListener('resize', calc);
@@ -343,7 +451,15 @@ export default function CheckersArena() {
   const noticeTimer = useRef(null);
   const socketRef = useRef(null);
   const awardedRef = useRef(false);
+  const statsRef = useRef(null);
+  const [statsOpen, setStatsOpen] = useState(false);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isPhone = window.matchMedia('(max-width: 860px)').matches;
+    document.body.style.overflow = (isPhone && statsOpen) ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [statsOpen]);
   // total clocks
   const [wMs, setWms] = useState(START_MS);
   const [bMs, setBms] = useState(START_MS);
@@ -706,6 +822,67 @@ export default function CheckersArena() {
   const myTime  = viewLeft(myCol);
 
   return (
+    <>
+    <MobileOnly>
+      <MobileDropdown
+        ref={statsRef}
+        onToggle={(e) => setStatsOpen(e.currentTarget.open)}
+        onClick={(e) => {
+          // tap on dim backdrop closes (only when clicking the <details> itself)
+          if (e.target === e.currentTarget && e.currentTarget.open) {
+            e.currentTarget.open = false;
+            setStatsOpen(false);
+          }
+        }}
+      >
+        <summary>📊 Checkers stats &amp; leaderboard</summary>
+
+        <button
+          type="button"
+          className="x"
+          onClick={() => {
+            if (statsRef.current) statsRef.current.open = false;
+            setStatsOpen(false);
+          }}
+          aria-label="Close stats"
+        >
+          ×
+        </button>
+
+        <div className="content">
+          <GameSidebar gameKey="checkers" title="Checkers" showOnMobile />
+        </div>
+
+        <button
+          type="button"
+          className="close"
+          onClick={() => {
+            if (statsRef.current) statsRef.current.open = false;
+            setStatsOpen(false);
+          }}
+          aria-label="Close stats"
+        >
+          ✕ Close
+        </button>
+
+        <div className="content">
+          <GameSidebar gameKey="checkers" title="Checkers" showOnMobile />
+        </div>
+
+        {/* Bottom close stays too (optional) */}
+        <button
+          type="button"
+          className="close"
+          onClick={() => {
+            if (statsRef.current) statsRef.current.open = false;
+            setStatsOpen(false);
+          }}
+          aria-label="Close stats"
+        >
+          ✕ Close
+        </button>
+      </MobileDropdown>
+    </MobileOnly>
     <Wrap>
       <Panel>
         {/* Opponent name + clock (top) */}
@@ -717,14 +894,13 @@ export default function CheckersArena() {
           <div style={{fontVariantNumeric:'tabular-nums'}}>{fmtClock(oppTime)}</div>
         </div>
 
-        <CheckersBoard
+        <LocalCheckersBoard
           board={board}
           onTryMove={tryMove}
           orientation={orientation}
           onIllegal={onIllegalCb}
           boardSize={boardSize}
         />
-
         {/* My name + clock (bottom) */}
         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13, width: boardSize, boxSizing: 'border-box',}}>
           <span>{user?.username || 'You'}</span>
@@ -802,5 +978,6 @@ export default function CheckersArena() {
         ]}
       />
     </Wrap>
+    </>
   );
 }

@@ -100,10 +100,11 @@ const HiddenFileInput = styled.input` display: none; `;
 
 const Header = styled.div`
   display: flex;
-  align-items: flex-end;
+  flex-wrap: nowrap;               /* keep everything on one line */
+  align-items: center;             /* avatar/name/gear share a baseline */
   gap: 20px;
-  padding: 0 20px 20px 20px;
-  margin-top: -80px;
+  padding: 0 20px 16px 20px;
+  margin-top: -64px;               /* less overlap so username never clips */
   position: relative;
   border-bottom: 1px solid #ddd;
   margin-bottom: 20px;
@@ -111,22 +112,24 @@ const Header = styled.div`
   max-width: 100%;
   box-sizing: border-box;
 
-  @media (max-width: 768px) { gap: 16px; margin-top: -70px; }
+  @media (max-width: 768px) { gap: 16px; margin-top: -56px; }
   @media (max-width: 480px) {
     gap: 12px;
     padding: 0 12px 12px 12px;
-    margin-top: -56px;
+    margin-top: -44px;
   }
 `;
 
 const AvatarWrap = styled.div`
   position: relative;
-  width: 168px;
-  height: 168px;
-  flex-shrink: 0;
+  width: clamp(56px, 18vw, 168px);
+  height: clamp(56px, 18vw, 168px);
+  flex: 0 0 auto;
 
-  @media (max-width: 800px) { width: 120px; height: 120px; }
-  @media (max-width: 300px) { width: 96px; height: 120px; }
+  @media (max-width: 768px) {
+    width: clamp(56px, 22vw, 120px);
+    height: clamp(56px, 22vw, 120px);
+  }
 `;
 
 const AvatarFrame = styled.div`
@@ -170,42 +173,50 @@ const AvatarUpload = styled.label`
   &:hover { filter: brightness(0.95); }
 `;
 
+/* Info + Settings can wrap; prevent overflows */
 const InfoAndActions = styled.div`
-  flex-grow: 1;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 12px;
+  flex: 1 1 0%;
+  display: grid;                                  /* gear stays at the far right */
+  grid-template-columns: minmax(0, 1fr) auto;     /* info | gear */
+  align-items: center;                             /* level with name/stats */
+  column-gap: 12px;
   padding-bottom: 10px;
-  min-width: 0;
+  min-width: 0;                                   /* let the info column shrink */
 `;
 
 const Info = styled.div`
-  padding-top: 80px;
-
-  @media (max-width: 768px) { padding-top: 60px; }
-  @media (max-width: 100px) { padding-top: 40px; }
+  padding-top: clamp(48px, 9vw, 72px);  /* always clear of the banner overlap */
+  min-width: 0;                         /* prevents pushing the gear to a new row */
 `;
 
 const Username = styled.h3`
-  font-size: 32px;
+  font-size: clamp(16px, 4.8vw, 32px); /* give a bit more room on mobile */
   font-weight: 700;
   margin: 0 0 4px 0;
   color: #fff;
-
-  @media (max-width: 768px) { font-size: 28px; }
-  @media (max-width: 480px) { font-size: 22px; }
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const Stats = styled.div`
   display: flex;
-  gap: 20px;
-  font-size: 16px;
+  gap: clamp(6px, 2vw, 14px);
+  flex-wrap: nowrap;                 /* stay on one line */
+  font-size: clamp(10px, 3vw, 16px); /* shrink a bit more on phones */
   color: #fff;
   margin-bottom: 4px;
+  min-width: 0;
 
-  @media (max-width: 768px) { gap: 16px; }
-  @media (max-width: 480px) { gap: 12px; font-size: 14px; white-space: nowrap; }
+  /* keep each “X posts / Y followers / Z following” together */
+  & > * {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    white-space: nowrap;
+    min-width: 0;
+  }
 `;
 
 const CountNumber = styled.strong`
@@ -310,14 +321,12 @@ const ManageInterestsButton = styled.button`
 `;
 
 const BadgesRow = styled.div`
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
+  display: flex;
+  flex-wrap: nowrap;                           /* keep all 5 on one line */
   align-items: center;
-  width: 100%;
-  max-width: 100%;
+  gap: clamp(6px, 1.6vw, 10px);
+  margin-top: 10px;
+  overflow: hidden;                            /* avoid horizontal jiggle */
 `;
 
 const SlotWrap = styled.div`
@@ -335,8 +344,8 @@ const SlotLabel = styled.span`
 `;
 
 const BadgeSlot = styled.button`
-  width: 48px;
-  height: 48px;
+  width: clamp(28px, 8.5vw, 48px);            /* scale down instead of wrap */
+  height: clamp(28px, 8.5vw, 48px);
   border-radius: 50%;
   border: ${p => p.$filled ? '2px solid transparent' : '2px dashed var(--border-color)'};
   background: ${p => p.$filled ? 'var(--container-white)' : 'transparent'};
@@ -349,9 +358,6 @@ const BadgeSlot = styled.button`
   transition: transform .1s ease;
 
   &:hover { transform: ${p => p.$clickable ? 'translateY(-1px)' : 'none'}; }
-
-  @media (max-width: 768px) { width: 44px; height: 44px; }
-  @media (max-width: 480px) { width: 36px; height: 36px; }
 `;
 
 const PlusDot = styled.span`
@@ -359,24 +365,22 @@ const PlusDot = styled.span`
   right: 0;
   bottom: 0;
   transform: translate(35%, 35%);
-  width: 14px;
-  height: 14px;
+  width: clamp(9px, 2.4vw, 14px);
+  height: clamp(9px, 2.4vw, 14px);
   border-radius: 50%;
   background: #1877f2;
   color: #fff;
   display: ${p => (p.$show ? 'grid' : 'none')};
   place-items: center;
-  font-size: 12px;
+  font-size: clamp(9px, 2.6vw, 12px);
   border: 2px solid var(--container-white);
   font-weight: 200;
   pointer-events: none;
 `;
 
 const BadgeEmoji = styled.span`
-  font-size: 20px;
+  font-size: clamp(12px, 3.6vw, 20px);  /* scales with the slot */
   line-height: 1;
-
-  @media (max-width: 480px) { font-size: 18px; }
 `;
 
 /* ---- Badges Modal ---- */
@@ -485,23 +489,26 @@ const PostsGrid = styled.div`
 const SettingsWrap = styled.div`
   position: relative;
   display: inline-block;
-  margin-left: 10px;
+  margin-left: auto;           /* pinned to the far right of the grid */
+  flex: 0 0 auto;
+  align-self: center;          /* level with name/stats */
 `;
 
 const SettingsButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: clamp(36px, 9vw, 40px);
+  height: clamp(36px, 9vw, 40px);
   border-radius: 8px;
   border: 1px solid var(--border-color);
   background: var(--container-white);
   cursor: pointer;
   color: var(--text-color);
-  &:hover { background: #b9b9b9 }
+  &:hover { background: #b9b9b9; }
 `;
 
+/* The menu already has max-width; keep it hugging the right edge */
 const SettingsMenu = styled.div`
   position: absolute;
   top: 48px;
@@ -512,7 +519,7 @@ const SettingsMenu = styled.div`
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.08);
   min-width: 240px;
-  max-width: 92vw;   /* prevents right overflow */
+  max-width: 92vw;                 /* prevents right overflow */
   overflow: hidden;
   padding: 6px 0;
 `;
@@ -586,9 +593,9 @@ const Profile = () => {
   // Fetch profile and posts
   const fetchUserAndPosts = useCallback(async () => {
     try {
-      const userRes = await axios.get(`http://localhost:5000/api/users/profile/${username}`);
+      const userRes = await axios.get(`/api/users/profile/${username}`);
       const viewerParam = currentUser?._id ? `?viewerId=${currentUser._id}` : '';
-      const postsRes = await axios.get(`http://localhost:5000/api/posts/profile/${username}${viewerParam}`);
+      const postsRes = await axios.get(`/api/posts/profile/${username}${viewerParam}`);
       setUserOnPage(userRes.data);
       setPosts(postsRes.data);
     } catch (err) {
@@ -711,7 +718,7 @@ const Profile = () => {
       reader.onloadend = async () => {
         const base64data = reader.result;
         const res = await axios.put(
-          `http://localhost:5000/api/users/${currentUser._id}`,
+          `/api/users/${currentUser._id}`,
           { userId: currentUser._id, [imageType]: base64data }
         );
         login(res.data);
@@ -739,7 +746,7 @@ const Profile = () => {
     try {
       const safeList = Array.isArray(nextHobbies) ? nextHobbies.slice(0, HOBBY_LIMIT) : [];
       const res = await axios.put(
-        `http://localhost:5000/api/users/${currentUser._id}`,
+        `/api/users/${currentUser._id}`,
         { userId: currentUser._id, hobbies: safeList }
       );
       login(res.data);
@@ -825,7 +832,7 @@ const Profile = () => {
     if (!currentUser) return;
     if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') { alert('Please type DELETE to confirm.'); return; }
     try {
-      await axios.delete(`http://localhost:5000/api/users/${currentUser._id}`, { data: { userId: currentUser._id } });
+      await axios.delete(`/api/users/${currentUser._id}`, { data: { userId: currentUser._id } });
     } catch (err) { console.error('Failed to delete account', err); alert('Failed to delete account.'); return; }
     handleLogout();
   };
@@ -837,7 +844,7 @@ const Profile = () => {
   const fetchBadges = useCallback(async () => {
     if (!userOnPage?._id) return;
     try {
-      const res = await axios.get(`http://localhost:5000/api/users/${userOnPage._id}/badges`);
+      const res = await axios.get(`/api/users/${userOnPage._id}/badges`);
       const { catalog = [], unlocked = [], equipped = [] } = res.data || {};
       setBadges({
         catalog,
@@ -859,7 +866,7 @@ const Profile = () => {
   const equipToSlot = async (slotIndex, badgeName) => {
     if (!isOwnProfile) return;
     try {
-      const res = await axios.post(`http://localhost:5000/api/users/${currentUser._id}/badges/equip`, {
+      const res = await axios.post(`/api/users/${currentUser._id}/badges/equip`, {
         userId: currentUser._id,
         slot: slotIndex,
         badgeName: badgeName ?? null,

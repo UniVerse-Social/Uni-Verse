@@ -133,12 +133,12 @@ export default function FollowersModal({ userId, type='followers', me, myFollowi
       try {
         let list;
         try {
-          const rel = await axios.get(`http://localhost:5000/api/users/${userId}/relations`);
+          const rel = await axios.get(`/api/users/${userId}/relations`);
           list = type === 'followers' ? rel.data.followers : rel.data.following;
         } catch {
           const url = type === 'followers'
-            ? `http://localhost:5000/api/users/${userId}/followers`
-            : `http://localhost:5000/api/users/${userId}/following`;
+            ? `/api/users/${userId}/followers`
+            : `/api/users/${userId}/following`;
           const res = await axios.get(url);
           list = res.data || [];
         }
@@ -148,7 +148,7 @@ export default function FollowersModal({ userId, type='followers', me, myFollowi
         const needFetch = shaped.filter(u => u && !u.username && u._id).map(u => u._id);
         if (needFetch.length) {
           const fetched = await Promise.allSettled(
-            needFetch.map(id => axios.get(`http://localhost:5000/api/users/${id}`))
+            needFetch.map(id => axios.get(`/api/users/${id}`))
           );
           const mapById = new Map();
           fetched.forEach((res) => {
@@ -187,7 +187,7 @@ export default function FollowersModal({ userId, type='followers', me, myFollowi
     (async () => {
       if (!me?._id) return;
       try {
-        const res = await axios.get(`http://localhost:5000/api/users/${me._id}/following`);
+        const res = await axios.get(`/api/users/${me._id}/following`);
         const fresh = (res.data || []).map(p => String(p._id || p?.user?._id || p));
         setFollowingSet(new Set(fresh));
       } catch {}
@@ -196,7 +196,7 @@ export default function FollowersModal({ userId, type='followers', me, myFollowi
 
   const toggleFollow = async (targetId) => {
     try {
-      await axios.put(`http://localhost:5000/api/users/${targetId}/follow`, { userId: me._id });
+      await axios.put(`/api/users/${targetId}/follow`, { userId: me._id });
       setFollowingSet(prev => {
         const next = new Set(prev);
         if (next.has(String(targetId))) next.delete(String(targetId)); else next.add(String(targetId));
@@ -215,7 +215,7 @@ export default function FollowersModal({ userId, type='followers', me, myFollowi
     try {
       let uname = u?.username;
       if (!uname && u?._id) {
-        const res = await axios.get(`http://localhost:5000/api/users/${u._id}`);
+        const res = await axios.get(`/api/users/${u._id}`);
         uname = res.data?.username;
       }
       if (uname) {

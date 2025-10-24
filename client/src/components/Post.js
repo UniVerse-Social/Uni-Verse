@@ -1598,7 +1598,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
   const likeHandler = () => {
     if (!currentUser) return;
     try {
-      axios.put(`http://localhost:5000/api/posts/${post._id}/like`, { userId: currentUser._id });
+      axios.put(`/api/posts/${post._id}/like`, { userId: currentUser._id });
     } catch (err) { console.error("Failed to like post", err); }
     setLikeCount(isLiked ? likeCount - 1 : likeCount + 1);
     setIsLiked(!isLiked);
@@ -1608,7 +1608,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
     setMenuOpen(false);
     if (window.confirm("Delete this post?")) {
       try {
-        await axios.delete(`http://localhost:5000/api/posts/${post._id}`, { data: { userId: currentUser._id } });
+        await axios.delete(`/api/posts/${post._id}`, { data: { userId: currentUser._id } });
         onPostDeleted?.(post._id);
       } catch (err) {
         console.error("Failed to delete post", err);

@@ -71,7 +71,7 @@ const Login = () => {
         const raw = (loginIdentifier || '').trim();
         const normalized = raw.includes('@') ? raw.toLowerCase() : raw;
 
-        const res = await axios.post('http://localhost:5000/api/auth/login', {
+        const res = await axios.post('/api/auth/login', {
         loginIdentifier: normalized,
         password
         });

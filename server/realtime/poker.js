@@ -86,7 +86,7 @@ module.exports = function attachPoker(io) {
   };
   const MAX = 8;
   const CHAT_MAX = 20;
-  const DEFAULT_PUBLIC_TABLES = 10;
+  const DEFAULT_PUBLIC_TABLES = 12;
   const READY_MS = 10_000;
 
   const GLB = (globalThis.__POKER__ ||= { cache: new Map() });

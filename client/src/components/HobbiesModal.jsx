@@ -143,7 +143,7 @@ export default function HobbiesModal({ open, onClose, selected = [], onSave }) {
     setLoadError('');
     (async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/auth/signup-data');
+        const res = await axios.get('/api/auth/signup-data');
         if (cancelled) return;
         const names = Array.isArray(res.data?.hobbies) && res.data.hobbies.length
           ? res.data.hobbies

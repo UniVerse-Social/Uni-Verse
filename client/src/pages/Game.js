@@ -25,6 +25,7 @@ const GamesFonts = createGlobalStyle`
 
 /* ------------------- Layout ------------------- */
 const Page = styled.div`
+  overflow-x: hidden;
   max-width: 1160px;
   margin: 0 auto;
   padding: 12px 12px 10px;
@@ -120,12 +121,13 @@ const CoinStat = styled.div`
 /* Use minmax(0,1fr) so the right column never overflows and gets "cut off" */
 const Row = styled.div`
   display:grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: 360px minmax(0, 1fr); /* ← was 1fr */
   gap:16px;
   align-items:start;
   @media (max-width: 900px){
-    grid-template-columns: 1fr;
-    justify-items: center; /* center children on phones */
+    grid-template-columns: 360px minmax(0, 1fr);
+    min-width: 0;
+    justify-items: center;
   }
 `;
 
@@ -161,18 +163,15 @@ const RankBox = styled.div`
 /* Desktop: fills column.
    Phone (compact): centered and capped so it aligns visually with the top bar. */
 const LeaderCard = styled(Card)`
-  display: flex;
-  flex-direction: column;
-  width: ${p => (p.$compact ? 'auto' : '100%')};
-  height: ${p => (p.$compact ? 'auto' : 'calc(100svh - 300px)')};
-  min-height: ${p => (p.$compact ? 'auto' : '380px')};
-  /* IMPORTANT for reliable nested scrolling on all platforms */
   min-width: 0;
   min-height: 0;
-  overflow: hidden;            /* isolate the internal scroller */
-  contain: content;            /* avoids layout bleed that could cause cut-offs */
-
-  /* Center & cap width on phones so the card is perfectly centered */
+  overflow: hidden;             /* keep its own scroller contained */
+  display: flex;
+  flex-direction: column;
+  width: ${p => (p.$compact ? 'auto' : 'calc(150svh - 340px)')};
+  height: ${p => (p.$compact ? 'auto' : 'calc(100svh - 235px)')};
+  min-height: ${p => (p.$compact ? 'auto' : '380px')};
+  contain: content;
   ${p => p.$compact ? `
     margin-left: auto;
     margin-right: auto;
@@ -184,7 +183,7 @@ const LeaderCard = styled(Card)`
 const PodiumWrap = styled.div`
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   justify-items: center;
   align-items: end;
   gap: 10px;
@@ -239,6 +238,18 @@ const PodiumName = styled.div`
   font-size: 12px;
   margin-top: 6px;
   text-align: center;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  & > a {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 `;
 
 const PodiumScore = styled.div`
@@ -258,20 +269,14 @@ const RowItem = styled.div`
 
 /* Smooth, easy scrolling area for the extended leaderboard list */
 const ScrollArea = styled.div`
-  overflow: auto;
+overflow: auto;
   flex: 1;
   min-height: 140px;
-  display: grid;
-  gap: 6px;
-  padding-right: 6px;
-
-  /* Make scrolling "stick-free" on touch & trackpads */
+  /* touch-friendly scrolling niceties */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: pan-y;
   scroll-behavior: smooth;
-  scrollbar-gutter: stable both-edges;
-`;
+ `;
 
 /* Mobile buttons under the leaderboard */
 const ActionsBar = styled.div`
@@ -621,10 +626,14 @@ function OverallLeaderboard({ myTotal, compact = false }) {
             <ScrollArea>
               {positions.slice(3).map((p) => (
                 <RowItem key={p.place} style={{opacity: p.placeholder ? .45 : 1}}>
-                  <div style={{display:'flex', alignItems:'center', gap:8}}>
+                  <div style={{display:'flex', alignItems:'center', gap:8, minWidth:0}}>
                     <span style={{fontSize:12, color:'#6b7280'}}>#{p.place}</span>
                     <Avatar size={28} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
-                    {p.placeholder ? '—' : <UserLink username={p.username}>{p.username}</UserLink>}
+                    {p.placeholder ? '—' : (
+                    <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                      <UserLink username={p.username}>{p.username}</UserLink>
+                    </span>
+                  )}
                   </div>
                   <div>{p.score} 🏆</div>
                 </RowItem>

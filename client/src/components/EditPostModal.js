@@ -85,7 +85,7 @@ const EditPostModal = ({ post, onClose, onPostUpdated }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const res = await axios.put(`http://localhost:5000/api/posts/${post._id}`, {
+            const res = await axios.put(`/api/posts/${post._id}`, {
                 userId: currentUser._id,
                 textContent: textContent,
             });

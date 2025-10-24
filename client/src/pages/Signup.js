@@ -144,7 +144,7 @@ const Signup = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/auth/signup-data');
+        const res = await axios.get('/api/auth/signup-data');
         setSignupData(res.data);
         if (res.data.departments?.length) {
           setFormData(prev => ({ ...prev, department: res.data.departments[0] }));
@@ -165,7 +165,7 @@ const Signup = () => {
       if (!value) return;
       setIsChecking(true);
       try {
-        const res = await axios.post('http://localhost:5000/api/auth/check-availability', { [field]: value });
+        const res = await axios.post('/api/auth/check-availability', { [field]: value });
         const { isEmailTaken, isUsernameTaken } = res.data || {};
         setValidation(prev => ({
           ...prev,
@@ -246,7 +246,7 @@ const Signup = () => {
       termsAcceptedAt: new Date().toISOString(),
     };
 
-      const signupRes = await axios.post('http://localhost:5000/api/auth/signup', payload);
+      const signupRes = await axios.post('/api/auth/signup', payload);
 
       const serverUser = signupRes?.data;
       if (serverUser && (serverUser._id || serverUser.username)) {
@@ -255,7 +255,7 @@ const Signup = () => {
         return;
       }
 
-      const loginRes = await axios.post('http://localhost:5000/api/auth/login', {
+      const loginRes = await axios.post('/api/auth/login', {
         loginIdentifier: email,
         password,
       });

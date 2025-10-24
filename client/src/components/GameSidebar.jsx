@@ -144,6 +144,9 @@ const ScrollbarStyles = styled.div`
   & *::-webkit-scrollbar-track { background: transparent; }
 `;
 
+const DesktopOnly = styled.div`
+  @media (max-width: 860px) { display: ${p => (p.$showOnMobile ? 'block' : 'none')}; }
+`;
 /* =============== helpers =============== */
 
 // Mirror rank thresholds used elsewhere
@@ -169,17 +172,26 @@ function normalizeLeaders(arr) {
   }));
 }
 
+const MobileGuard = styled.div`
+  /* On phones we’ll render a dropdown copy inside ChessArena instead */
+  @media (max-width: 860px) { display: ${p => (p.$showOnMobile ? 'block' : 'none')}; }
+`;
+
 /* =============== component =============== */
 
-export default function GameSidebar({ gameKey, title }) {
+export default function GameSidebar({ gameKey, title, showOnMobile = false }) {
   const { user } = useContext(AuthContext);
+  const isPoker = gameKey === 'poker';
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ trophies: 0, wins: 0, losses: 0, rankName: '—' });
   const [leaders, setLeaders] = useState([]); // [{ name, trophies, _id }]
   const [history, setHistory] = useState([]); // [{ _id, didWin, delta, createdAt }]
 
-  const myScore = useMemo(() => stats.trophies ?? 0, [stats]);
+  const myScore = useMemo(() => {
+    if (!isPoker) return stats.trophies ?? 0;
+    return (history || []).reduce((s, h) => s + (Number(h.delta) || 0), 0);
+  }, [isPoker, stats, history]);
 
   // single fetcher we can reuse (initial load, event-driven refresh, visibility change)
   const loadAll = useCallback(async () => {
@@ -197,8 +209,10 @@ export default function GameSidebar({ gameKey, title }) {
       const trophiesByGame = rawStats?.trophiesByGame || {};
       const t = Number(trophiesByGame?.[gameKey] ?? 0);
       const hi = (hiRes?.data?.history ?? hiRes?.data ?? []);
-      const wins = hi.filter(h => !!h.didWin).length;
-      const losses = hi.filter(h => !h.didWin).length;
+      const wins   = isPoker ? hi.filter(h => Number(h.delta) > 0).length
+                            : hi.filter(h => !!h.didWin).length;
+      const losses = isPoker ? hi.filter(h => Number(h.delta) < 0).length
+                            : hi.filter(h => !h.didWin).length;
 
       setStats({
         trophies: t,
@@ -217,7 +231,7 @@ export default function GameSidebar({ gameKey, title }) {
     } finally {
       setLoading(false);
     }
-  }, [user?._id, gameKey]);
+  }, [user?._id, gameKey, isPoker]);
 
   // initial load and when user/gameKey changes
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -252,8 +266,10 @@ export default function GameSidebar({ gameKey, title }) {
   const rest = leaders.slice(3);
 
   return (
-    <ScrollbarStyles>
-      <Card>
+    <MobileGuard $showOnMobile={showOnMobile}>
+      <DesktopOnly $showOnMobile={showOnMobile}>
+      <ScrollbarStyles>
+        <Card>
         <Title>{title ?? 'Game'}</Title>
 
         {/* Quick stats */}
@@ -263,7 +279,7 @@ export default function GameSidebar({ gameKey, title }) {
             <Value>{rankName}</Value>
           </Row>
           <Row>
-            <Label>Trophies</Label>
+            <Label>{isPoker ? 'Coins earned' : 'Trophies'}</Label>
             <Value>{myScore}</Value>
           </Row>
           <Row>
@@ -315,21 +331,26 @@ export default function GameSidebar({ gameKey, title }) {
         {!loading && (
           <HistoryList>
             {history.length === 0 && <Meta>No recent games.</Meta>}
-            {history.map((h) => (
-              <Item key={h._id}>
-                <Result $win={h.didWin}>{h.didWin ? 'Win' : 'Loss'}</Result>
-                <div>
-                  <Small>
-                    {new Date(h.createdAt).toLocaleDateString()}&nbsp;
-                    {new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Small>
-                </div>
-                <div>{h.delta > 0 ? `+${h.delta}` : h.delta} 🏆</div>
-              </Item>
-            ))}
+            {history.map((h) => {
+              const win = isPoker ? Number(h.delta) > 0 : !!h.didWin;
+              return (
+                <Item key={h._id}>
+                  <Result $win={win}>{win ? 'Win' : 'Loss'}</Result>
+                  <div>
+                    <Small>
+                      {new Date(h.createdAt).toLocaleDateString()}&nbsp;
+                      {new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Small>
+                  </div>
+                  <div>{h.delta > 0 ? `+${h.delta}` : h.delta} {isPoker ? '🪙' : '🏆'}</div>
+                </Item>
+              );
+            })}
           </HistoryList>
         )}
       </Card>
     </ScrollbarStyles>
+    </DesktopOnly>
+    </MobileGuard>
   );
 }

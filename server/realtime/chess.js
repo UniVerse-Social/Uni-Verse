@@ -1,12 +1,10 @@
+// server/realtime/chess.js
 const { Chess } = require('chess.js');
 
 module.exports = function attachChess(io) {
   const waiting = []; // [{ socketId, user }]
-  const games = new Map(); // roomId -> { chess, whiteId, blackId, whiteUser, blackUser, whiteMs, blackMs, turnStart }
+  const games = new Map(); // roomId -> { chess, whiteId, blackId, whiteUser, blackUser }
   const mkRoom = () => 'chess_' + Math.random().toString(36).slice(2, 10);
-
-  // 10-minute initial time per side
-  const INIT_MS = 10 * 60 * 1000;
 
   // ---- helpers to tolerate old/new chess.js method names
   const call = (obj, modern, legacy) =>
@@ -20,23 +18,49 @@ module.exports = function attachChess(io) {
   const isInsuf  = ch => call(ch, 'isInsufficientMaterial', 'insufficient_material');
   const isDraw   = ch => call(ch, 'isDraw', 'in_draw');
 
-  // Periodic timeout checker (covers players who run out of time without moving)
-  setInterval(() => {
-    for (const [roomId, g] of games.entries()) {
-      if (!g.turnStart) continue;
-      const now = Date.now();
-      const wLeft = g.whiteMs - (g.chess.turn() === 'w' ? (now - g.turnStart) : 0);
-      const bLeft = g.blackMs - (g.chess.turn() === 'b' ? (now - g.turnStart) : 0);
-      if (wLeft <= 0 || bLeft <= 0) {
-        const result = wLeft <= 0 ? 'Black wins' : 'White wins';
-        io.to(roomId).emit('chess:gameover', { result, reason: 'time' });
-        games.delete(roomId);
-      }
-    }
-  }, 500);
-
   io.on('connection', (socket) => {
     let roomJoined = null;
+
+  function pairIfPossible() {
+    while (waiting.length >= 2) {
+      const a = waiting.shift();
+      const b = waiting.shift();
+
+      const aSock = io.sockets.sockets.get(a?.socketId);
+      const bSock = io.sockets.sockets.get(b?.socketId);
+
+      // If one side dropped, re-queue the other and keep trying
+      if (!aSock && !bSock) continue;
+      if (!aSock) { if (b) waiting.unshift(b); continue; }
+      if (!bSock) { waiting.unshift(a); continue; }
+
+      const roomId = mkRoom();
+      const chess = new Chess();
+
+      // randomize colors
+      const white = Math.random() < 0.5 ? a : b;
+      const black = white === a ? b : a;
+
+      games.set(roomId, {
+        chess,
+        whiteId: white.socketId,
+        blackId: black.socketId,
+        whiteUser: white.user,
+        blackUser: black.user,
+      });
+
+      aSock.join(roomId);
+      bSock.join(roomId);
+
+      if (aSock.id === socket.id || bSock.id === socket.id) roomJoined = roomId;
+
+      const payload = { roomId, fen: chess.fen(), white: white.user, black: black.user };
+      io.to(white.socketId).emit('chess:start', { ...payload, color: 'w' });
+      io.to(black.socketId).emit('chess:start', { ...payload, color: 'b' });
+
+      break; // start one game at a time per call
+    }
+  }
 
     // ---------------- Queue / Match ----------------
     socket.on('chess:queue', ({ userId, username }) => {
@@ -44,53 +68,15 @@ module.exports = function attachChess(io) {
 
       if (waiting.find(w => w.socketId === socket.id)) {
         socket.emit('chess:queued');
+        // NEW: even if already queued, try to pair right now
+        pairIfPossible();
         return;
       }
       waiting.push({ socketId: socket.id, user: { userId, username } });
       socket.emit('chess:queued');
 
-      if (waiting.length >= 2) {
-        const a = waiting.shift();
-        const b = waiting.shift();
-        const roomId = mkRoom();
-        const chess = new Chess();
-
-        // randomize colors (like checkers)
-        const white = Math.random() < 0.5 ? a : b;
-        const black = white === a ? b : a;
-
-        const game = {
-          chess,
-          whiteId: white.socketId,
-          blackId: black.socketId,
-          whiteUser: white.user,
-          blackUser: black.user,
-          whiteMs: INIT_MS,
-          blackMs: INIT_MS,
-          turnStart: Date.now(), // white to move
-        };
-        games.set(roomId, game);
-
-        const whiteSock = io.sockets.sockets.get(white.socketId);
-        const blackSock = io.sockets.sockets.get(black.socketId);
-        if (!whiteSock || !blackSock) { games.delete(roomId); return; }
-
-        whiteSock.join(roomId);
-        blackSock.join(roomId);
-
-        // remember for fast cleanup on THIS socket; other socket will handle itself
-        if (whiteSock.id === socket.id) roomJoined = roomId;
-        if (blackSock.id === socket.id) roomJoined = roomId;
-
-        const payload = {
-          roomId,
-          fen: chess.fen(),
-          white: white.user,
-          black: black.user,
-        };
-        whiteSock.emit('chess:start', { ...payload, color: 'w', wMs: game.whiteMs, bMs: game.blackMs });
-        blackSock.emit('chess:start', { ...payload, color: 'b', wMs: game.whiteMs, bMs: game.blackMs });
-      }
+      // unchanged: also try to pair after a fresh push
+      pairIfPossible();
     });
 
     // ---------------- Moves ----------------
@@ -105,23 +91,10 @@ module.exports = function attachChess(io) {
           (game.chess.turn() === 'b' && !isWhite);
         if (!myTurn) return;
 
-        // Deduct time for the mover (side to move before this move)
-        const now = Date.now();
-        if (game.chess.turn() === 'w') game.whiteMs -= (now - game.turnStart);
-        else                           game.blackMs -= (now - game.turnStart);
-
-        if (game.whiteMs <= 0 || game.blackMs <= 0) {
-          const result = game.whiteMs <= 0 ? 'Black wins' : 'White wins';
-          io.to(roomId).emit('chess:gameover', { result, reason: 'time' });
-          games.delete(roomId);
-          return;
-        }
-
         const mv = game.chess.move({ from, to, promotion: promotion || 'q' });
         if (!mv) return;
 
-        game.turnStart = Date.now(); // start opponent's clock
-        io.to(roomId).emit('chess:state', { fen: game.chess.fen(), wMs: game.whiteMs, bMs: game.blackMs });
+        io.to(roomId).emit('chess:state', { fen: game.chess.fen() });
 
         if (isOver(game.chess)) {
           const result = isMate(game.chess)

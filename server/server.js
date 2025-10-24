@@ -67,6 +67,15 @@ app.use('/api/auth', authRoute);
 app.use('/api/users', userRoute);
 app.use('/api/posts', postRoute);
 
+/* -------------------- STATIC REACT BUILD (Path A) -------------------- */
+const buildPath = path.join(__dirname, '..', 'client', 'build');
+app.use(express.static(buildPath));
+
+// Don’t swallow /api or /socket.io — serve index.html for everything else
+app.get(/^(?!\/api\/|\/socket\.io\/).*/, (req, res) => {
+  res.sendFile(path.join(buildPath, 'index.html'));
+});
+
 /* -------------------- DB -------------------- */
 const MONGO_URL =
   process.env.MONGO_URL || 'mongodb://localhost:27017/fullertonconnect';
@@ -159,6 +168,7 @@ try {
 }
 
 /* -------------------- START -------------------- */
-server.listen(PORT, () => {
-  console.log(`API + Realtime listening on http://localhost:${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+server.listen(PORT, HOST, () => {
+  console.log(`API + Realtime listening on http://${HOST}:${PORT}`);
 });

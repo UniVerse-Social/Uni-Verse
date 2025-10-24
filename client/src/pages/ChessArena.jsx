@@ -8,9 +8,16 @@ import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
 import { createStockfish } from '../engine/sfEngine';
 import GameRules from '../components/GameRules';
+import GameSidebar from '../components/GameSidebar';
 
 /* Styles */
-const Wrap = styled.div`display:grid; grid-template-columns: 460px 1fr; gap:16px; align-items:start;`;
+const Wrap = styled.div`
+  display:grid; grid-template-columns: 460px 1fr; gap:16px; align-items:start;
+  @media (max-width: 860px) {
+    grid-template-columns: 1fr;   /* stack panels */
+    gap: 12px;
+  }
+`;
 const Panel = styled.div`border:1px solid var(--border-color); background:var(--container-white); border-radius:12px; padding:12px;`;
 const Button = styled.button`
   padding: 8px 12px; border-radius: 10px; border: 1px solid #111; cursor: pointer;
@@ -30,7 +37,94 @@ const Modal = styled.div`
   border:1px solid #e5e7eb; padding:16px;
 `;
 const ModalGrid = styled.div`display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px;`;
+// show only on phones
+const MobileOnly = styled.div`
+  display: none;
+  @media (max-width: 860px) { display: block; }
+`;
 
+// compact dropdown shell for the sidebar on mobile
+const MobileDropdown = styled.details`
+  background: var(--container-white);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.05);
+
+  summary {
+    list-style: none;
+    cursor: pointer;
+    font-weight: 800;
+  }
+  summary::-webkit-details-marker { display: none; }
+
+  /* Overlay behavior only on phones */
+  @media (max-width: 860px) {
+    &[open] {
+      position: fixed;
+      inset: 0;
+      margin: 0;
+      padding: 0;
+      border-radius: 0;
+      z-index: 1000;                  /* ↑ above site header */
+      background: rgba(0,0,0,.35);    /* dim backdrop */
+    }
+
+    /* keep the summary as a top bar you can also tap to close */
+    &[open] > summary {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 8px);
+      left: 8px; right: 8px;
+      margin: 0;
+      padding: 12px 14px;
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      z-index: 1001;
+    }
+
+    /* Inner sheet that holds the sidebar content */
+    &[open] .content {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 56px); /* below summary bar */
+      left: 0; right: 0; bottom: 0;
+      background: var(--container-white);
+      border-radius: 12px 12px 0 0;
+      padding: 10px;
+      overflow: auto; /* scroll stats/leaderboard, not the board behind */
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Top-right X close button */
+    &[open] .x {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 10px);
+      right: calc(env(safe-area-inset-right, 0px) + 10px);
+      z-index: 1002;                  /* above summary/content */
+      width: 36px; height: 36px;
+      border: 1px solid var(--border-color);
+      background: #fff;
+      border-radius: 999px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.12);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 900; line-height: 1;
+    }
+
+    /* (Optional) bottom-right close, keep if you like having two exits */
+    &[open] .close {
+      position: fixed;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      z-index: 1002;
+      border: 1px solid var(--border-color);
+      background: #fff;
+      border-radius: 999px;
+      padding: 10px 14px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.12);
+      font-weight: 800;
+    }
+  }
+`;
 /* Bot presets — strengths & personalities */
 const BOT_PRESETS = {
   tutorial:  { label: 'Tutorial', status: 'Tutorial bot: explains moves clearly.', useSF: true,  sf: { movetime: 280, depth: 12, multipv: 1 }, explain:true, thinkMs: 150 },
@@ -445,7 +539,14 @@ export default function ChessArena() {
   const chessRef = useRef(new Chess());
   const awardedRef = useRef(false);
   const noticeTimer = useRef(null);
-
+  const statsRef = useRef(null);
+  const [statsOpen, setStatsOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isPhone = window.matchMedia('(max-width: 860px)').matches;
+    document.body.style.overflow = (isPhone && statsOpen) ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [statsOpen]);
   // Track my color for online in a ref to avoid stale closures
   const colorRef = useRef('w'); // 'w' | 'b'
 
@@ -474,19 +575,25 @@ export default function ChessArena() {
   const botBusyRef = useRef(false);
   const setBusy = (v) => { botBusyRef.current = v; };
 
-  // Board size: small clamp so the board never overflows the viewport
-  const [boardSize, setBoardSize] = useState(432);
-  useEffect(() => {
-    const calc = () => {
-      const vh = window.innerHeight || 900;
-      // leave room for the header + right panel + margins, clamp between 380–444
-      const fit = Math.min(444, Math.floor(vh - 320));
-      setBoardSize(Math.max(380, fit));
-    };
-    calc();
-    window.addEventListener('resize', calc);
-    return () => window.removeEventListener('resize', calc);
-  }, []);
+const [boardSize, setBoardSize] = useState(432);
+const [isNarrow, setIsNarrow]   = useState((typeof window !== 'undefined') ? window.innerWidth <= 860 : false);
+
+useEffect(() => {
+  const calc = () => {
+    const vh = window.innerHeight || 900;
+    const vw = window.innerWidth  || 430;
+
+    // same desktop cap as before; also respect available width on phones
+    const fitH = Math.min(444, Math.floor(vh - 320));
+    const fitW = Math.max(300, Math.floor(vw - 48));  // leaves some padding
+    setBoardSize(Math.max(300, Math.min(fitH, fitW)));
+
+    setIsNarrow(vw <= 860);
+  };
+  calc();
+  window.addEventListener('resize', calc);
+  return () => window.removeEventListener('resize', calc);
+}, []);
 
   // PREMOVE
   const [premove, setPremove] = useState(null); // {from, to, promotion}
@@ -845,16 +952,59 @@ export default function ChessArena() {
 
   const connectSocket = useCallback(() => {
     if (socketRef.current) return socketRef.current;
-    const s = io(API_BASE_URL, { transports: ['websocket'] });
+
+    // 1) Prefer your API/tunnel origin when provided.
+    // 2) If nothing provided and we're on localhost (3000/3001),
+    //    force the WS base to http(s)://localhost:5000
+    // 3) Otherwise, fall back to the current page origin.
+    const envBase = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
+      ? String(process.env.REACT_APP_API_BASE)
+      : '';
+    let WS_BASE =
+      (API_BASE_URL && API_BASE_URL.trim()) ||
+      (envBase && envBase.trim()) ||
+      '';
+
+    if (!WS_BASE) {
+      // inside connectSocket()
+      const { protocol, hostname, host } = window.location;
+      const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+      if (isLocal) {
+        const srvPort = '5000'; // your Node/Socket.IO dev server
+        WS_BASE = `${protocol}//${hostname}:${srvPort}`;
+      } else {
+        WS_BASE = `${protocol}//${host}`;
+      }
+    }
+
+    WS_BASE = WS_BASE.replace(/\/+$/, '').replace(/\/api\/?$/, '');
+    try { console.info('[Chess] WS_BASE =', WS_BASE); } catch {}
+
+    const s = io(WS_BASE, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'], // allow polling fallback locally/CF
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      timeout: 10000,
+    });
     socketRef.current = s;
 
-    s.on('connect', () => setStatus('Connected. Queueing…'));
+    s.on('connect', () => {
+      setStatus('Connected. Queueing…');
+      const payload = { userId: user?._id, username: user?.username };
+      s.emit('chess:queue', payload);
+    });
+
+    s.on('connect_error', (e) => setStatus(`Socket connect error: ${e?.message || e}`));
+    s.on('error', (e) => setStatus(`Socket error: ${e?.message || e}`));
     s.on('chess:queued', () => setStatus('Looking for an opponent…'));
+
     s.on('chess:start', ({ roomId, color, fen, white, black, wMs, bMs }) => {
       chessRef.current = new Chess(fen || undefined);
       setFen(chessRef.current.fen());
       setOrientation(color === 'w' ? 'white' : 'black');
-      colorRef.current = color === 'w' ? 'w' : 'b'; // remember my color
+      colorRef.current = color === 'w' ? 'w' : 'b';
       setRoomId(roomId);
       setMode('online');
       awardedRef.current = false;
@@ -863,46 +1013,77 @@ export default function ChessArena() {
       setOppName(color === 'w' ? (black?.username || 'Black') : (white?.username || 'White'));
       setStatus(`Match found: ${white?.username || 'White'} vs ${black?.username || 'Black'}. You are ${color==='w'?'White':'Black'}.`);
       recentFensRef.current = [chessRef.current.fen()];
-      // clocks
       if (typeof wMs === 'number') setWms(wMs);
       if (typeof bMs === 'number') setBms(bMs);
       setClockSince(Date.now());
     });
+
     s.on('chess:state', ({ fen, wMs, bMs }) => {
       try { chessRef.current.load(fen); setFen(fen); clearNotice(); } catch {}
       if (typeof wMs === 'number') setWms(wMs);
       if (typeof bMs === 'number') setBms(bMs);
-      setClockSince(Date.now()); // opponent moved; start my clock locally
+      setClockSince(Date.now());
     });
+
     s.on('chess:gameover', async ({ result, reason }) => {
       const txt = `Game over: ${result} (${reason})`;
       setStatus(txt);
-
-      // Determine outcome and award BEFORE opening modal so counts are fresh
+      setRoomId(null);
       let trophiesOverride = null;
-      const winColor = /white wins/i.test(result) ? 'w' :
-                       (/black wins/i.test(result) ? 'b' : null);
+      const winColor = /white wins/i.test(result) ? 'w' : (/black wins/i.test(result) ? 'b' : null);
       if (winColor) {
         const mine = colorRef.current;
         trophiesOverride = await awardOutcome(mine === winColor ? 'win' : 'loss');
       } else {
-        trophiesOverride = await awardOutcome('draw'); // will no-op but keeps flow consistent
+        trophiesOverride = await awardOutcome('draw');
       }
-
-      // Now open the modal with fresh numbers and rank
       await openResultModal(txt, trophiesOverride);
     });
+
     s.on('chess:queue-cancelled', () => setStatus('Queue cancelled.'));
     s.on('disconnect', () => setStatus('Disconnected.'));
+
     return s;
-  }, [awardOutcome, clearNotice, openResultModal]);
+  }, [awardOutcome, clearNotice, openResultModal, user?._id, user?.username]);
 
   const startOnline = () => {
     setMode('online');
     resetLocal('white');
+    setStatus('Connecting…');
     const s = connectSocket();
-    s.emit('chess:queue', { userId: user?._id, username: user?.username });
+    if (s?.connected) {
+      s.emit('chess:queue', { userId: user?._id, username: user?.username });
+    }
   };
+
+  useEffect(() => {
+    if (mode !== 'online') return;
+    const s = socketRef.current;
+    if (!s) return;
+
+    // If we're already in a match, do nothing (prevents "leave" during live games).
+    if (roomId) return;
+
+    let satisfied = false;
+    const onQueued = () => { satisfied = true; };
+    const onStart  = () => { satisfied = true; }; // treat a started game as success too
+
+    s.on('chess:queued', onQueued);
+    s.on('chess:start',  onStart);
+
+    const t = setTimeout(() => {
+      if (!satisfied && s.connected) {
+        // Don't send 'leave' here; we only need to (re)queue.
+        s.emit('chess:queue', { userId: user?._id, username: user?.username });
+      }
+    }, 1500);
+
+    return () => {
+      clearTimeout(t);
+      s.off('chess:queued', onQueued);
+      s.off('chess:start',  onStart);
+    };
+  }, [mode, roomId, user?._id, user?.username]);
 
   // Leave Online should RESIGN if a live match is in progress.
   const leaveOnline = useCallback(() => {
@@ -1107,6 +1288,48 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
 
   return (
     <>
+      <MobileOnly>
+        <MobileDropdown
+          ref={statsRef}
+          onToggle={(e) => setStatsOpen(e.currentTarget.open)}
+          onClick={(e) => {
+            // tap on dim backdrop closes (only when clicking the <details> itself)
+            if (e.target === e.currentTarget && e.currentTarget.open) {
+              e.currentTarget.open = false;
+              setStatsOpen(false);
+            }
+          }}
+        >
+          <summary>📊 Chess stats &amp; leaderboard</summary>
+          <button
+            type="button"
+            className="x"
+            onClick={() => {
+              if (statsRef.current) statsRef.current.open = false;
+              setStatsOpen(false);
+            }}
+            aria-label="Close stats"
+          >
+            ×
+          </button>
+          <div className="content">
+            <GameSidebar gameKey="chess" title="Chess" showOnMobile />
+          </div>
+
+          {/* Always-accessible close button */}
+          <button
+            type="button"
+            className="close"
+            onClick={() => {
+              if (statsRef.current) statsRef.current.open = false;
+              setStatsOpen(false);
+            }}
+            aria-label="Close stats"
+          >
+            ✕ Close
+          </button>
+        </MobileDropdown>
+      </MobileOnly>
       <Wrap>
         <Panel>
           <CaptRow
@@ -1179,10 +1402,21 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
 
       {/* Floating Rules button */}
       <button
-        style={{position:'fixed', right:24, bottom:24, zIndex:20, border:'1px solid var(--border-color)', background:'#fff',
-                borderRadius:12, padding:'8px 12px', boxShadow:'0 8px 24px rgba(0,0,0,.06)'}}
+        style={{
+          position: 'fixed',
+          right: isNarrow ? 12 : 24,
+          bottom: isNarrow ? 12 : 24,
+          zIndex: 20,
+          border: '1px solid var(--border-color)',
+          background: '#fff',
+          borderRadius: 12,
+          padding: isNarrow ? '6px 10px' : '8px 12px',
+          boxShadow: '0 8px 24px rgba(0,0,0,.06)',
+        }}
         title="Basic Chess Rules"
-      >📘 Rules</button>
+      >
+        📘 Rules
+      </button>
 
       {/* Bot picker */}
       {showPicker && (

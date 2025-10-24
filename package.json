@@ -18,11 +18,17 @@
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
     "chess.js": "^1.4.0",
-    "concurrently": "^8.2.2",
     "react-chessboard": "^5.6.1",
     "react-easy-crop": "^5.5.0",
     "redis": "^5.8.2",
     "stockfish": "^17.1.0",
     "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "http-proxy-middleware": "^3.0.5",
+    "localtunnel": "^2.0.2",
+    "qrcode-terminal": "^0.12.0"
   }
 }
