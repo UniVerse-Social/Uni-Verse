@@ -328,14 +328,20 @@ module.exports = function attachFishing(io) {
     // QUEUE (ranked)
     socket.on('fishing:queue', ({ userId, username } = {}) => {
       teardownActiveIfAny(socket, true);
+
       if (socketQueued.has(socket.id)) {
         socket.emit('fishing:queued');
+        // try pairing immediately even if already queued (parity with chess/checkers)
+        pairIfPossible();
         return;
       }
+
       waiting.push({ socketId: socket.id, user: { userId, username } });
       socketQueued.add(socket.id);
       socketIntent.set(socket.id, 'queued');
       socket.emit('fishing:queued');
+
+      // Try to pair after (re)enqueue as well
       pairIfPossible();
     });
 

@@ -809,17 +809,34 @@ useEffect(() => {
       return null;
     }
   }, [user?._id]);
+  // returns 'w' | 'b' | null based on text like "White wins", "0-1", "resigns", "on time", etc.
+  const winnerFromText = (t = '') => {
+    if (!t) return null;
+    if (/\b1-0\b/i.test(t) || /white\s*wins/i.test(t)) return 'w';
+    if (/\b0-1\b/i.test(t) || /black\s*wins/i.test(t)) return 'b';
+    if (/white.*checkmate|checkmate.*white/i.test(t)) return 'w';
+    if (/black.*checkmate|checkmate.*black/i.test(t)) return 'b';
+    if (/white\s*resign|white.*flag|white.*timeout/i.test(t)) return 'b';
+    if (/black\s*resign|black.*flag|black.*timeout/i.test(t)) return 'w';
+    return null;
+  };
 
   // Accept an optional override of trophies (to ensure post-write freshness)
-  const openResultModal = useCallback(async (resultText, trophiesOverride = null) => {
-    const isDraw = /draw/i.test(resultText);
-    const winner = /white wins/i.test(resultText) ? 'w'
-                  : (/black wins/i.test(resultText) ? 'b' : null);
-    const didWin = !isDraw && winner && (winner === myColor());
-    const trophies = trophiesOverride ?? (await fetchMyChessTrophies());
-    const place = await fetchMyOverallPlace();
-    setResultModal({ didWin, resultText, trophies, rank: perGameRank(trophies), place });
-  }, [fetchMyChessTrophies, myColor, fetchMyOverallPlace]);
+  const openResultModal = useCallback(
+    async (resultText, trophiesOverride = null, didWinOverride = null) => {
+      let didWin = (typeof didWinOverride === 'boolean') ? didWinOverride : null;
+      if (didWin === null) {
+        const isDraw = /draw|½-½|1\/2-1\/2/i.test(resultText);
+        const w = winnerFromText(resultText);
+        const mine = colorRef.current;        // 'w' | 'b' set on chess:start
+        didWin = !isDraw && !!w && (w === mine);
+      }
+      const trophies = trophiesOverride ?? (await fetchMyChessTrophies());
+      const place = await fetchMyOverallPlace();
+      setResultModal({ didWin, resultText, trophies, rank: perGameRank(trophies), place });
+    },
+    [fetchMyChessTrophies, fetchMyOverallPlace]
+  );
 
   /* Bot move */
   const botMove = useCallback(async () => {
@@ -1030,14 +1047,16 @@ useEffect(() => {
       setStatus(txt);
       setRoomId(null);
       let trophiesOverride = null;
-      const winColor = /white wins/i.test(result) ? 'w' : (/black wins/i.test(result) ? 'b' : null);
-      if (winColor) {
-        const mine = colorRef.current;
-        trophiesOverride = await awardOutcome(mine === winColor ? 'win' : 'loss');
-      } else {
-        trophiesOverride = await awardOutcome('draw');
+      const drawish = /draw|stalemate|½-½|1\/2-1\/2/i.test(result) || /draw/i.test(reason || '');
+      let winColor = winnerFromText(result);
+      // Fallback: if checkmate and no text winner, the side *not* to move wins.
+      if (!winColor && chessRef.current?.isCheckmate?.()) {
+        winColor = (chessRef.current.turn() === 'w') ? 'b' : 'w';
       }
-      await openResultModal(txt, trophiesOverride);
+      const mine = colorRef.current;
+      const didWinBool = !drawish && !!winColor && (mine === winColor);
+      trophiesOverride = await awardOutcome(drawish ? 'draw' : (didWinBool ? 'win' : 'loss'));
+      await openResultModal(txt, trophiesOverride, didWinBool);
     });
 
     s.on('chess:queue-cancelled', () => setStatus('Queue cancelled.'));

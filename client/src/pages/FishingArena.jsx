@@ -208,10 +208,42 @@ export default function FishingArena({ onResult }) {
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  // SOCKET: run once (or on user change). No need to depend on API_BASE_URL (static import).
   useEffect(() => {
-    const s = io(API_BASE_URL);
+    // Derive a stable WS base (strip trailing slashes and optional /api)
+    const envBase = (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE)
+      ? String(process.env.REACT_APP_API_BASE)
+      : "";
+    let WS_BASE =
+      (API_BASE_URL && API_BASE_URL.trim()) ||
+      (envBase && envBase.trim()) ||
+      "";
+
+    if (!WS_BASE) {
+      const { protocol, hostname, host } = window.location;
+      const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+      if (isLocal) {
+        const srvPort = "5000";
+        WS_BASE = `${protocol}//${hostname}:${srvPort}`;
+      } else {
+        WS_BASE = `${protocol}//${host}`;
+      }
+    }
+
+    WS_BASE = WS_BASE.replace(/\/+$/, "").replace(/\/api\/?$/, "");
+
+    const s = io(WS_BASE, {
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      timeout: 10000,
+    });
     sockRef.current = s;
+
+    s.on("connect", () => { setMessage("Connected. Pick a mode to start."); });
+    s.on("connect_error", (e) => { setMessage(`Socket connect error: ${e?.message || e}`); });
+    s.on("error", (e) => { setMessage(`Socket error: ${e?.message || e}`); });
 
     s.on("fishing:queued", () => { setMode("queued"); setMessage("Looking for opponent…"); });
     s.on("fishing:queueLeft", () => { setMode("idle"); setMessage("Pick a mode to start."); });
@@ -267,7 +299,7 @@ export default function FishingArena({ onResult }) {
       const win = String(winnerUserId) === String(user._id);
 
       // persist trophies (±6) for ranked games
-      if (ranked && !awardedRef.current) await awardRef.current(win ? 'win' : 'loss');
+      if (ranked && !awardedRef.current) await awardRef.current(win ? "win" : "loss");
 
       // update the Recent Games feed with ±6
       if (ranked && onResultRef.current) {
@@ -285,7 +317,28 @@ export default function FishingArena({ onResult }) {
         s.disconnect();
       } catch {}
     };
-  }, [user?._id]); // <- removed API_BASE_URL as a dependency
+  }, [user?._id]);
+
+  useEffect(() => {
+    if (mode !== "queued") return;
+    const s = sockRef.current;
+    if (!s?.connected) return;
+
+    let satisfied = false;
+    const onStart = () => { satisfied = true; };
+
+    s.on("fishing:start", onStart);
+    const t = setTimeout(() => {
+      if (!satisfied && s.connected) {
+        s.emit("fishing:queue", { userId: user._id, username: user.username });
+      }
+    }, 1500);
+
+    return () => {
+      clearTimeout(t);
+      s.off("fishing:start", onStart);
+    };
+  }, [mode, user._id, user.username]);
 
   const queueOnline = () => {
     if (mode === "queued" || mode === "playing") return;
@@ -312,6 +365,58 @@ export default function FishingArena({ onResult }) {
     if (roomRef.current) sockRef.current?.emit("fishing:leave", { roomId: roomRef.current });
     roomRef.current = null; setMode("idle"); setRoom(null); setMessage("Pick a mode to start.");
   };
+
+  const MobilePad = styled.div`
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: ${DOCK_H + 10}px;            /* snugs into the white band above the dock */
+    width: 112px;                         /* compact, fits the red outline */
+    height: 112px;
+    border-radius: 14px;
+    border: 1px solid rgba(0,0,0,.15);
+    background: rgba(255,255,255,.26);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 10px rgba(0,0,0,.2);
+    touch-action: none;                   /* block page scroll while pressing */
+    -webkit-tap-highlight-color: transparent;
+
+    @media (hover: hover) and (pointer: fine) {
+      display: none;                      /* hide on desktop */
+    }
+  `;
+
+  const DirBtn = styled.button`
+    position: absolute;                   /* let us place the 4 arrows in a diamond */
+    width: 36px; height: 36px;
+    display: grid; place-items: center;
+    border: 1px solid rgba(0,0,0,.28);
+    border-radius: 10px;
+    background: rgba(17,17,17,.22);
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+    cursor: pointer;
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+
+    &:active { transform: scale(.98); }
+  `;
+
+  // Mobile -> same logic as keyboard: right direction = +1 chunk, wrong = -1 chunk.
+  const sendTap = useCallback((dir) => {
+    const key =
+      dir === "up" ? "ArrowUp" :
+      dir === "down" ? "ArrowDown" :
+      dir === "left" ? "ArrowLeft" : "ArrowRight";
+
+    if (!roomRef.current || match !== "live") return;
+    const s = sockRef.current;
+    if (key === need) {
+      s?.emit("fishing:input", { roomId: roomRef.current, type: "tap", key });
+    } else {
+      s?.emit("fishing:input", { roomId: roomRef.current, type: "tap-wrong", key });
+    }
+  }, [match, need]);
 
   // Input: prevent page scroll on arrow keys; only send to active room
   useEffect(() => {
@@ -391,24 +496,77 @@ export default function FishingArena({ onResult }) {
         <Splash $x={fishLDraw.x} $y={fishLDraw.y} />
         <FishWrap $x={fishRDraw.x} $y={fishRDraw.y}><FishCanvas dir={fishRDraw.dir} /></FishWrap>
         <Splash $x={fishRDraw.x} $y={fishRDraw.y} />
-
         {match === "live" && need && (
           <QTEPane $side={meSide}>
             <Key>{need.replace("Arrow", "")}</Key>
           </QTEPane>
         )}
-
         <PileWrap $side="L" $offset={pileOffsetL}>
           {pileLayout(score.L).map((p, i) => (
-            <PileFish key={i} $x={p.x} $y={p.y} $r={p.r}><FishCanvas dir={1} /></PileFish>
-          ))}
-        </PileWrap>
-        <PileWrap $side="R" $offset={pileOffsetR}>
-          {pileLayout(score.R).map((p, i) => (
-            <PileFish key={i} $x={p.x} $y={p.y} $r={-p.r}><FishCanvas dir={-1} /></PileFish>
+            <PileFish key={i} $x={p.x} $y={p.y} $r={p.r}>
+              <FishCanvas dir={1} />
+            </PileFish>
           ))}
         </PileWrap>
 
+        <PileWrap $side="R" $offset={pileOffsetR}>
+          {pileLayout(score.R).map((p, i) => (
+            <PileFish key={i} $x={p.x} $y={p.y} $r={-p.r}>
+              <FishCanvas dir={-1} />
+            </PileFish>
+          ))}
+        </PileWrap>
+        {match === "live" && (
+          <MobilePad
+            onTouchMove={(e)=>e.preventDefault()}
+            onWheel={(e)=>e.preventDefault()}
+            onContextMenu={(e)=>e.preventDefault()}
+          >
+            {/* Up */}
+            <DirBtn
+              aria-label="Up"
+              style={{ left: "50%", top: "8px", transform: "translateX(-50%)" }}
+              onPointerDown={(e)=>{ e.preventDefault(); sendTap("up"); }}
+            >
+              <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
+                <path d="M11 5 L18 15 H4 Z" fill="#fff" />
+              </svg>
+            </DirBtn>
+
+            {/* Left */}
+            <DirBtn
+              aria-label="Left"
+              style={{ left: "8px", top: "50%", transform: "translateY(-50%)" }}
+              onPointerDown={(e)=>{ e.preventDefault(); sendTap("left"); }}
+            >
+              <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
+                <path d="M6 11 L16 4 V18 Z" fill="#fff" />
+              </svg>
+            </DirBtn>
+
+            {/* Right */}
+            <DirBtn
+              aria-label="Right"
+              style={{ right: "8px", top: "50%", transform: "translateY(-50%)" }}
+              onPointerDown={(e)=>{ e.preventDefault(); sendTap("right"); }}
+            >
+              <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
+                <path d="M16 11 L6 4 V18 Z" fill="#fff" />
+              </svg>
+            </DirBtn>
+
+            {/* Down */}
+            <DirBtn
+              aria-label="Down"
+              style={{ left: "50%", bottom: "8px", transform: "translateX(-50%)" }}
+              onPointerDown={(e)=>{ e.preventDefault(); sendTap("down"); }}
+            >
+              <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
+                <path d="M11 17 L18 7 H4 Z" fill="#fff" />
+              </svg>
+            </DirBtn>
+          </MobilePad>
+        )}
         <DockBody />
         {match === "countdown" && <CountOverlay>{countdown}</CountOverlay>}
         {mode !== "playing" && !roomId && (

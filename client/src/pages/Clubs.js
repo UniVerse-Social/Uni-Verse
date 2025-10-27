@@ -35,13 +35,13 @@ const Shell = styled.div`
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: calc(105vh - 105px);
+  /* Desktop: lock to viewport height so inner panels can scroll */
+  height: calc(100vh - 101px);
   overflow-x: hidden;
-  padding-bottom: 30px;
 
   @media (max-width: 900px) {
     /* Keep your mobile behavior */
-    height: calc(100vh - 100px);
+    height: calc(100vh - 101px);
     overflow-x: hidden;
   }
 `;
@@ -78,9 +78,8 @@ const Subbar = styled.div`
 const Page = styled.div`
   display:grid; 
   gap:16px; 
-  grid-template-columns: 280px minmax(0, 1fr) 320px;
-  auto: 1; 
-  overflow:hidden;     /* grid never exceeds viewport */
+  grid-template-columns: 280px 1fr 320px;
+  auto; overflow:hidden;     /* grid never exceeds viewport */
 
   @media (max-width: 1024px) {
     grid-template-columns: 280px 1fr 300px;
@@ -113,6 +112,7 @@ const Head = styled.div`
 const Body = styled.div`
   padding: 12px;
   min-height: 0;
+  /* Scroll only where we ask for it; keeps rounded corners on the Col */
   overflow: ${(p) => (p.$scroll ? 'auto' : 'visible')};
   flex: ${(p) => (p.$scroll ? 1 : 'initial')};
 `;

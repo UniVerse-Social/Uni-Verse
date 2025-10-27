@@ -9,10 +9,9 @@ import GameRules from '../components/GameRules';
 
 /* ---------- shared look & feel ---------- */
 const Wrap = styled.div`
-  display:grid; grid-template-columns: 520px 1fr; gap:16px; align-items:start;
-
+  display:grid; grid-template-columns: 460px 1fr; gap:16px; align-items:start;
   @media (max-width: 860px) {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr;   /* stack panels */
     gap: 12px;
   }
 `;
@@ -106,10 +105,7 @@ const MobileDropdown = styled.details`
     }
   }
 `;
-const Panel = styled.div`
-  border:1px solid var(--border-color); background:var(--container-white);
-  border-radius:12px; padding:12px;
-`;
+const Panel = styled.div`border:1px solid var(--border-color); background:var(--container-white); border-radius:12px; padding:12px;`;
 const Button = styled.button`
   padding: 8px 12px; border-radius: 10px; border: 1px solid #111; cursor: pointer;
   background: ${p=>p.$primary ? '#111' : '#fff'}; color: ${p=>p.$primary ? '#fff' : '#111'};
@@ -603,10 +599,48 @@ export default function CheckersArena() {
   // --- online mode ---
   const connectSocket = useCallback(() => {
     if (socketRef.current) return socketRef.current;
-    const s = io(API_BASE_URL, { transports: ['websocket'] });
+
+    // Robust WS base (matches ChessArena logic)
+    const envBase = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
+      ? String(process.env.REACT_APP_API_BASE)
+      : '';
+    let WS_BASE =
+      (API_BASE_URL && API_BASE_URL.trim()) ||
+      (envBase && envBase.trim()) ||
+      '';
+
+    if (!WS_BASE) {
+      const { protocol, hostname, host } = window.location;
+      const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+      if (isLocal) {
+        const srvPort = '5000';
+        WS_BASE = `${protocol}//${hostname}:${srvPort}`;
+      } else {
+        WS_BASE = `${protocol}//${host}`;
+      }
+    }
+
+    WS_BASE = WS_BASE.replace(/\/+$/, '').replace(/\/api\/?$/, '');
+    try { console.info('[Checkers] WS_BASE =', WS_BASE); } catch {}
+
+    const s = io(WS_BASE, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      timeout: 10000,
+    });
     socketRef.current = s;
 
-    s.on('connect', () => setStatus('Connected. Queueing…'));
+    s.on('connect', () => {
+      setStatus('Connected. Queueing…');
+      const payload = { userId: user?._id, username: user?.username };
+      s.emit('checkers:queue', payload);
+    });
+
+    s.on('connect_error', (e) => setStatus(`Socket connect error: ${e?.message || e}`));
+    s.on('error', (e) => setStatus(`Socket error: ${e?.message || e}`));
     s.on('checkers:queued', () => setStatus('Looking for an opponent…'));
 
     s.on('checkers:start', ({ roomId, color, state, white, black }) => {
@@ -616,7 +650,6 @@ export default function CheckersArena() {
       setTurn(state?.turn || 'w');
       setLockFrom(state?.lockFrom || null);
 
-      // clocks reset for a new game
       setWms(START_MS);
       setBms(START_MS);
       setClockSince(Date.now());
@@ -631,10 +664,8 @@ export default function CheckersArena() {
       setOppName(myCol === 'w' ? (black?.username || 'Black') : (white?.username || 'White'));
     });
 
-    // Authoritative updates (no server clocks provided; we keep local view ticking)
     s.on('checkers:state', ({ roomId, state }) => {
       if (roomId !== roomIdRef.current) return;
-      // charge the elapsed to the side who just moved (current side before state.turn flips)
       chargeElapsedToCurrent();
       setBoard(state.board);
       setTurn(state.turn);
@@ -650,10 +681,9 @@ export default function CheckersArena() {
       const txt = `Game over: ${result} (${reason})`;
       setStatus(txt);
 
-      // Determine outcome and award before opening modal (so counts are fresh)
       let trophiesOverride = null;
       const winColor = /white wins/i.test(result) ? 'w' :
-                       (/black wins/i.test(result) ? 'b' : null);
+                      (/black wins/i.test(result) ? 'b' : null);
       if (winColor) {
         const mine = myColorRef.current;
         trophiesOverride = await awardOutcome(mine === winColor ? 'win' : 'loss');
@@ -670,13 +700,44 @@ export default function CheckersArena() {
     s.on('checkers:queue-cancelled', () => setStatus('Queue cancelled.'));
     s.on('disconnect', () => setStatus('Disconnected.'));
     return s;
-  }, [awardOutcome, clearNotice, openResultModal, chargeElapsedToCurrent]);
+  }, [user?._id, user?.username, awardOutcome, clearNotice, openResultModal, chargeElapsedToCurrent]);
+
+  useEffect(() => {
+    if (mode !== 'online') return;
+    const s = socketRef.current;
+    if (!s) return;
+
+    // Already matched? Do nothing.
+    if (roomIdRef.current) return;
+
+    let satisfied = false;
+    const onQueued = () => { satisfied = true; };
+    const onStart  = () => { satisfied = true; };
+
+    s.on('checkers:queued', onQueued);
+    s.on('checkers:start',  onStart);
+
+    const t = setTimeout(() => {
+      if (!satisfied && s.connected) {
+        s.emit('checkers:queue', { userId: user?._id, username: user?.username });
+      }
+    }, 1500);
+
+    return () => {
+      clearTimeout(t);
+      s.off('checkers:queued', onQueued);
+      s.off('checkers:start',  onStart);
+    };
+  }, [mode, user?._id, user?.username]);
 
   const startOnline = () => {
     resetLocal('white');
     setMode('online');
+    setStatus('Connecting…');
     const s = connectSocket();
-    s.emit('checkers:queue', { userId: user?._id, username: user?.username });
+    if (s?.connected) {
+      s.emit('checkers:queue', { userId: user?._id, username: user?.username });
+    }
   };
 
   // Leave Online should act as RESIGN if a live match is in progress.

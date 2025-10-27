@@ -81,20 +81,23 @@ module.exports = function attachCheckers(io) {
   io.on('connection', (socket) => {
     let roomJoined = null;
 
-    // ---------- Matchmaking ----------
-    socket.on('checkers:queue', ({ userId, username }) => {
-      if (waiting.find(w => w.socketId === socket.id)) {
-        socket.emit('checkers:queued');
-        return;
-      }
-      waiting.push({ socketId: socket.id, user: { _id: userId, username } });
-      socket.emit('checkers:queued');
-
-      if (waiting.length >= 2) {
+    // resilient matcher (parity with chess)
+    function pairIfPossible() {
+      while (waiting.length >= 2) {
         const a = waiting.shift();
         const b = waiting.shift();
+
+        const aSock = io.sockets.sockets.get(a?.socketId);
+        const bSock = io.sockets.sockets.get(b?.socketId);
+
+        // If one side dropped, re-queue the other and keep trying
+        if (!aSock && !bSock) continue;
+        if (!aSock) { if (b) waiting.unshift(b); continue; }
+        if (!bSock) { waiting.unshift(a); continue; }
+
         const roomId = mkRoom();
 
+        // randomize colors
         const white = Math.random() < 0.5 ? a : b;
         const black = white === a ? b : a;
 
@@ -102,18 +105,17 @@ module.exports = function attachCheckers(io) {
         const room = {
           id: roomId,
           state,
-          players: { w: { socketId: white.socketId, user: white.user }, b: { socketId: black.socketId, user: black.user } },
+          players: {
+            w: { socketId: white.socketId, user: white.user },
+            b: { socketId: black.socketId, user: black.user }
+          },
         };
         rooms.set(roomId, room);
 
-        const whiteSock = io.sockets.sockets.get(white.socketId);
-        const blackSock = io.sockets.sockets.get(black.socketId);
-        if (!whiteSock || !blackSock) { rooms.delete(roomId); return; }
-        whiteSock.join(roomId);
-        blackSock.join(roomId);
+        aSock.join(roomId);
+        bSock.join(roomId);
 
-        if (whiteSock.id === socket.id) roomJoined = roomId;
-        if (blackSock.id === socket.id) roomJoined = roomId;
+        if (aSock.id === socket.id || bSock.id === socket.id) roomJoined = roomId;
 
         const payload = {
           roomId,
@@ -122,65 +124,92 @@ module.exports = function attachCheckers(io) {
           black: room.players.b.user,
         };
 
-        whiteSock.emit('checkers:start', { ...payload, color: 'w' });
-        blackSock.emit('checkers:start', { ...payload, color: 'b' });
+        io.to(white.socketId).emit('checkers:start', { ...payload, color: 'w' });
+        io.to(black.socketId).emit('checkers:start', { ...payload, color: 'b' });
+
+        break; // start one game at a time per call
       }
-    });
+    }
+
+  socket.on('checkers:queue', ({ userId, username }) => {
+    if (!userId) userId = socket.id;
+
+    if (waiting.find(w => w.socketId === socket.id)) {
+      socket.emit('checkers:queued');
+      // Even if already queued, try to pair immediately (parity with chess)
+      pairIfPossible();
+      return;
+    }
+
+    waiting.push({ socketId: socket.id, user: { _id: userId, username } });
+    socket.emit('checkers:queued');
+
+    // Also try to pair after enqueue
+    pairIfPossible();
+  });
 
     // ---------- Moves ----------
     socket.on('checkers:move', ({ roomId, move }) => {
-      const room = rooms.get(roomId);
-      if (!room) return;
-      const { state, players } = room;
+      try {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const { state, players } = room;
 
-      const moverColor =
-        players.w.socketId === socket.id ? 'w' :
-        players.b.socketId === socket.id ? 'b' : null;
-      if (!moverColor || moverColor !== state.turn) return;
+        const moverColor =
+          players.w.socketId === socket.id ? 'w' :
+          players.b.socketId === socket.id ? 'b' : null;
+        if (!moverColor || moverColor !== state.turn) return;
 
-      const all = allMoves(state.board, state.turn);
-      const anyCapture = all.some(m => !!m.capture);
+        const all = allMoves(state.board, state.turn);
+        const anyCapture = all.some(m => !!m.capture);
 
-      let legals = all;
-      if (state.lockFrom) {
-        legals = legals.filter(m => !!m.capture && m.from[0]===state.lockFrom[0] && m.from[1]===state.lockFrom[1]);
-      } else if (anyCapture) {
-        legals = legals.filter(m => !!m.capture);
-      }
-
-      const ok = legals.find(m =>
-        m.from[0]===move.from[0] && m.from[1]===move.from[1] &&
-        m.to[0]===move.to[0] && m.to[1]===move.to[1] &&
-        (!!m.capture)===!!(move.capture) &&
-        (!m.capture || (m.capture[0]===move.capture[0] && m.capture[1]===move.capture[1]))
-      );
-      if (!ok) return;
-
-      const res = applyMove(state.board, move);
-      state.board = res.board;
-
-      let keepTurn = !!move.capture && !res.justPromoted;
-      if (keepTurn) {
-        const fut = captureMovesFor(state.board, res.to[0], res.to[1]);
-        if (fut.length) {
-          state.turn = moverColor;
-          state.lockFrom = res.to;
-        } else {
-          keepTurn = false;
+        let legals = all;
+        if (state.lockFrom) {
+          legals = legals.filter(m => !!m.capture && m.from[0]===state.lockFrom[0] && m.from[1]===state.lockFrom[1]);
+        } else if (anyCapture) {
+          legals = legals.filter(m => !!m.capture);
         }
-      }
-      if (!keepTurn) {
-        state.turn = (state.turn === 'w') ? 'b' : 'w';
-        state.lockFrom = null;
-      }
 
-      io.to(roomId).emit('checkers:state', { roomId, state: packState(state) });
+        const ok = legals.find(m =>
+          m.from[0]===move.from[0] && m.from[1]===move.from[1] &&
+          m.to[0]===move.to[0] && m.to[1]===move.to[1] &&
+          (!!m.capture)===!!(move.capture) &&
+          (!m.capture || (m.capture[0]===move.capture[0] && m.capture[1]===move.capture[1]))
+        );
+        if (!ok) return;
 
-      const opp = state.turn;
-      if (noMovesOrPieces(state.board, opp)) {
-        const winner = opp === 'w' ? 'Black' : 'White';
-        io.to(roomId).emit('checkers:gameover', { roomId, result: `${winner} wins`, reason: 'no moves' });
-        rooms.delete(roomId);
+        const res = applyMove(state.board, move);
+        state.board = res.board;
+
+        let keepTurn = !!move.capture && !res.justPromoted;
+        if (keepTurn) {
+          const fut = captureMovesFor(state.board, res.to[0], res.to[1]);
+          if (fut.length) {
+            state.turn = moverColor;
+            state.lockFrom = res.to;
+          } else {
+            keepTurn = false;
+          }
+        }
+        if (!keepTurn) {
+          state.turn = (state.turn === 'w') ? 'b' : 'w';
+          state.lockFrom = null;
+        }
+
+        io.to(roomId).emit('checkers:state', { roomId, state: packState(state) });
+
+        const opp = state.turn;
+        if (noMovesOrPieces(state.board, opp)) {
+          const winner = opp === 'w' ? 'Black' : 'White';
+          io.to(roomId).emit('checkers:gameover', { roomId, result: `${winner} wins`, reason: 'no moves' });
+          rooms.delete(roomId);
+        }
+      } catch (err) {
+        console.warn('checkers:move error', err?.message || err);
+        if (roomId && rooms.has(roomId)) {
+          io.to(roomId).emit('checkers:gameover', { roomId, result: 'Draw', reason: 'server error' });
+          rooms.delete(roomId);
+        }
       }
     });
 

@@ -9,40 +9,62 @@ module.exports = function attachJump(io) {
     rooms.delete(room.id);
   }
 
+  function tryPair(requestingSocketId) {
+    while (waiting.length >= 2) {
+      const a = waiting.shift();
+      const b = waiting.shift();
+
+      const aSock = io.sockets.sockets.get(a?.socketId);
+      const bSock = io.sockets.sockets.get(b?.socketId);
+
+      if (!aSock && !bSock) continue;
+      if (!aSock) { if (b) waiting.unshift(b); continue; }
+      if (!bSock) { waiting.unshift(a); continue; }
+
+      const roomId = mkRoom();
+      const topPick = Math.random() < 0.5 ? a : b;
+      const bottomPick = topPick === a ? b : a;
+
+      const seed = Math.floor(Math.random() * 0x7fffffff);
+      const startAt = Date.now() + 1200;
+
+      const room = {
+        id: roomId,
+        seed,
+        startAt,
+        players: {
+          top:    { sid: topPick.socketId,    user: topPick.user },
+          bottom: { sid: bottomPick.socketId, user: bottomPick.user },
+        },
+        lives: { top: 3, bottom: 3 },
+      };
+      rooms.set(roomId, room);
+
+      aSock.join(roomId);
+      bSock.join(roomId);
+
+      const payloadTop = { roomId, seed, startAt, you: 'top',    top: room.players.top.user, bottom: room.players.bottom.user, lives: room.lives };
+      const payloadBot = { roomId, seed, startAt, you: 'bottom', top: room.players.top.user, bottom: room.players.bottom.user, lives: room.lives };
+      io.to(topPick.socketId).emit('jump:start', payloadTop);
+      io.to(bottomPick.socketId).emit('jump:start', payloadBot);
+
+      break; // only one pairing per call
+    }
+  }
+
   io.on('connection', (socket) => {
     socket.on('jump:queue', ({ userId, username }) => {
+      if (!userId) userId = socket.id;
+
+      if (waiting.find(w => w.socketId === socket.id)) {
+        socket.emit('jump:queued');
+        tryPair(socket.id);
+        return;
+      }
+
       waiting.push({ socketId: socket.id, user: { userId, username } });
       socket.emit('jump:queued');
-
-      if (waiting.length >= 2) {
-        const a = waiting.shift(), b = waiting.shift();
-        const roomId = mkRoom();
-        const topPick = Math.random() < 0.5 ? a : b;
-        const bottomPick = topPick === a ? b : a;
-
-        const seed = Math.floor(Math.random() * 0x7fffffff);
-        const startAt = Date.now() + 1200;
-
-        const room = {
-          id: roomId,
-          seed,
-          startAt,
-          players: {
-            top:    { sid: topPick.socketId,    user: topPick.user },
-            bottom: { sid: bottomPick.socketId, user: bottomPick.user },
-          },
-          lives: { top: 3, bottom: 3 },
-        };
-        rooms.set(roomId, room);
-
-        io.in(topPick.socketId).socketsJoin(roomId);
-        io.in(bottomPick.socketId).socketsJoin(roomId);
-
-        const payloadTop = { roomId, seed, startAt, you: 'top',    top: room.players.top.user, bottom: room.players.bottom.user, lives: room.lives };
-        const payloadBot = { roomId, seed, startAt, you: 'bottom', top: room.players.top.user, bottom: room.players.bottom.user, lives: room.lives };
-        io.to(topPick.socketId).emit('jump:start', payloadTop);
-        io.to(bottomPick.socketId).emit('jump:start', payloadBot);
-      }
+      tryPair(socket.id);
     });
 
     // relay inputs for animation sync only

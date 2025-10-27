@@ -55,8 +55,8 @@ const BannerWrap = styled.div`
   position: relative;
   height: 250px;
   background-color: none;
-  border-bottom-left-radius: 8px;
-  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
   overflow: hidden;
   object-fit: cover;
 
@@ -74,6 +74,7 @@ const BannerEditButton = styled.label`
   position: absolute;
   bottom: 16px;
   right: 16px;
+  z-index: 5;
   background-color: rgba(255, 255, 255, 0.9);
   color: #333;
   padding: 8px 12px;
@@ -89,8 +90,9 @@ const BannerEditButton = styled.label`
   &:hover { background-color: #fff; transform: translateY(-2px); }
 
   @media (max-width: 480px) {
-    bottom: 10px;
-    right: 10px;
+    top: 75px;
+    right: 8px;
+    bottom: auto;
     padding: 6px 10px;
     font-size: 12px;
   }

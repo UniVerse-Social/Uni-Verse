@@ -1,14 +1,23 @@
 import React, { useState, useEffect, useMemo, useCallback, useContext, useRef } from 'react';
 import styled from 'styled-components';
 import { io } from 'socket.io-client';
+import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
+import GameSidebar from '../components/GameSidebar';
 
 /* ---------- shared look & feel ---------- */
-const Wrap = styled.div`display:grid; grid-template-columns: 460px 1fr; gap:16px; align-items:start;`;
+const Wrap = styled.div`
+  display:grid; grid-template-columns: 460px 1fr; gap:16px; align-items:start;
+  @media (max-width: 860px) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+`;
 const Panel = styled.div`
   border:1px solid var(--border-color); background:var(--container-white);
-  border-radius:12px; padding:12px;
+  border-radius:12px; padding:12px; max-width:100%; overflow:hidden;
+  display:flex; flex-direction:column; align-items:center;
 `;
 const Button = styled.button`
   padding: 8px 12px; border-radius: 10px; border: 1px solid #111; cursor: pointer;
@@ -18,6 +27,46 @@ const Button = styled.button`
 const Alert = styled.div`
   margin-top:12px; background:#fff7ed; border:1px solid #fed7aa; color:#9a3412;
   padding:10px 12px; border-radius:10px; font-size:13px;
+`;
+const MobileOnly = styled.div`
+  display: none;
+  @media (max-width: 860px) { display: block; }
+`;
+
+const MobileDropdown = styled.details`
+  background: var(--container-white);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.05);
+  summary { list-style: none; cursor: pointer; font-weight: 800; }
+  summary::-webkit-details-marker { display: none; }
+
+  @media (max-width: 860px) {
+    &[open] { position: fixed; inset: 0; margin: 0; padding: 0; border-radius: 0; z-index: 1000; background: rgba(0,0,0,.35); }
+    &[open] > summary {
+      position: fixed; top: calc(env(safe-area-inset-top, 0px) + 8px);
+      left: 8px; right: 8px; padding: 12px 14px; background: #fff; border:1px solid var(--border-color);
+      border-radius:10px; z-index:1001;
+    }
+    &[open] .content {
+      position: absolute; top: calc(env(safe-area-inset-top, 0px) + 56px); left:0; right:0; bottom:0;
+      background: var(--container-white); border-radius:12px 12px 0 0; padding:10px; overflow:auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    &[open] .x {
+      position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px);
+      right: calc(env(safe-area-inset-right, 0px) + 10px);
+      z-index: 1002; width:36px; height:36px; border:1px solid var(--border-color);
+      background:#fff; border-radius:999px; box-shadow:0 8px 18px rgba(0,0,0,.12);
+      display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:900; line-height:1;
+    }
+    &[open] .close {
+      position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      z-index: 1002; border:1px solid var(--border-color); background:#fff; border-radius:999px;
+      padding:10px 14px; box-shadow:0 8px 18px rgba(0,0,0,.12); font-weight:800;
+    }
+  }
 `;
 
 /* ---------- clock helpers (match Checkers style) ---------- */
@@ -52,17 +101,27 @@ export default function ReversiArena() {
   // online bits
   const [roomId, setRoomId] = useState(null);
   const [myColor, setMyColor] = useState(1); // 1=black, -1=white
+  const myColorRef = useRef(1);              // avoid stale closures
   const [oppName, setOppName] = useState('');
   const socketRef = useRef(null);
 
   // responsive board size to match Checkers' page proportions
-  const [boardSize, setBoardSize] = useState(432);
+  const [boardSize, setBoardSize] = useState(360);
   useEffect(() => {
     const calc = () => {
-      const vh = window.innerHeight || 900;
-      // closely matches the Checkers arena sizing
-      const fit = Math.min(444, Math.floor(vh - 320));
-      setBoardSize(Math.max(380, fit));
+      const vw = window.innerWidth  || 375;
+      const vh = window.innerHeight || 667;
+
+      // Reserve some space for header/controls on small screens
+      const HEIGHT_RESERVE = 310; // header + mode buttons + paddings
+      const WIDTH_RESERVE  = 28;  // panel padding + borders
+
+      const maxByWidth  = Math.floor(vw - WIDTH_RESERVE);
+      const maxByHeight = Math.floor(vh - HEIGHT_RESERVE);
+
+      // Clamp so it never gets tiny or too large
+      const side = Math.max(260, Math.min(520, Math.min(maxByWidth, maxByHeight)));
+      setBoardSize(side);
     };
     calc();
     window.addEventListener('resize', calc);
@@ -151,6 +210,66 @@ export default function ReversiArena() {
     }
   }, [allMoves, endGame]);
 
+  const [resultModal, setResultModal] = useState(null); // { didWin, resultText, trophies, rank, place }
+  const awardedRef = useRef(false);
+
+  const perGameRank = (n) => {
+    if (n >= 1500) return 'Champion';
+    if (n >= 900)  return 'Diamond';
+    if (n >= 600)  return 'Platinum';
+    if (n >= 400)  return 'Gold';
+    if (n >= 250)  return 'Silver';
+    if (n >= 100)  return 'Bronze';
+    return 'Wood';
+  };
+
+  const fetchMyReversiTrophies = useCallback(async () => {
+    if (!user?._id) return 0;
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/games/stats/${user._id}`);
+      return (data?.trophiesByGame?.reversi) || 0;
+    } catch {
+      return 0;
+    }
+  }, [user?._id]);
+
+  const fetchMyOverallPlace = useCallback(async () => {
+    if (!user?._id) return null;
+    try {
+      const q = new URLSearchParams({ limit: '100', userId: user._id });
+      const { data } = await axios.get(`${API_BASE_URL}/api/games/leaderboard/overall?${q.toString()}`);
+      return data?.me?.rank ?? null;
+    } catch {
+      return null;
+    }
+  }, [user?._id]);
+
+  const awardOutcome = useCallback(async (kind) => {
+    if (!user?._id || awardedRef.current) return null;
+    try {
+      const delta = kind === 'win' ? 6 : (kind === 'loss' ? -6 : 0);
+      await axios.post(`${API_BASE_URL}/api/games/result`, {
+        userId: user._id, gameKey: 'reversi', delta, didWin: kind === 'win',
+      });
+      awardedRef.current = true;
+      try { window.dispatchEvent(new CustomEvent('games:statsUpdated', { detail: { gameKey: 'reversi' } })); } catch {}
+      const t = await fetchMyReversiTrophies();
+      return t;
+    } catch {
+      return null;
+    }
+  }, [user?._id, fetchMyReversiTrophies]);
+
+  const openResultModal = useCallback(async (resultText, trophiesOverride = null, didWinOverride = null) => {
+    const didWin = (typeof didWinOverride === 'boolean')
+      ? didWinOverride
+      : false; // default to loss unless explicitly told draw/win upstream
+
+    const trophies = trophiesOverride ?? (await fetchMyReversiTrophies());
+    const place = await fetchMyOverallPlace();
+    setResultModal({ didWin, resultText, trophies, rank: perGameRank(trophies), place });
+  }, [fetchMyReversiTrophies, fetchMyOverallPlace]);
+
   /* ---------- derived state ---------- */
   const moves = useMemo(() => allMoves(board, player), [board, player, allMoves]);
   const legalMask = useMemo(() => new Set(moves.map(m=>`${m.x},${m.y}`)), [moves]);
@@ -169,53 +288,160 @@ export default function ReversiArena() {
   };
 
   // simple online stubs (socket wiring retained for compatibility)
-  const ensureSocket = () => {
-    if (!socketRef.current) {
-      socketRef.current = io(API_BASE_URL, { path: '/socket.io', transports: ['websocket'] });
-    }
-    return socketRef.current;
-  };
+  const connectSocket = useCallback(() => {
+    if (socketRef.current) return socketRef.current;
 
-  const startOnline = async () => {
-    try {
-      ensureSocket();
-      setBoard(newBoard());
+    const envBase = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
+      ? String(process.env.REACT_APP_API_BASE)
+      : '';
+    let WS_BASE =
+      (API_BASE_URL && API_BASE_URL.trim()) ||
+      (envBase && envBase.trim()) ||
+      '';
+
+    if (!WS_BASE) {
+      const { protocol, hostname, host } = window.location;
+      const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+      if (isLocal) {
+        const srvPort = '5000';
+        WS_BASE = `${protocol}//${hostname}:${srvPort}`;
+      } else {
+        WS_BASE = `${protocol}//${host}`;
+      }
+    }
+    WS_BASE = WS_BASE.replace(/\/+$/, '').replace(/\/api\/?$/, '');
+
+    const s = io(WS_BASE, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      timeout: 10000,
+    });
+    socketRef.current = s;
+
+    s.on('connect', () => {
+      setStatus('Connected. Queueing…');
+      const payload = { userId: user?._id, username: user?.username };
+      s.emit('reversi:queue', payload);
+    });
+
+    s.on('connect_error', (e) => setStatus(`Socket connect error: ${e?.message || e}`));
+    s.on('error', (e) => setStatus(`Socket error: ${e?.message || e}`));
+    s.on('reversi:queued', () => setStatus('Looking for an opponent…'));
+
+    s.on('reversi:start', ({ roomId, color, state, black, white }) => {
+      setRoomId(roomId);
+      const mine = (color === 'b') ? 1 : -1;
+      setMyColor(mine);
+      myColorRef.current = mine; // NEW
+      setOppName(mine === 1 ? (white?.username || 'White') : (black?.username || 'Black'));
+      setBoard(state?.board || newBoard());
+      setPlayer(state?.turn ?? 1);
       setLive(true);
+      awardedRef.current = false;
+
+      setBms(START_MS);
+      setWms(START_MS);
+      setClockSince(Date.now());
+
       setMode('online');
-      setMyColor(1);
-      setOppName('Opponent');
-      setStatus('Online match: waiting for move…');
-      setBms(START_MS); setWms(START_MS); setClockSince(Date.now());
-      // Attach minimal listeners if server broadcasts state (optional)
-      const s = ensureSocket();
-      s.off('reversi:state').on('reversi:state', (state) => {
-        // charge the side who just moved
-        chargeElapsedToCurrent();
-        setBoard(state.board);
-        setPlayer(state.turn);
-        setClockSince(Date.now());
-      });
-      s.off('reversi:start').on('reversi:start', ({ roomId, black, white, state, color }) => {
-        const mine = (color==='b') ? 1 : -1;
-        setRoomId(roomId);
-        setMyColor(mine);
-        setOppName(mine === 1 ? (white?.username || 'White') : (black?.username || 'Black'));
-        setBoard(state?.board || newBoard());
-        setPlayer(state?.turn ?? 1);
-        setStatus(`Match found: ${black?.username || 'Black'} vs ${white?.username || 'White'}. You are ${mine===1?'Black':'White'}.`);
-        setBms(START_MS); setWms(START_MS); setClockSince(Date.now());
-      });
-    } catch (e) {
-      console.error(e);
-      // could not start online match
+      setStatus('Live match started.');
+    });
+
+    s.on('reversi:state', (payload) => {
+      const state = payload?.state || payload; // tolerate both shapes
+      if (!state) return;
+      // charge elapsed for side who just moved
+      chargeElapsedToCurrent();
+      setBoard(state.board);
+      setPlayer(state.turn);
+      setClockSince(Date.now());
+    });
+
+    s.on('reversi:gameover', async ({ roomId: rid, result, reason, winner }) => {
+      if (rid && roomId && rid !== roomId) return;
+      setClockSince(null);
+      setLive(false);
+      setMode(null);
+      setStatus(`Game over: ${result} (${reason})`);
+
+      // winner is 'b' | 'w' | null (draw)
+      const myLetter = myColorRef.current === 1 ? 'b' : 'w';
+      const isDraw = winner == null;
+      const didWin = !isDraw && (winner === myLetter);
+
+      const trophiesOverride = await awardOutcome(isDraw ? 'draw' : (didWin ? 'win' : 'loss'));
+      await openResultModal(result, trophiesOverride, didWin);
+      setRoomId(null);
+    });
+
+    s.on('reversi:queue-cancelled', () => setStatus('Queue cancelled.'));
+    s.on('disconnect', () => setStatus('Disconnected.'));
+
+    return s;
+  }, [user?._id, user?.username, awardOutcome, openResultModal, chargeElapsedToCurrent, roomId]);
+
+  useEffect(() => {
+  if (mode !== 'online') return;
+  const s = socketRef.current;
+  if (!s) return;
+
+  // Already matched? Do nothing.
+  if (roomId) return;
+
+  let satisfied = false;
+  const onQueued = () => { satisfied = true; };
+  const onStart  = () => { satisfied = true; };
+
+  s.on('reversi:queued', onQueued);
+  s.on('reversi:start',  onStart);
+
+  const t = setTimeout(() => {
+    if (!satisfied && s.connected) {
+      s.emit('reversi:queue', { userId: user?._id, username: user?.username });
+    }
+  }, 1500);
+
+  return () => {
+    clearTimeout(t);
+    s.off('reversi:queued', onQueued);
+    s.off('reversi:start',  onStart);
+  };
+}, [mode, roomId, user?._id, user?.username]);
+
+  const startOnline = () => {
+    setBoard(newBoard());
+    setLive(false);
+    setMode('online');
+    setStatus('Connecting…');
+    setRoomId(null);
+    setBms(START_MS); setWms(START_MS); setClockSince(null);
+    const s = connectSocket();
+    if (s?.connected) {
+      s.emit('reversi:queue', { userId: user?._id, username: user?.username });
     }
   };
 
   const leaveOnline = () => {
+    const s = socketRef.current;
+
+    if (mode === 'online' && s && roomId) {
+      s.emit('reversi:resign', { roomId });
+      setStatus('You resigned.');
+      return;
+    }
+
+    if (s) {
+      s.emit('reversi:leave', { roomId });
+      s.disconnect();
+      socketRef.current = null;
+    }
     setLive(false);
     setMode(null);
+    setRoomId(null);
     setClockSince(null);
-    if (socketRef.current) socketRef.current.emit?.('reversi:leave', { roomId });
   };
 
   const resign = () => {
@@ -280,10 +506,40 @@ export default function ReversiArena() {
 
   return (
     <Wrap>
+      <MobileOnly>
+        <MobileDropdown>
+          <summary>📊 Reversi stats &amp; leaderboard</summary>
+          <button
+            type="button"
+            className="x"
+            onClick={(e) => {
+              const details = e.currentTarget.closest('details');
+              if (details) details.open = false;
+            }}
+            aria-label="Close stats"
+          >
+            ×
+          </button>
+          <div className="content">
+            <GameSidebar gameKey="reversi" title="Reversi" showOnMobile />
+          </div>
+          <button
+            type="button"
+            className="close"
+            onClick={(e) => {
+              const details = e.currentTarget.closest('details');
+              if (details) details.open = false;
+            }}
+            aria-label="Close stats"
+          >
+            ✕ Close
+          </button>
+        </MobileDropdown>
+      </MobileOnly>
       {/* Left: board */}
       <Panel>
         {/* Opponent name + clock (top) */}
-        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13, width:boardSize, boxSizing:'border-box'}}>
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13, width:'100%', maxWidth:boardSize, boxSizing:'border-box', margin:'0 auto'}}>
           <div style={{display:'flex', alignItems:'center', gap:8}}>
             <span>{mode==='bot' ? 'Bot' : (oppName || (myColor===1 ? 'White' : 'Black'))}</span>
           </div>
@@ -294,8 +550,8 @@ export default function ReversiArena() {
 
         {/* Board */}
         <div style={{
-          width:boardSize, height:boardSize, borderRadius:12, border:'1px solid #ddd',
-          background:'#0f5132', padding:8, boxShadow:'0 8px 24px rgba(0,0,0,.08)'
+          width:boardSize, height:boardSize, maxWidth:'100%', maxHeight:boardSize, borderRadius:12, border:'1px solid #ddd',
+          background:'#0f5132', padding:8, boxShadow:'0 8px 24px rgba(0,0,0,.08)', margin:'0 auto', boxSizing:'border-box'
         }}>
           <div style={{
             display:'grid',
@@ -337,7 +593,7 @@ export default function ReversiArena() {
         </div>
 
         {/* My name + clock (bottom) */}
-        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13, width:boardSize, boxSizing:'border-box'}}>
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 8px', fontWeight:700, fontSize:13, width:'100%', maxWidth:boardSize, boxSizing:'border-box', margin:'0 auto'}}>
           <span>{user?.username || 'You'}</span>
           <div style={{fontVariantNumeric:'tabular-nums'}}>
             {fmtClock(viewLeft(myColor))}
@@ -368,7 +624,38 @@ export default function ReversiArena() {
         <div style={{marginTop:12, fontSize:12, color:'#6b7280'}}>
           Wins vs real players grant <b>+6 trophies</b>. Bot games are unranked.
         </div>
+        {resultModal && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,.28)', display:'flex',
+          alignItems:'center', justifyContent:'center', zIndex:30
+        }} onClick={()=>setResultModal(null)}>
+          <div
+            onClick={(e)=>e.stopPropagation()}
+            style={{ width:540, maxWidth:'94vw', background:'#fff', borderRadius:14, boxShadow:'0 20px 60px rgba(0,0,0,.18)', border:'1px solid #e5e7eb', padding:16 }}
+          >
+            <div style={{fontSize:18, fontWeight:800, marginBottom:6}}>
+              {resultModal.didWin ? 'You win! 🎉' : (/draw/i.test(resultModal.resultText) ? 'Draw' : 'You lose')}
+            </div>
+            <div style={{fontSize:13, color:'#6b7280'}}>{resultModal.resultText}</div>
+            <div style={{display:'flex', gap:10, alignItems:'center', marginTop:10, padding:'8px 10px', border:'1px solid #e5e7eb', borderRadius:10}}>
+              <span style={{fontWeight:800}}>🏆 {resultModal.trophies}</span>
+              <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'#111', color:'#fff'}}>
+                {resultModal.rank}
+              </span>
+            </div>
+            <div style={{marginTop:6, fontSize:12, color:'#6b7280'}}>
+              Overall leaderboard place: <b>#{resultModal.place ?? '—'}</b>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginTop:12}}>
+              <button onClick={()=>{ setMode(null); setRoomId(null); setResultModal(null); setStatus('Pick a mode to start.'); }} style={{padding:'8px 12px', borderRadius:10, border:'1px solid #111', background:'#fff'}}>Back</button>
+              <button onClick={()=>{ setResultModal(null); startBot(); }} style={{padding:'8px 12px', borderRadius:10, border:'1px solid #111', background:'#fff'}}>Play Bot Again</button>
+              <button onClick={()=>{ setResultModal(null); startOnline(); }} style={{padding:'8px 12px', borderRadius:10, border:'1px solid #111', background:'#111', color:'#fff'}}>Matchmake Online</button>
+            </div>
+          </div>
+        </div>
+      )}
       </Panel>
     </Wrap>
+
   );
 }

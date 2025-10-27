@@ -561,10 +561,33 @@ export default function MeteorArena(){
     startTimer();
   }
 
-  const ensureSocket = useCallback(()=>{
+  const connectSocket = useCallback(()=>{
     if (socketRef.current) return socketRef.current;
-    const s = io(API_BASE_URL, { transports:["websocket"] });
+
+    const envBase = (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE)
+      ? String(process.env.REACT_APP_API_BASE) : "";
+    let WS_BASE =
+      (API_BASE_URL && API_BASE_URL.trim()) ||
+      (envBase && envBase.trim()) ||
+      "";
+
+    if (!WS_BASE) {
+      const { protocol, hostname, host } = window.location;
+      const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+      WS_BASE = isLocal ? `${protocol}//${hostname}:5000` : `${protocol}//${host}`;
+    }
+    WS_BASE = WS_BASE.replace(/\/+$/, "").replace(/\/api\/?$/, "");
+
+    const s = io(WS_BASE, {
+      path: "/socket.io",
+      transports: ["websocket","polling"],
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      timeout: 10000,
+    });
     socketRef.current = s;
+
     s.on("connect", ()=>setStatus("Connected. Queueing…"));
     s.on("meteor:queued", ()=>setStatus("Looking for an opponent…"));
     s.on("meteor:start", ({ roomId, seed, startAt, you })=>{
@@ -587,15 +610,18 @@ export default function MeteorArena(){
     s.on("meteor:input", (msg)=>{ engineRef.current?.opponentInput(msg.action, msg.t); });
     s.on("meteor:lives", ({ lives })=> setLives(lives));
     s.on("meteor:gameover", ({ winner })=>{ finish(winner===sideRef.current, "lives"); });
+
     return s;
   },[stopAttractAI, finish, startTimer]);
 
   function online(){
     clearInterval(botRef.current);
-    const s = ensureSocket();
+    const s = connectSocket();
     engineRef.current?.setAttract(true);
     setMode(null); setStatus("Connecting…"); setResult(null);
-    s.emit("meteor:queue", { userId: window.__USER__?._id, username: window.__USER__?.username });
+    if (s?.connected) {
+      s.emit("meteor:queue", { userId: window.__USER__?._id, username: window.__USER__?.username });
+    }
   }
 
   function resign(){
@@ -606,6 +632,45 @@ export default function MeteorArena(){
     engineRef.current?.setAttract(true);
     setMode(null); setStatus("Stopped."); startAttractAI();
   }
+  // ==== Mobile controls (virtual buttons) ====
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const update = () => setIsTouch(!!mq.matches);
+    update();
+    if (mq.addEventListener) mq.addEventListener("change", update);
+    else mq.addListener(update);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", update);
+      else mq.removeListener(update);
+    };
+  }, []);
+
+  const pressRef = useRef({ left:false, right:false, up:false });
+
+  const makePress = (which, down) => {
+    if (which==="left")   engineRef.current?.key("left", down);
+    if (which==="right")  engineRef.current?.key("right", down);
+    if (which==="up")     engineRef.current?.key("thrust", down);
+    if (which==="fire" && down) engineRef.current?.key("fire", true);
+    pressRef.current = { ...pressRef.current, [which]: down };
+  };
+
+  const btnStyle = (w=52,h=52)=>({
+    width:w, height:h,
+    borderRadius:"9999px",
+    border:"1px solid rgba(255,255,255,.30)",
+    background:"rgba(255,255,255,.10)",
+    color:"#fff",
+    display:"flex", alignItems:"center", justifyContent:"center",
+    fontWeight:900, fontSize:18,
+    boxShadow:"0 2px 8px rgba(0,0,0,.25)",
+    // non-selectable / no callout / no highlight
+    userSelect:"none", WebkitUserSelect:"none", MozUserSelect:"none", msUserSelect:"none",
+    WebkitTouchCallout:"none",
+    touchAction:"none",
+    outline:"none", WebkitTapHighlightColor:"transparent",
+  });
 
   // key listeners
   useEffect(()=>{
@@ -647,11 +712,129 @@ export default function MeteorArena(){
   };
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"480px 1fr", gap:16 }}>
-      <div style={{ position:"relative", width:W, height:H, border:"1px solid var(--border-color)", borderRadius:12, background:"#000", overflow:"hidden" }}>
-        <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", background:"#000", outline:"none" }} tabIndex={0}/>
+    <div
+      className="meteor-grid"
+      style={{ display:"grid", gridTemplateColumns:"minmax(0, 480px) 1fr", gap:16 }}
+    >
+      <div
+        style={{
+          position:"relative",
+          width:"100%", maxWidth:W,
+          border:"1px solid var(--border-color)", borderRadius:12,
+          background:"#000", overflow:"hidden", justifySelf:"center"
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          width={W} height={H}
+          style={{ display:"block", width:"100%", height:"auto", background:"#000", outline:"none" }}
+          tabIndex={0}
+        />
         <Overlay result={result}/>
+
+        {/* Mobile control overlay (transparent) */}
+        {isTouch && (
+          <div style={{ position:"absolute", inset:0, pointerEvents:"none" }}>
+            {/* Left: shoot */}
+            <div
+              style={{ position:"absolute", left:10, bottom:12, pointerEvents:"auto" }}
+              onContextMenu={(e)=>e.preventDefault()}
+            >
+              <div
+                style={btnStyle(58,58)}
+                onPointerDown={(e)=>{ e.preventDefault(); makePress("fire", true); }}
+                onPointerUp={(e)=>{ e.preventDefault(); }}
+                onPointerCancel={(e)=>{ e.preventDefault(); }}
+                onDragStart={(e)=>e.preventDefault()}
+                tabIndex={-1}
+                aria-label="Shoot"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" style={{ pointerEvents:"none" }}>
+                  <circle cx="12" cy="12" r="7" fill="currentColor" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Right: D-pad (Up above Left/Right) */}
+            <div
+              style={{
+                position:"absolute",
+                right:12,
+                bottom:12,
+                pointerEvents:"auto",
+                width:150,
+              }}
+              onContextMenu={(e)=>e.preventDefault()}
+            >
+              <div
+                style={{
+                  display:"grid",
+                  gridTemplateColumns:"1fr 1fr",
+                  gridTemplateRows:"auto auto",
+                  alignItems:"center",
+                  justifyItems:"center",
+                  gap:10,
+                }}
+              >
+                {/* Up row (centered; spans 2 columns) */}
+                <div style={{ gridColumn:"1 / span 2" }}>
+                  <div
+                    style={btnStyle(52,52)}
+                    onPointerDown={(e)=>{ e.preventDefault(); makePress("up", true); }}
+                    onPointerUp={(e)=>{ e.preventDefault(); makePress("up", false); }}
+                    onPointerLeave={(e)=>{ e.preventDefault(); makePress("up", false); }}
+                    onPointerCancel={(e)=>{ e.preventDefault(); makePress("up", false); }}
+                    onDragStart={(e)=>e.preventDefault()}
+                    tabIndex={-1}
+                    aria-label="Thrust"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 22 22" style={{ pointerEvents:"none" }}>
+                      <path d="M11 4 L18 16 H4 Z" fill="currentColor" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Left */}
+                <div style={{ justifySelf:"end" }}>
+                  <div
+                    style={btnStyle(52,52)}
+                    onPointerDown={(e)=>{ e.preventDefault(); makePress("left", true); }}
+                    onPointerUp={(e)=>{ e.preventDefault(); makePress("left", false); }}
+                    onPointerLeave={(e)=>{ e.preventDefault(); makePress("left", false); }}
+                    onPointerCancel={(e)=>{ e.preventDefault(); makePress("left", false); }}
+                    onDragStart={(e)=>e.preventDefault()}
+                    tabIndex={-1}
+                    aria-label="Rotate Left"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 22 22" style={{ pointerEvents:"none" }}>
+                      <path d="M6 11 L18 4 V18 Z" fill="currentColor" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Right */}
+                <div style={{ justifySelf:"start" }}>
+                  <div
+                    style={btnStyle(52,52)}
+                    onPointerDown={(e)=>{ e.preventDefault(); makePress("right", true); }}
+                    onPointerUp={(e)=>{ e.preventDefault(); makePress("right", false); }}
+                    onPointerLeave={(e)=>{ e.preventDefault(); makePress("right", false); }}
+                    onPointerCancel={(e)=>{ e.preventDefault(); makePress("right", false); }}
+                    onDragStart={(e)=>e.preventDefault()}
+                    tabIndex={-1}
+                    aria-label="Rotate Right"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 22 22" style={{ pointerEvents:"none" }}>
+                      <path d="M16 11 L4 4 V18 Z" fill="currentColor" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
       <div style={{ border:"1px solid var(--border-color)", background:"var(--container-white)", borderRadius:12, padding:12 }}>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           <button onClick={practice} style={btn()}>Practice vs Bot</button>
@@ -664,6 +847,12 @@ export default function MeteorArena(){
           {mode && <span style={{ marginLeft:8 }}>Time: <b>{fmtTime(timeLeftMs)}</b></span>}
         </div>
       </div>
+
+      <style>{`
+        @media (max-width: 860px) {
+          .meteor-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

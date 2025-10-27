@@ -67,13 +67,30 @@ const BlindChip = styled.div`
   animation:${fadeIn} .2s ease;
 `;
 
-/* NEW: replace inline keyframes usage with styled + css helper */
 const NameWrap = styled.span`
   display:inline-block; padding:0 6px; border-radius:12px; background:transparent;
 `;
 const NamePulse = styled.span`
   display:inline-block;
   ${(p)=>p.$on && css`animation: ${pulseGlow} 1.2s ease infinite;`}
+`;
+
+// NEW: subtle halo under the active player
+const TurnHalo = styled.div`
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:128px; height:128px; border-radius:999px;
+  pointer-events:none;
+  background: radial-gradient(closest-side, rgba(255,255,255,.25), rgba(255,255,255,0));
+  animation:${fadeIn} .18s ease;
+`;
+
+// NEW: winner pill animation
+const winPop = keyframes`0%{transform:translateY(8px) scale(.85);opacity:0}40%{opacity:1}100%{transform:translateY(0) scale(1);opacity:1}`;
+const WinPill = styled.div`
+  position:absolute; left:50%; top:calc(100% + 4px); transform:translateX(-50%);
+  background:#16a34a; color:#fff; padding:4px 8px; border-radius:999px; font-weight:900; font-size:12px;
+  animation:${winPop} .35s ease;
+  box-shadow:0 6px 20px rgba(22,163,74,.35);
 `;
 
 /* Action bar */
@@ -120,6 +137,7 @@ export default function PokerArena({ onResult }) {
   const { user } = useContext(AuthContext);
   const buyInRef = useRef(0);
   const lastStackRef = useRef(0);
+  const lastPotRef = useRef(0);
   const [stake, setStake] = useState('100');
   const [tables, setTables] = useState([]);
   const [tableId, setTableId] = useState(null);
@@ -136,7 +154,16 @@ export default function PokerArena({ onResult }) {
   }, [state, user?._id]);
 
   const iAmSpectating = mySeat >= 0 ? !!state?.seats?.[mySeat]?.waiting : false;
-  const canAct = mySeat >= 0 && state?.turn === mySeat && !iAmSpectating && state?.round !== 'ready';
+  const activeCount = useMemo(() => {
+    return (state?.seats || []).filter(s => s && !s.waiting).length;
+  }, [state?.seats]);
+
+  // Only allow acting when it's my turn, I'm not spectating, round is live AND there are 2+ players
+  const liveRound = state?.round && !['idle','ready'].includes(state.round);
+  const canAct = (mySeat >= 0) && (state?.turn === mySeat) && !iAmSpectating && liveRound && activeCount >= 2;
+
+  // can leave while IDLE, READY, or spectators anytime
+  const canLeave = (state?.round === 'idle') || (state?.round === 'ready') || iAmSpectating;
 
   const [timeLeft, setTimeLeft] = useState(0);
   const iAmReady = useMemo(() => {
@@ -144,48 +171,100 @@ export default function PokerArena({ onResult }) {
     return acc.has(mySeat);
   }, [state?.ready, mySeat]);
 
-  useEffect(() => {
-    const socket = io(API_BASE_URL, { transports: ['websocket'] });
-    socketRef.current = socket;
+useEffect(() => {
+  // Derive a robust WS base like Chess/Checkers: trim trailing slashes and any /api
+  const envBase = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
+    ? String(process.env.REACT_APP_API_BASE)
+    : '';
+  let WS_BASE =
+    (API_BASE_URL && API_BASE_URL.trim()) ||
+    (envBase && envBase.trim()) ||
+    '';
 
-    // Ask the server for lobbies for this stake; support both payload keys.
-    const list = () => socket.emit('poker:list', { stake, stakes: stake });
-    list();
-    const poll = setInterval(list, 4000);
+  if (!WS_BASE) {
+    const { protocol, hostname, host } = window.location;
+    const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+    if (isLocal) {
+      const srvPort = '5000';
+      WS_BASE = `${protocol}//${hostname}:${srvPort}`;
+    } else {
+      WS_BASE = `${protocol}//${host}`;
+    }
+  }
+  WS_BASE = WS_BASE.replace(/\/+$/, '').replace(/\/api\/?$/, '');
 
-    socket.on('poker:lobbies', (arr) => setTables(Array.isArray(arr) ? arr : []));
-    socket.on('poker:joined', (payload) => {
-      setTableId(payload.id);
-      setState(payload);
-      setChat((payload.chat || []).slice(-20));
-      setMyCards([]);
+  const socket = io(WS_BASE, {
+    path: '/socket.io',
+    transports: ['websocket', 'polling'],
+    withCredentials: true,
+    reconnection: true,
+    reconnectionAttempts: 5,
+    timeout: 10000,
+  });
+  socketRef.current = socket;
 
-      // record buy-in for result tracking
-      const meIdx = (payload.seats || []).findIndex(
-        s => s && String(s.userId) === String(user?._id)
-      );
-      const start = meIdx >= 0 ? Number(payload.seats[meIdx].stack || 0) : 0;
-      buyInRef.current = start;
-      lastStackRef.current = start;
-    });
-    socket.on('poker:state', (s) => {
-      setPotPulse(p => (s?.pot !== state?.pot));
-      setState(s);
-      if (s?.round === 'idle') setMyCards([]);
+  const list = () => socket.emit('poker:list', { stake, stakes: stake });
 
-      const meIdx = (s?.seats || []).findIndex(
-        x => x && String(x.userId) === String(user?._id)
-      );
-      if (meIdx >= 0) {
-        lastStackRef.current = Number(s.seats[meIdx]?.stack || 0);
-      }
-    });
-    socket.on('poker:hole', (cards) => setMyCards(Array.isArray(cards) ? cards : []));
-    socket.on('poker:chat', (m) => setChat(x => [...x, m].slice(-20)));
-    socket.on('poker:error', (e) => alert(e.message || 'Poker error'));
+  socket.on('connect', list);
+  socket.on('connect_error', (e) => {
+    // surface connection issues in dev consoles; UI still stays clean
+    try { console.warn('[Poker] socket connect error:', e?.message || e); } catch {}
+  });
 
-    return () => { clearInterval(poll); socket.disconnect(); };
-  }, [stake, user?._id]);     // <- stable: no more reconnects on pot changes
+  list();                            // first fetch
+  const poll = setInterval(list, 4000);
+
+  socket.on('poker:lobbies', (arr) => setTables(Array.isArray(arr) ? arr : []));
+  socket.on('poker:lobbies:update', (u) => {
+    if (!u || !u.id) return;
+    setTables(prev => prev.map(t => (t.id === u.id ? { ...t, players: u.players } : t)));
+  });
+  socket.on('poker:joined', (payload) => {
+    setTableId(payload.id);
+    setState(payload);
+    setChat((payload.chat || []).slice(-20));
+    setMyCards([]);
+
+    // initialize previous pot so first state diff is correct and linter stays happy
+    lastPotRef.current = Number(payload?.pot || 0);
+    setPotPulse(false);
+
+    const meIdx = (payload.seats || []).findIndex(
+      s => s && String(s.userId) === String(user?._id)
+    );
+    const start = meIdx >= 0 ? Number(payload.seats[meIdx].stack || 0) : 0;
+    buyInRef.current = start;
+    lastStackRef.current = start;
+  });
+
+  socket.on('poker:state', (s) => {
+    const nextPot = Number(s?.pot || 0);
+    const prevPot = Number(lastPotRef.current || 0);
+
+    // Pulse only when the pot actually changes, then reset the flag
+    if (nextPot !== prevPot) {
+      setPotPulse(true);
+      setTimeout(() => setPotPulse(false), 420); // slightly > CSS .4s for a clean reset
+    }
+    lastPotRef.current = nextPot;
+
+    setState(s);
+    if (s?.round === 'idle') setMyCards([]);
+
+    const meIdx = (s?.seats || []).findIndex(
+      x => x && String(x.userId) === String(user?._id)
+    );
+    if (meIdx >= 0) {
+      lastStackRef.current = Number(s.seats[meIdx]?.stack || 0);
+    }
+  });
+
+  socket.on('poker:hole', (cards) => setMyCards(Array.isArray(cards) ? cards : []));
+  socket.on('poker:chat', (m) => setChat(x => [...x, m].slice(-20)));
+  socket.on('poker:error', (e) => alert(e.message || 'Poker error'));
+
+  return () => { clearInterval(poll); socket.disconnect(); };
+}, [stake, user?._id]);
 
   useEffect(() => {
     let tId;
@@ -209,8 +288,33 @@ export default function PokerArena({ onResult }) {
       return () => clearTimeout(id);
     }
   }, [state?.round, state?.ready?.deadline, iAmReady]);
+  
+  useEffect(() => {
+    if (!tableId) return;
+    const s = socketRef.current;
+    if (!s) return;
+
+    let stopped = false;
+    const ping = () => {
+      if (stopped) return;
+      s.emit('poker:heartbeat');
+      t = setTimeout(ping, 2000); // must match HEARTBEAT_MS on server
+    };
+    let t = setTimeout(ping, 200);
+
+    // also refresh on tab focus to recover faster
+    const onVis = () => { if (!document.hidden) s.emit('poker:heartbeat'); };
+    document.addEventListener('visibilitychange', onVis);
+
+    return () => {
+      stopped = true;
+      clearTimeout(t);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [tableId]);
 
   const join = (id) => {
+    if (tableId) return; // already in a table; avoid duplicate join
     socketRef.current.emit('poker:join', {
       tableId: id,
       userId: user._id,
@@ -271,8 +375,9 @@ export default function PokerArena({ onResult }) {
         <>
           <TableWrap>
             <Felt>
-              <Pot $pulse={potPulse}>Pot: {state?.pot ?? 0}</Pot>
-
+              <Pot $pulse={potPulse}>
+                {activeCount >= 2 ? `Pot: ${state?.pot ?? 0}` : 'Waiting for opponent…'}
+              </Pot>
               <Comm>{(state?.board||[]).map((c,i)=><CardGlyph key={i} c={c}/>)}</Comm>
 
               {['sb','bb'].map(kind => {
@@ -291,12 +396,14 @@ export default function PokerArena({ onResult }) {
                 const isMe = mySeat === idx;
                 const waiting = !!seat?.waiting;
                 const turn = state?.turn===idx;
+                const isWinner = state?.lastWin && state.lastWin.seat === idx;
                 return (
                   <Seat key={idx} style={{left:`${pos.left}%`, top:`${pos.top}%`}}>
+                    {turn && <TurnHalo />} {/* NEW: whose turn halo */}
                     <SeatName>
                       <NameWrap>
                         <NamePulse $on={turn}>
-                          {seat ? seat.username : 'Empty'}{waiting ? ' (spectating)' : ''}
+                          {seat ? seat.username : 'Empty'}{waiting ? ' (waiting to be dealt in)' : ''}
                         </NamePulse>
                       </NameWrap>
                     </SeatName>
@@ -304,6 +411,7 @@ export default function PokerArena({ onResult }) {
                     <SeatCards aria-label={isMe?'Your cards':''}>
                       {isMe && myCards.map((c,i)=><CardGlyph key={i} c={c}/>)}
                     </SeatCards>
+                    {isWinner && <WinPill>+{Number(state.lastWin.amount||0)}</WinPill>} {/* NEW: winnings burst */}
                   </Seat>
                 );
               })}
@@ -317,9 +425,22 @@ export default function PokerArena({ onResult }) {
                   </ReadyBox>
                 </ReadyOverlay>
               )}
-
+              {iAmSpectating && state?.round !== 'idle' && (
+                <ReadyOverlay>
+                  <ReadyBox>
+                    <div style={{fontWeight:900, marginBottom:6}}>You joined mid-hand</div>
+                    <div style={{opacity:.85}}>You’re <b>waiting to be dealt in</b>. You’ll join automatically next hand.</div>
+                  </ReadyBox>
+                </ReadyOverlay>
+              )}
               <ActionBar>
-                <Btn onClick={leave}>Leave / Cash Out</Btn>
+                <Btn
+                  disabled={!canLeave}
+                  onClick={canLeave ? leave : undefined}
+                  title={!canLeave ? 'You can leave between hands (during Ready) or when idle.' : ''}
+                >
+                  Leave / Cash Out
+                </Btn>
                 <Btn disabled={!canAct} onClick={()=>act('fold')}>Fold</Btn>
                 <Btn disabled={!canAct} onClick={()=>act(state?.toCall ? 'call' : 'check')}>
                   {state?.toCall ? `Call ${state.toCall}` : 'Check'}

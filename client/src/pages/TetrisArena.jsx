@@ -308,6 +308,78 @@ export default function TetrisArena(){
     return ()=> window.removeEventListener("keydown", kd, true);
   },[mode]);
 
+  // ==== Mobile detection & action helper ====
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const update = () => setIsTouch(!!mq.matches);
+    update();
+    if (mq.addEventListener) mq.addEventListener("change", update);
+    else mq.addListener(update);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", update);
+      else mq.removeListener(update);
+    };
+  }, []);
+
+  const sendAction = useCallback((action) => {
+    if (mode === "bot") {
+      if      (action==="L") meRef.current?.left();
+      else if (action==="R") meRef.current?.right();
+      else if (action==="U") meRef.current?.rot();
+      else if (action==="D") meRef.current?.soft();
+      else if (action==="H") meRef.current?.hardDrop();
+      return;
+    }
+    const desiredTick = serverTickRef.current + INPUT_DELAY_TICKS;
+    socketRef.current?.emit("tetris:input", { roomId: roomIdRef.current, action, desiredTick });
+  }, [mode]);
+
+    // ==== Slide pad (drag to move left/right with repeat) + Rotate button ====
+  const padRef = useRef({ active:false, lastX:0, acc:0 });
+  const STEP_PX = 20; // movement repeat every 20px of drag
+
+  const onPadPointerDown = (e) => {
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch {}
+    const x = e.clientX;
+    padRef.current = { active:true, lastX:x, acc:0 };
+    // while interacting with the pad, prevent vertical scrolling entirely
+    e.preventDefault();
+  };
+  const onPadPointerMove = (e) => {
+    if (!padRef.current.active) return;
+    const x = e.clientX;
+    let dx = x - padRef.current.lastX;
+    padRef.current.lastX = x;
+    padRef.current.acc += dx;
+    while (padRef.current.acc <= -STEP_PX) { sendAction("L"); padRef.current.acc += STEP_PX; }
+    while (padRef.current.acc >=  STEP_PX) { sendAction("R"); padRef.current.acc -= STEP_PX; }
+    // keep page from scrolling while sliding
+    e.preventDefault();
+  };
+  const endPad = (e) => {
+    padRef.current.active = false; padRef.current.acc = 0;
+    e.preventDefault();
+  };
+
+  const rotateTap = (e) => { e.preventDefault(); sendAction("U"); };
+  const dropTap =   (e) => { e.preventDefault(); sendAction("H"); };
+
+  const btnStyle = (w=48,h=48)=>({
+    width:w, height:h,
+    borderRadius:"9999px",
+    border:"1px solid rgba(255,255,255,.35)",
+    background:"rgba(17,17,17,.24)",
+    backdropFilter:"blur(6px)",
+    color:"#fff",
+    display:"flex", alignItems:"center", justifyContent:"center",
+    boxShadow:"0 2px 10px rgba(0,0,0,.28)",
+    opacity:.85,
+    userSelect:"none", WebkitUserSelect:"none", MozUserSelect:"none", msUserSelect:"none",
+    WebkitTouchCallout:"none", WebkitTapHighlightColor:"transparent",
+    touchAction:"none", outline:"none"
+  });
+
   function startPractice(){
     const ctx = canvasRef.current.getContext("2d");
     const W = (COLS*2+1)*SIZE, H = ROWS*SIZE;
@@ -434,19 +506,115 @@ export default function TetrisArena(){
 
   const W = (COLS*2+1)*SIZE, H = ROWS*SIZE;
   return (
-    <div style={{ display:"grid", gridTemplateColumns:`${W}px 1fr`, gap:16 }}>
-      <div style={{ position:"relative", width:W, height:H, border:"1px solid var(--border-color)", borderRadius:12, background:"#f8fafc", overflow:"hidden" }}>
-        <canvas ref={canvasRef} width={W} height={H} style={{ display:"block", background:"linear-gradient(#f8fafc,#eef2f7)" }}/>
-        {result && (
-          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center",
-                        background:"rgba(0,0,0,.55)", color:"#fff", textAlign:"center", pointerEvents:"none" }}>
-            <div>
-              <div style={{ fontSize:36, fontWeight:800, letterSpacing:1 }}>{result}</div>
-              <div style={{ marginTop:8, fontSize:12, opacity:0.85 }}>Winner decided by higher score when a player tops out.</div>
+    <div
+      className="tetris-grid"
+      style={{ display:"grid", gridTemplateColumns:`minmax(0, ${W}px) 1fr`, gap:16 }}
+    >
+      {/* LEFT COLUMN: Game card + controls BELOW the board */}
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
+        {/* Game board card WITH an in-card controls row */}
+        <div
+          style={{
+            position:"relative",
+            width:"100%", maxWidth:W,
+            border:"1px solid var(--border-color)", borderRadius:12,
+            background:"#f8fafc", overflow:"hidden"
+          }}
+        >
+          <canvas
+            ref={canvasRef}
+            width={W}
+            height={H}
+            style={{ display:"block", width:"100%", height:"auto", background:"linear-gradient(#f8fafc,#eef2f7)" }}
+          />
+
+          {/* In-card mobile controls row (fits the white strip you marked) */}
+          {isTouch && (
+            <div
+              style={{
+                height:62, padding:"8px 10px",
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+                borderTop:"1px solid #e5e7eb", background:"#fff"
+              }}
+            >
+              {/* Left: small vertical cluster (Rotate, Quick Drop) */}
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div
+                  style={btnStyle(44,44)}
+                  onPointerDown={rotateTap}
+                  onDragStart={(e)=>e.preventDefault()}
+                  tabIndex={-1}
+                  aria-label="Rotate"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" style={{ pointerEvents:"none" }} aria-hidden="true">
+                    <path d="M12 5v3l4-4-4-4v3A8 8 0 1 0 20 12h-2a6 6 0 1 1-6-7z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div
+                  style={btnStyle(44,44)}
+                  onPointerDown={dropTap}
+                  onDragStart={(e)=>e.preventDefault()}
+                  tabIndex={-1}
+                  aria-label="Quick Drop"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" style={{ pointerEvents:"none" }} aria-hidden="true">
+                    <path d="M12 3v12M12 15l-4-4m4 4 4-4M5 21h14" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Right: compact slide pad */}
+              <div
+                style={{
+                  flex:"1 1 auto", marginLeft:12,
+                  minWidth:140, maxWidth:260, height:46,
+                  background:"rgba(17,17,17,.18)", border:"1px solid rgba(0,0,0,.10)",
+                  borderRadius:12, backdropFilter:"blur(6px)",
+                  boxShadow:"inset 0 1px 0 rgba(255,255,255,.35)",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  touchAction:"none", overscrollBehavior:"contain"
+                }}
+                onPointerDown={onPadPointerDown}
+                onPointerMove={onPadPointerMove}
+                onPointerUp={endPad}
+                onPointerCancel={endPad}
+                onTouchMove={(e)=>e.preventDefault()}
+                onWheel={(e)=>e.preventDefault()}
+                onContextMenu={(e)=>e.preventDefault()}
+              >
+                <div style={{ display:"flex", gap:16, opacity:.95 }}>
+                  <svg width="18" height="18" viewBox="0 0 22 22" style={{ pointerEvents:"none" }} aria-hidden="true">
+                    <path d="M6 11 L18 4 V18 Z" fill="#fff" />
+                  </svg>
+                  <svg width="18" height="18" viewBox="0 0 22 22" style={{ pointerEvents:"none" }} aria-hidden="true">
+                    <path d="M16 11 L4 4 V18 Z" fill="#fff" />
+                  </svg>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {result && (
+            <div
+              style={{
+                position:"absolute", inset:0, display:"flex",
+                alignItems:"center", justifyContent:"center",
+                background:"rgba(0,0,0,.55)", color:"#fff", textAlign:"center",
+                pointerEvents:"none"
+              }}
+            >
+              <div>
+                <div style={{ fontSize:36, fontWeight:800, letterSpacing:1 }}>{result}</div>
+                <div style={{ marginTop:8, fontSize:12, opacity:0.85 }}>
+                  Winner decided by higher score when a player tops out.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* RIGHT COLUMN: Sidebar */}
       <div style={{ border:"1px solid var(--border-color)", background:"var(--container-white)", borderRadius:12, padding:12 }}>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           <button onClick={startPractice} style={btn()}>Practice vs Bot</button>
@@ -458,6 +626,12 @@ export default function TetrisArena(){
           Controls: <b>←/→</b> move · <b>↑</b> rotate · <b>↓</b> soft drop · <b>space</b> hard drop.
         </div>
       </div>
+
+      <style>{`
+        @media (max-width: 860px) {
+          .tetris-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

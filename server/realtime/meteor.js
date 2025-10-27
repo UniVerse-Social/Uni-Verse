@@ -4,10 +4,40 @@ module.exports = function attachMeteor(io){
   const mk=()=> 'meteor_'+Math.random().toString(36).slice(2,10);
   function finish(room,winner,reason){ io.to(room.id).emit('meteor:gameover',{winner,reason}); rooms.delete(room.id); }
 
+  function tryPair() {
+    while (waiting.length >= 2) {
+      const a = waiting.shift();
+      const b = waiting.shift();
+
+      const aSock = io.sockets.sockets.get(a?.socketId);
+      const bSock = io.sockets.sockets.get(b?.socketId);
+
+      if (!aSock && !bSock) continue;
+      if (!aSock) { if (b) waiting.unshift(b); continue; }
+      if (!bSock) { waiting.unshift(a); continue; }
+
+      const roomId = mk();
+      const seed = Math.floor(Math.random() * 0x7fffffff);
+      const startAt = Date.now() + 1200;
+      const room = {
+        id: roomId, seed, startAt,
+        players: { p1: { sid: a.socketId, user: a.user }, p2: { sid: b.socketId, user: b.user } },
+        lives: { p1: 3, p2: 3 }
+      };
+      rooms.set(roomId, room);
+
+      aSock.join(roomId); bSock.join(roomId);
+      io.to(a.socketId).emit('meteor:start', { roomId, seed, startAt, you: 'p1' });
+      io.to(b.socketId).emit('meteor:start', { roomId, seed, startAt, you: 'p2' });
+      break;
+    }
+  }
+
   io.on('connection', (socket)=>{
     socket.on('meteor:queue', ({ userId, username })=>{
       waiting.push({ socketId: socket.id, user:{userId,username} });
       socket.emit('meteor:queued');
+      tryPair();
 
       if (waiting.length>=2){
         const a=waiting.shift(), b=waiting.shift();

@@ -32,7 +32,7 @@ const HomeContainer = styled.div`
   display: flex;
   justify-content: center;
   padding: 20px;
-  min-height: calc(100vh - 101px); /* desktop unchanged */
+  min-height: calc(100vh - 101px);
 
   @media (max-width: 600px) {
     /* Make space for fixed bottom nav on phones */

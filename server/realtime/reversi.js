@@ -37,84 +37,157 @@ module.exports = function attachReversi(io) {
   const packState = (state)=>({ board: state.board, turn: state.turn });
 
   io.on('connection', (socket)=>{
-    socket.on('reversi:queue', ({ userId, username })=>{
-      waiting.push({ socketId: socket.id, user: { userId, username } });
-      socket.emit('reversi:queued');
+    let roomJoined = null;
 
-      if (waiting.length >= 2) {
-        const a = waiting.shift(), b = waiting.shift();
+    // resilient matcher (like chess)
+    function pairIfPossible() {
+      while (waiting.length >= 2) {
+        const a = waiting.shift();
+        const b = waiting.shift();
+
+        const aSock = io.sockets.sockets.get(a?.socketId);
+        const bSock = io.sockets.sockets.get(b?.socketId);
+
+        if (!aSock && !bSock) continue;
+        if (!aSock) { if (b) waiting.unshift(b); continue; }
+        if (!bSock) { waiting.unshift(a); continue; }
+
         const roomId = mkRoom();
+
+        // randomize colors: 'b' (1) or 'w' (-1)
         const black = Math.random() < 0.5 ? a : b;
         const white = black === a ? b : a;
 
         const state = { board: initialBoard(), turn: 1 };
-        const room = { id: roomId, state, players: { b:{socketId:black.socketId, user:black.user}, w:{socketId:white.socketId, user:white.user} } };
+        const room = {
+          id: roomId,
+          state,
+          players: {
+            b: { socketId: black.socketId, user: black.user },
+            w: { socketId: white.socketId, user: white.user }
+          },
+        };
         rooms.set(roomId, room);
 
-        io.in(black.socketId).socketsJoin(roomId);
-        io.in(white.socketId).socketsJoin(roomId);
+        aSock.join(roomId);
+        bSock.join(roomId);
 
-        const payload = { roomId, state: packState(state), black: room.players.b.user, white: room.players.w.user };
-        io.to(black.socketId).emit('reversi:start', { ...payload, color:'b' });
-        io.to(white.socketId).emit('reversi:start', { ...payload, color:'w' });
+        if (aSock.id === socket.id || bSock.id === socket.id) roomJoined = roomId;
+
+        const payload = {
+          roomId,
+          state: packState(state),
+          black: room.players.b.user,
+          white: room.players.w.user,
+        };
+
+        io.to(black.socketId).emit('reversi:start', { ...payload, color: 'b' });
+        io.to(white.socketId).emit('reversi:start', { ...payload, color: 'w' });
+
+        break; // start one match at a time per call
+      }
+    }
+    socket.on('reversi:queue', ({ userId, username }) => {
+      if (!userId) userId = socket.id;
+
+      if (waiting.find(w => w.socketId === socket.id)) {
+        socket.emit('reversi:queued');
+        pairIfPossible();          // try to pair right away
+        return;
+      }
+
+      waiting.push({ socketId: socket.id, user: { userId, username } });
+      socket.emit('reversi:queued');
+
+      pairIfPossible();            // also try after enqueue
+    });
+
+    socket.on('reversi:move', ({ roomId, x, y }) => {
+      try {
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const { state, players } = room;
+
+        const side =
+          (players.b.socketId === socket.id) ? 1 :
+          (players.w.socketId === socket.id) ? -1 : null;
+        if (!side || state.turn !== side) return;
+
+        const mvs = allMoves(state.board, side);
+        const mv = mvs.find(m => m.x === x && m.y === y);
+        if (!mv) return;
+
+        state.board = applyMove(state.board, mv, side);
+        state.turn = -side;
+
+        const opp = allMoves(state.board, -side);
+        const mine = allMoves(state.board, side);
+        if (!opp.length && mine.length) state.turn = side;
+
+        io.to(roomId).emit('reversi:state', { roomId, state: packState(state) });
+
+        if (!opp.length && !mine.length) {
+          const s = score(state.board);
+          const winner = s === 0 ? null : (s > 0 ? 'b' : 'w'); // 'b' black, 'w' white
+          const result = s === 0 ? 'Draw' : (winner === 'b' ? 'Black wins' : 'White wins');
+          io.to(roomId).emit('reversi:gameover', { roomId, result, reason: 'no moves', winner });
+          rooms.delete(roomId);
+        }
+      } catch (err) {
+        console.warn('reversi:move error', err?.message || err);
+        if (roomId && rooms.has(roomId)) {
+          io.to(roomId).emit('reversi:gameover', { roomId, result: 'Draw', reason: 'server error', winner: null });
+          rooms.delete(roomId);
+        }
       }
     });
 
-    socket.on('reversi:move', ({ roomId, x, y })=>{
-      const room = rooms.get(roomId); if (!room) return;
-      const { state, players } = room;
-      const side = (players.b.socketId === socket.id) ? 1 : (players.w.socketId === socket.id ? -1 : null);
-      if (!side || state.turn !== side) return;
+    socket.on('reversi:resign', ({ roomId }) => {
+      const room = rooms.get(roomId);
+      if (!room) return;
+      const loserSide = (room.players.b.socketId === socket.id) ? 'b' : 'w';
+      const winner = loserSide === 'b' ? 'w' : 'b';
+      const result = winner === 'b' ? 'Black wins' : 'White wins';
+      io.to(roomId).emit('reversi:gameover', { roomId, result, reason: 'resignation', winner });
+      rooms.delete(roomId);
+    });
 
-      const mvs = allMoves(state.board, side);
-      const mv = mvs.find(m=>m.x===x && m.y===y);
-      if (!mv) return;
-
-      state.board = applyMove(state.board, mv, side);
-      state.turn = -side;
-
-      // pass logic: if opponent has no moves but you do, keep turn at you
-      const opp = allMoves(state.board, -side);
-      const mine = allMoves(state.board, side);
-      if (!opp.length && mine.length) state.turn = side;
-
-      io.to(roomId).emit('reversi:state', { state: packState(state) });
-
-      // end?
-      if (!opp.length && !mine.length) {
-        const s = score(state.board);
-        const result = s===0 ? 'Draw' : (s>0 ? 'Black wins' : 'White wins');
-        io.to(roomId).emit('reversi:gameover', { result, reason:'no moves' });
+    socket.on('reversi:leave', ({ roomId }) => {
+      const qi = waiting.findIndex(w => w.socketId === socket.id);
+      if (qi >= 0) {
+        waiting.splice(qi, 1);
+        socket.emit('reversi:queue-cancelled');
+      }
+      if (roomId && rooms.has(roomId)) {
+        const room = rooms.get(roomId);
+        const loserSide = (room.players.b.socketId === socket.id) ? 'b' : 'w';
+        const winner = loserSide === 'b' ? 'w' : 'b';
+        const result = winner === 'b' ? 'Black wins' : 'White wins';
+        io.to(roomId).emit('reversi:gameover', { roomId, result, reason: 'opponent left', winner });
         rooms.delete(roomId);
       }
     });
 
-    socket.on('reversi:resign', ({ roomId })=>{
-      const room = rooms.get(roomId); if (!room) return;
-      const loser = (room.players.b.socketId === socket.id) ? 'Black' : 'White';
-      const winner = loser === 'Black' ? 'White' : 'Black';
-      io.to(roomId).emit('reversi:gameover', { result: `${winner} wins`, reason: 'resign' });
-      rooms.delete(roomId);
-    });
-
-    socket.on('reversi:leave', ({ roomId })=>{
-      const room = rooms.get(roomId); if (!room) return;
-      const loser = (room.players.b.socketId === socket.id) ? 'Black' : 'White';
-      const winner = loser === 'Black' ? 'White' : 'Black';
-      io.to(roomId).emit('reversi:gameover', { result: `${winner} wins`, reason: 'leave' });
-      rooms.delete(roomId);
-    });
-
-    socket.on('disconnect', ()=>{
+    socket.on('disconnect', () => {
       const qi = waiting.findIndex(w => w.socketId === socket.id);
       if (qi >= 0) waiting.splice(qi, 1);
 
-      for (const [rid, room] of rooms.entries()) {
-        if (room.players.b.socketId === socket.id || room.players.w.socketId === socket.id) {
-          const loser = (room.players.b.socketId === socket.id) ? 'Black' : 'White';
-          const winner = loser === 'Black' ? 'White' : 'Black';
-          io.to(rid).emit('reversi:gameover', { result: `${winner} wins`, reason: 'disconnect' });
-          rooms.delete(rid);
+      if (roomJoined && rooms.has(roomJoined)) {
+        const room = rooms.get(roomJoined);
+        const loserSide = (room.players.b.socketId === socket.id) ? 'b' : 'w';
+        const winner = loserSide === 'b' ? 'w' : 'b';
+        const result = winner === 'b' ? 'Black wins' : 'White wins';
+        io.to(roomJoined).emit('reversi:gameover', { roomId: roomJoined, result, reason: 'opponent disconnected', winner });
+        rooms.delete(roomJoined);
+      } else {
+        for (const [rid, r] of rooms.entries()) {
+          if (r.players.b.socketId === socket.id || r.players.w.socketId === socket.id) {
+            const loserSide = (r.players.b.socketId === socket.id) ? 'b' : 'w';
+            const winner = loserSide === 'b' ? 'w' : 'b';
+            const result = winner === 'b' ? 'Black wins' : 'White wins';
+            io.to(rid).emit('reversi:gameover', { roomId: rid, result, reason: 'opponent disconnected', winner });
+            rooms.delete(rid);
+          }
         }
       }
     });

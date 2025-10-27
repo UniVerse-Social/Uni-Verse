@@ -340,12 +340,37 @@ export default function JumpArena() {
     } catch {}
   }, []);
 
-  const ensureSocket = useCallback(() => {
+  const connectSocket = useCallback(() => {
     if (socketRef.current) return socketRef.current;
-    const s = io(API_BASE_URL, { transports: ["websocket"] });
+
+    const envBase = (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE)
+      ? String(process.env.REACT_APP_API_BASE) : "";
+    let WS_BASE =
+      (API_BASE_URL && API_BASE_URL.trim()) ||
+      (envBase && envBase.trim()) ||
+      "";
+
+    if (!WS_BASE) {
+      const { protocol, hostname, host } = window.location;
+      const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+      WS_BASE = isLocal ? `${protocol}//${hostname}:5000` : `${protocol}//${host}`;
+    }
+    WS_BASE = WS_BASE.replace(/\/+$/, "").replace(/\/api\/?$/, "");
+
+    const s = io(WS_BASE, {
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      timeout: 10000,
+    });
     socketRef.current = s;
 
-    s.on("connect", () => setStatus("Connected. Queueing…"));
+    s.on("connect", () => {
+      setStatus("Connected. Queueing…");
+      s.emit("jump:queue", { userId: window.__USER__?._id, username: window.__USER__?.username });
+    });
     s.on("jump:queued", () => setStatus("Looking for an opponent…"));
 
     s.on("jump:start", ({ roomId, startAt, seed, you, top, bottom, lives }) => {
@@ -358,10 +383,10 @@ export default function JumpArena() {
         online: true,
         getLives: () => livesRef.current,
         onInput: (action) => s.emit("jump:input", { roomId, action, at: Date.now() }),
-        onHit: (lane) => { if (lane === 1) { // only YOU
-          setLives(prev => ({ ...prev, bottom: Math.max(0, prev.bottom - 1) })); // immediate feedback
+        onHit: (lane) => { if (lane === 1) {
+          setLives(prev => ({ ...prev, bottom: Math.max(0, prev.bottom - 1) }));
           s.emit("jump:hit", { roomId });
-        }} ,
+        } },
       });
       engineRef.current?.setOnline(startAt, seed);
 
@@ -371,7 +396,6 @@ export default function JumpArena() {
     });
 
     s.on("jump:input", ({ side, action, at }) => { engineRef.current?.opponentAct(action, at); });
-
     s.on("jump:lives", ({ lives }) => { setLives(lives); });
 
     s.on("jump:gameover", async ({ winner }) => {
@@ -386,9 +410,61 @@ export default function JumpArena() {
     return s;
   }, [award]);
 
+  const rightTouches = useRef(new Set());
+
+  const onTouchStart = (e) => {
+    if (!canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      const x = t.clientX - rect.left;
+      const isLeft = x < rect.width / 2;
+      if (isLeft) {
+        // jump
+        engineRef.current?.keyDown({ key: "ArrowUp" });
+      } else {
+        // duck while held
+        rightTouches.current.add(t.identifier);
+        engineRef.current?.keyDown({ key: "ArrowDown" });
+      }
+    }
+    e.preventDefault();
+  };
+
+  const endRightIfNeeded = () => {
+    if (rightTouches.current.size === 0) return;
+    // release duck when no right touches remain
+    engineRef.current?.keyUp({ key: "ArrowDown" });
+  };
+
+  const onTouchEnd = (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (rightTouches.current.has(t.identifier)) {
+        rightTouches.current.delete(t.identifier);
+      }
+    }
+    endRightIfNeeded();
+    e.preventDefault();
+  };
+
+  const onTouchCancel = (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (rightTouches.current.has(t.identifier)) {
+        rightTouches.current.delete(t.identifier);
+      }
+    }
+    endRightIfNeeded();
+    e.preventDefault();
+  };
+
   const online = () => {
-    const s = ensureSocket();
-    s.emit("jump:queue", { userId: window.__USER__?._id, username: window.__USER__?.username });
+    setStatus("Connecting…");
+    const s = connectSocket();
+    if (s?.connected) {
+      s.emit("jump:queue", { userId: window.__USER__?._id, username: window.__USER__?.username });
+    }
   };
 
   const resign = () => {
@@ -399,27 +475,83 @@ export default function JumpArena() {
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "480px 1fr", gap: 16 }}>
-      <div style={{ border: "1px solid #ddd", borderRadius: 12, background: "linear-gradient(#f8fafc,#eef2f7)", width: W, height: H, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,.08)" }}>
-        <canvas ref={canvasRef} width={W} height={H} style={{ display: "block" }} />
+    <div
+      className="jump-grid"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 480px) 1fr",
+        gap: 16,
+      }}
+    >
+      <div
+        style={{
+          border: "1px solid #ddd",
+          borderRadius: 12,
+          background: "linear-gradient(#f8fafc,#eef2f7)",
+          width: "100%",
+          maxWidth: W,
+          height: "auto",
+          boxShadow: "0 8px 24px rgba(0,0,0,.08)",
+          overflow: "hidden",
+          justifySelf: "center",
+        }}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchCancel}
+      >
+        <canvas
+          ref={canvasRef}
+          width={W}
+          height={H}
+          style={{ display: "block", width: "100%", height: "auto" }}
+        />
+        <div
+          style={{
+            padding: 8,
+            textAlign: "center",
+            fontSize: 12,
+            color: "#6b7280",
+            borderTop: "1px solid #e5e7eb",
+            background: "#fff",
+          }}
+        >
+          Mobile: tap <b>left</b> to jump · tap/hold <b>right</b> to duck
+        </div>
       </div>
-      <div style={{ border: "1px solid var(--border-color)", background: "var(--container-white)", borderRadius: 12, padding: 12 }}>
+
+      <div
+        style={{
+          border: "1px solid var(--border-color)",
+          background: "var(--container-white)",
+          borderRadius: 12,
+          padding: 12,
+        }}
+      >
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={practice} style={btn()}>Practice vs Bot</button>
           <button onClick={online} style={btn(true)}>Play Online</button>
           <button onClick={resign} style={btn()}>Resign</button>
         </div>
+
         <div style={{ marginTop: 10, color: "#555" }}>{status}</div>
+
         {mode === "online" && (
           <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
             <div><b>Match:</b> {names.top} (top) vs {names.bottom} (bottom)</div>
             <div><b>Hearts:</b> Top {lives.top}/3 · Bottom {lives.bottom}/3</div>
           </div>
         )}
+
         <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
-          Controls: <b>Up</b>/<b>Space</b> jump · <b>Down</b> duck.
+          Keyboard: <b>Up</b>/<b>Space</b> jump · <b>Down</b> duck.
         </div>
       </div>
+
+      <style>{`
+        @media (max-width: 860px) {
+          .jump-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }
