@@ -168,7 +168,7 @@ const LeaderCard = styled(Card)`
   overflow: hidden;             /* keep its own scroller contained */
   display: flex;
   flex-direction: column;
-  width: ${p => (p.$compact ? 'auto' : 'calc(150svh - 340px)')};
+  width: ${p => (p.$compact ? 'auto' : 'flex')};
   height: ${p => (p.$compact ? 'auto' : 'calc(100svh - 235px)')};
   min-height: ${p => (p.$compact ? 'auto' : '380px')};
   contain: content;
