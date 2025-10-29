@@ -244,7 +244,7 @@ const StickerItem = styled.div`
   transition: opacity 0.25s ease, filter 0.25s ease, transform 0.15s ease;
   opacity: ${(p) => (p.$muted ? 0.25 : 1)};
   will-change: transform, opacity;
-  z-index: ${(p) => (p.$selected ? 9 : 7)};
+  z-index: ${(p) => (p.$attributed ? 16 : p.$selected ? 9 : 7)};
   user-select: none;
   filter: ${(p) => (p.$selected ? 'drop-shadow(0 0 0.45rem rgba(59,130,246,0.4))' : 'none')};
   display: inline-flex;
@@ -254,7 +254,7 @@ const StickerItem = styled.div`
   box-sizing: content-box;
   border-radius: 18px;
   touch-action: none;
-  overflow: hidden;
+  overflow: visible;
 
   &:active {
     cursor: ${(p) => (p.$interactive && p.$pointerEnabled ? 'grabbing' : 'default')};
@@ -283,6 +283,72 @@ const StickerItem = styled.div`
     object-fit: contain;
     pointer-events: none;
   }
+`;
+
+const StickerHandle = styled.button`
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(96, 165, 250, 0.95);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.92), rgba(29, 78, 216, 0.92));
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.28);
+  cursor: ${(p) => (p.$visible && !p.$hidden ? (p.$active ? 'grabbing' : 'grab') : 'default')};
+  pointer-events: ${(p) => (p.$visible && !p.$hidden ? 'auto' : 'none')};
+  opacity: ${(p) => (p.$visible && !p.$hidden ? 1 : 0)};
+  transform: ${(p) => (p.$active ? 'scale(1.08)' : 'scale(1)')};
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  touch-action: none;
+  padding: 0;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+`;
+
+const StickerBody = styled.div`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+`;
+
+const StickerOutline = styled.div`
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: ${(p) => (p.$visible ? 0.9 : 0)};
+  transition: opacity 0.18s ease;
+  transform-origin: center;
+  border-radius: ${(p) => p.$radius}px;
+  border: ${(p) => `${p.$borderWidth}px dashed rgba(148, 163, 184, 0.78)`};
+  z-index: 3;
+`;
+
+const StickerAttribution = styled.div`
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, 0);
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+  opacity: 0.95;
+  z-index: 16;
 `;
 
 const DropGuide = styled.div`
@@ -667,6 +733,13 @@ const ROTATION_COEFFICIENT = 0.6;
 const STICKER_EDGE_OVERFLOW = 0.28; // allow ~28% bleed over card edge
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const normalizeDegrees = (value) => {
+  if (!Number.isFinite(value)) return 0;
+  let deg = value % 360;
+  if (deg > 180) deg -= 360;
+  if (deg < -180) deg += 360;
+  return deg;
+};
 const getStickerId = (sticker) => (sticker?.id || sticker?._id || null);
 
 const resolveAnchorInfo = (pos, areas = {}) => {
@@ -963,6 +1036,104 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
     }, 2000);
   }, [setPermissionNotice]);
 
+  const clearSelectionTimer = useCallback(() => {
+    if (selectionTimerRef.current) {
+      clearTimeout(selectionTimerRef.current);
+      selectionTimerRef.current = null;
+    }
+  }, []);
+
+  const clearAttributionTimer = useCallback(() => {
+    if (attributionTimerRef.current) {
+      clearTimeout(attributionTimerRef.current);
+      attributionTimerRef.current = null;
+    }
+  }, []);
+
+  const showStickerControls = useCallback(
+    (stickerId) => {
+      if (!stickerId) return;
+      clearSelectionTimer();
+      setSelectedStickerId(stickerId);
+      setSelectionVisible(true);
+      selectionTimerRef.current = setTimeout(() => {
+        setSelectionVisible(false);
+        selectionTimerRef.current = null;
+      }, 2000);
+    },
+    [clearSelectionTimer]
+  );
+
+  const hideStickerControls = useCallback(() => {
+    clearSelectionTimer();
+    setSelectionVisible(false);
+  }, [clearSelectionTimer]);
+
+  const hideStickerAttribution = useCallback(() => {
+    clearAttributionTimer();
+    setStickerAttribution(null);
+  }, [clearAttributionTimer]);
+
+  const showStickerAttribution = useCallback(
+    (sticker) => {
+      if (!sticker) return;
+      const stickerId = getStickerId(sticker);
+      if (!stickerId) return;
+      const ownerId = sticker.placedBy
+        ? String(sticker.placedBy)
+        : sticker.placedByUser?._id
+        ? String(sticker.placedByUser._id)
+        : null;
+      const viewerId = currentUser?._id ? String(currentUser._id) : null;
+      if (ownerId && viewerId && ownerId === viewerId) return;
+      const ownerName =
+        (sticker.placedByUser && sticker.placedByUser.username) ||
+        (sticker.meta && sticker.meta.placedByUser && sticker.meta.placedByUser.username) ||
+        sticker.placedByUsername ||
+        sticker.meta?.username ||
+        'Someone';
+      const possessive =
+        typeof ownerName === 'string' && /s$/i.test(ownerName)
+          ? `${ownerName}' sticker`
+          : `${ownerName}'s sticker`;
+      clearAttributionTimer();
+      setStickerAttribution({
+        id: stickerId,
+        label: possessive,
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('sticker-attribution-shown', {
+            detail: { postId: post._id, stickerId },
+          })
+        );
+      }
+      attributionTimerRef.current = setTimeout(() => {
+        setStickerAttribution(null);
+        attributionTimerRef.current = null;
+      }, 2000);
+    },
+    [clearAttributionTimer, currentUser?._id, post._id]
+  );
+
+  useEffect(() => {
+    return () => {
+      clearSelectionTimer();
+      clearAttributionTimer();
+      const state = transformStateRef.current;
+      if (state) {
+        if (state.moveListener) {
+          document.removeEventListener('pointermove', state.moveListener, true);
+        }
+        if (state.upListener) {
+          document.removeEventListener('pointerup', state.upListener, true);
+          document.removeEventListener('pointercancel', state.upListener, true);
+        }
+        transformStateRef.current = null;
+      }
+    };
+  }, [clearSelectionTimer, clearAttributionTimer]);
+
   const isAllowedCenter = useCallback((pos, sizePx) => {
     const card = containerRef.current?.getBoundingClientRect();
     if (!card) return true;
@@ -986,6 +1157,14 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
   const stickersRef = useRef(stickers);
   const [movingStickerId, setMovingStickerId] = useState(null);
   const deleteClickRef = useRef({ id: null, ts: 0 });
+  const [selectedStickerId, setSelectedStickerId] = useState(null);
+  const [selectionVisible, setSelectionVisible] = useState(false);
+  const selectionTimerRef = useRef(null);
+  const [stickerAttribution, setStickerAttribution] = useState(null);
+  const attributionTimerRef = useRef(null);
+  const stickerRefs = useRef(new Map());
+  const transformStateRef = useRef(null);
+  const [activeTransformId, setActiveTransformId] = useState(null);
   const movingStickerIdRef = useRef(null);
   const touchDragRef = useRef(null);
   const { beginStickerMove, registerTarget, hoverTargetId, activeDrag } = useStickerInteractions();
@@ -1031,6 +1210,36 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
   useEffect(() => {
     stickersRef.current = stickers;
   }, [stickers]);
+
+  useEffect(() => {
+    if (!selectedStickerId) return;
+    const stillExists = stickers.some((item) => getStickerId(item) === selectedStickerId);
+    if (!stillExists) {
+      setSelectedStickerId(null);
+      hideStickerControls();
+    }
+  }, [stickers, selectedStickerId, hideStickerControls]);
+
+  useEffect(() => {
+    if (!stickerAttribution?.id) return;
+    const stillExists = stickers.some((item) => getStickerId(item) === stickerAttribution.id);
+    if (!stillExists) {
+      hideStickerAttribution();
+    }
+  }, [stickers, stickerAttribution?.id, hideStickerAttribution]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleExternalAttribution = (event) => {
+      const externalPostId = event?.detail?.postId;
+      if (!externalPostId || externalPostId === post._id) return;
+      hideStickerAttribution();
+    };
+    window.addEventListener('sticker-attribution-shown', handleExternalAttribution);
+    return () => {
+      window.removeEventListener('sticker-attribution-shown', handleExternalAttribution);
+    };
+  }, [post._id, hideStickerAttribution]);
 
   useEffect(() => {
     if (stickersMuted) {
@@ -1219,6 +1428,24 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
     [currentUser?._id, post._id, canDeleteSticker]
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleTrashDrop = (event) => {
+      const detail = event.detail || {};
+      const placementId =
+        detail.placementId || (detail.sticker ? getStickerId(detail.sticker) : null);
+      if (!placementId) return;
+      const sticker = stickersRef.current.find((item) => getStickerId(item) === placementId);
+      if (!sticker) return;
+      if (!canDeleteSticker(sticker)) return;
+      hideStickerControls();
+      setSelectedStickerId((prev) => (prev === placementId ? null : prev));
+      handleStickerDelete(placementId);
+    };
+    window.addEventListener('sticker-trash-drop', handleTrashDrop);
+    return () => window.removeEventListener('sticker-trash-drop', handleTrashDrop);
+  }, [handleStickerDelete, hideStickerControls, canDeleteSticker]);
+
   const startStickerMove = useCallback(
     (sticker, clientX, clientY, rect) => {
       const placementId = getStickerId(sticker);
@@ -1250,12 +1477,23 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
     (event, sticker) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       if (stickersMuted || allowMode === 'none') return;
-      if (!canMoveSticker(sticker)) return;
+      const stickerId = getStickerId(sticker);
+      if (!stickerId) return;
+      const movable = canMoveSticker(sticker);
+      if (!movable) {
+        event.preventDefault();
+        event.stopPropagation();
+        clearHoldTimer();
+        showStickerAttribution(sticker);
+        return;
+      }
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       event.preventDefault();
       event.stopPropagation();
       clearHoldTimer();
+      hideStickerAttribution();
+      showStickerControls(stickerId);
 
       const pointerType = event.pointerType || 'mouse';
       if (pointerType === 'touch' || pointerType === 'pen') {
@@ -1306,7 +1544,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
 
       startStickerMove(sticker, event.clientX, event.clientY, rect);
     },
-    [allowMode, canMoveSticker, clearHoldTimer, startStickerMove, stickersMuted]
+    [allowMode, canMoveSticker, clearHoldTimer, hideStickerAttribution, showStickerAttribution, showStickerControls, startStickerMove, stickersMuted]
   );
 
   const handleStickerDoubleClick = useCallback(
@@ -1339,6 +1577,72 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
       }
     },
     [canDeleteSticker, handleStickerDelete, stickersMuted, allowMode]
+  );
+
+  const commitStickerTransform = useCallback(
+    async ({ stickerId, baseScale, baseRotation, nextScale, nextRotation }) => {
+      if (!stickerId) return;
+      const userId = currentUser?._id;
+      if (!userId) {
+        setStickers((prev) =>
+          prev.map((item) =>
+            getStickerId(item) === stickerId
+              ? { ...item, scale: baseScale, rotation: baseRotation }
+              : item
+          )
+        );
+        return;
+      }
+      const sticker = stickersRef.current.find((s) => getStickerId(s) === stickerId);
+      if (!sticker) return;
+
+      const payload = {
+        userId,
+        position: sticker.position,
+        scale: clamp(nextScale, STICKER_MIN_SCALE, STICKER_MAX_SCALE),
+        rotation: normalizeDegrees(nextRotation),
+        anchor: sticker.anchor,
+        anchorRect: sticker.anchorRect,
+      };
+
+      const previous = {
+        scale: baseScale,
+        rotation: normalizeDegrees(baseRotation),
+      };
+
+      try {
+        const updated = await updateStickerPlacement(post._id, stickerId, payload);
+        if (updated && typeof updated === 'object') {
+          setStickers((prev) =>
+            prev.map((item) =>
+              getStickerId(item) === stickerId
+                ? {
+                    ...item,
+                    scale: typeof updated.scale === 'number' ? updated.scale : payload.scale,
+                    rotation:
+                      typeof updated.rotation === 'number'
+                        ? normalizeDegrees(updated.rotation)
+                        : payload.rotation,
+                    position: updated.position || item.position,
+                    anchor: updated.anchor || item.anchor,
+                    anchorRect: updated.anchorRect || item.anchorRect,
+                  }
+                : item
+            )
+          );
+        }
+      } catch (err) {
+        console.error('Failed to resize sticker', err);
+        setStickers((prev) =>
+          prev.map((item) =>
+            getStickerId(item) === stickerId
+              ? { ...item, scale: previous.scale, rotation: previous.rotation }
+              : item
+          )
+        );
+      }
+    },
+    [currentUser?._id, post._id]
   );
 
   const handleDropNewSticker = useCallback(
@@ -1398,6 +1702,10 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
             anchorRect: placement.anchorRect || anchorInfo.anchorRect,
           };
           setStickers((prev) => [...prev, { ...newPlacement, position: anchorPosition }]);
+          const newId = getStickerId(newPlacement);
+          if (newId) {
+            showStickerControls(newId);
+          }
         }
       } catch (err) {
         if (err?.response?.status === 403) {
@@ -1408,7 +1716,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
           console.error('Failed to place sticker', err);
         }
       }
-    }, [canPlaceStickers, currentUser?._id, post._id, isAllowedCenter, maxStickers, showPermissionNotice, getBaseSize, stickers.length, normalizeMediaUrl, mediaBounds, textBounds]);
+    }, [canPlaceStickers, currentUser?._id, post._id, isAllowedCenter, maxStickers, showPermissionNotice, getBaseSize, stickers.length, normalizeMediaUrl, mediaBounds, textBounds, showStickerControls]);
 
   const handleDropMoveSticker = useCallback(
     async ({ placementId, position, scale, rotation }) => {
@@ -1459,6 +1767,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
             : item
         )
       );
+      showStickerControls(placementId);
 
       try {
         await updateStickerPlacement(post._id, placementId, {
@@ -1489,7 +1798,167 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
         movingStickerIdRef.current = null;
         setMovingStickerId(null);
       }
-    }, [currentUser?._id, canMoveSticker, post._id, isAllowedCenter, getBaseSize, mediaBounds, textBounds]);
+    }, [currentUser?._id, canMoveSticker, post._id, isAllowedCenter, getBaseSize, mediaBounds, textBounds, showStickerControls]);
+
+  const handleStickerTransformPointerDown = useCallback(
+    (event, sticker) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (stickersMuted || allowMode === 'none') return;
+      if (!canMoveSticker(sticker)) return;
+      const stickerId = getStickerId(sticker);
+      if (!stickerId) return;
+      const node = stickerRefs.current.get(stickerId);
+      if (!node) return;
+
+      hideStickerAttribution();
+      showStickerControls(stickerId);
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = node.getBoundingClientRect();
+      const center = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+
+      const baseScale = clamp(
+        typeof sticker.scale === 'number' ? sticker.scale : 1,
+        STICKER_MIN_SCALE,
+        STICKER_MAX_SCALE
+      );
+      const baseRotation = normalizeDegrees(
+        typeof sticker.rotation === 'number' ? sticker.rotation : 0
+      );
+      const pointerId = event.pointerId || 0;
+      const pointerTarget = event.currentTarget;
+      const vectorX = event.clientX - center.x;
+      const vectorY = event.clientY - center.y;
+      const baseDistance = Math.max(Math.hypot(vectorX, vectorY), 12);
+      const baseAngle = Math.atan2(vectorY, vectorX);
+
+      const existing = transformStateRef.current;
+      if (existing) {
+        if (existing.moveListener) {
+          document.removeEventListener('pointermove', existing.moveListener, true);
+        }
+        if (existing.upListener) {
+          document.removeEventListener('pointerup', existing.upListener, true);
+          document.removeEventListener('pointercancel', existing.upListener, true);
+        }
+        transformStateRef.current = null;
+      }
+
+      const state = {
+        stickerId,
+        pointerId,
+        pointerTarget,
+        center,
+        baseScale,
+        baseRotation,
+        baseDistance,
+        baseAngle,
+        latestScale: baseScale,
+        latestRotation: baseRotation,
+        moveListener: null,
+        upListener: null,
+      };
+
+      const handleMove = (moveEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
+        moveEvent.preventDefault();
+        moveEvent.stopPropagation();
+        const dx = moveEvent.clientX - center.x;
+        const dy = moveEvent.clientY - center.y;
+        const distance = Math.max(Math.hypot(dx, dy), 6);
+        const ratio = distance / state.baseDistance;
+        const nextScale = clamp(state.baseScale * (Number.isFinite(ratio) ? ratio : 1), STICKER_MIN_SCALE, STICKER_MAX_SCALE);
+        const angle = Math.atan2(dy, dx);
+        const deltaDeg = ((angle - state.baseAngle) * 180) / Math.PI;
+        const nextRotation = normalizeDegrees(state.baseRotation + deltaDeg);
+
+        state.latestScale = nextScale;
+        state.latestRotation = nextRotation;
+
+        setStickers((prev) =>
+          prev.map((item) =>
+            getStickerId(item) === stickerId
+              ? { ...item, scale: nextScale, rotation: nextRotation }
+              : item
+          )
+        );
+        showStickerControls(stickerId);
+      };
+
+      const handleUp = async (endEvent) => {
+        if (endEvent.pointerId !== pointerId) return;
+        endEvent.preventDefault();
+        endEvent.stopPropagation();
+        if (state.pointerTarget && state.pointerTarget.releasePointerCapture) {
+          try {
+            state.pointerTarget.releasePointerCapture(pointerId);
+          } catch (err) {
+            // ignore capture release errors
+          }
+        }
+        document.removeEventListener('pointermove', handleMove, true);
+        document.removeEventListener('pointerup', handleUp, true);
+        document.removeEventListener('pointercancel', handleUp, true);
+        transformStateRef.current = null;
+        setActiveTransformId(null);
+
+        const finalScale = clamp(state.latestScale, STICKER_MIN_SCALE, STICKER_MAX_SCALE);
+        const finalRotation = normalizeDegrees(state.latestRotation);
+        const cancelled = endEvent.type === 'pointercancel';
+
+        if (cancelled) {
+          setStickers((prev) =>
+            prev.map((item) =>
+              getStickerId(item) === stickerId
+                ? { ...item, scale: state.baseScale, rotation: state.baseRotation }
+                : item
+            )
+          );
+          showStickerControls(stickerId);
+          return;
+        }
+
+        const scaleChanged = Math.abs(finalScale - state.baseScale) > 0.002;
+        const rotationChanged = Math.abs(finalRotation - state.baseRotation) > 0.75;
+
+        showStickerControls(stickerId);
+
+        if (!scaleChanged && !rotationChanged) {
+          return;
+        }
+
+        await commitStickerTransform({
+          stickerId,
+          baseScale: state.baseScale,
+          baseRotation: state.baseRotation,
+          nextScale: finalScale,
+          nextRotation: finalRotation,
+        });
+      };
+
+      state.moveListener = handleMove;
+      state.upListener = handleUp;
+      transformStateRef.current = state;
+      setActiveTransformId(stickerId);
+
+      document.addEventListener('pointermove', handleMove, true);
+      document.addEventListener('pointerup', handleUp, true);
+      document.addEventListener('pointercancel', handleUp, true);
+
+      if (pointerTarget && pointerTarget.setPointerCapture) {
+        try {
+          pointerTarget.setPointerCapture(pointerId);
+        } catch (err) {
+          // ignore capture errors
+        }
+      }
+    },
+    [allowMode, canMoveSticker, commitStickerTransform, hideStickerAttribution, setStickers, showStickerControls, stickersMuted]
+  );
 
   useEffect(() => {
     const unregister = registerTarget(post._id, {
@@ -1719,6 +2188,14 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
   }, [computeAnchorBounds, mediaAttachments.length, textContent]);
 
   const pointerEnabled = !hideStickersInFeed && allowMode !== 'none' && !stickersMuted;
+
+  useEffect(() => {
+    if (pointerEnabled) return;
+    setSelectedStickerId(null);
+    hideStickerControls();
+    hideStickerAttribution();
+  }, [pointerEnabled, hideStickerControls, hideStickerAttribution, setSelectedStickerId]);
+
   const isHovering = hoverTargetId === post._id;
 
   const dropPreview = useMemo(() => {
@@ -1846,7 +2323,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
       ref={containerRef}
       className="surface"
       $dragOver={isDragOver}
-      $raised={menuOpen || settingsOpen}
+      $raised={menuOpen || settingsOpen || selectionVisible || Boolean(stickerAttribution)}
       onClick={handleContainerClick}
       onMouseDown={handleHoldStart}
       onMouseUp={handleHoldEnd}
@@ -1916,6 +2393,16 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
             movingStickerId && stickerId === movingStickerId && activeDrag?.placementId === movingStickerId;
           const stickerPoster = sticker.poster ? toMediaUrl(sticker.poster) : null;
           const stickerSrc = toMediaUrl(sticker.assetValue);
+          const isAttributed = stickerAttribution?.id === stickerId;
+          const isSelected = interactive && selectionVisible && selectedStickerId === stickerId;
+          const isTransforming = activeTransformId === stickerId;
+          const actualSize = baseVisualSize * scale;
+          const outlineScale = scale * 1.08;
+          const outlineRadius = Math.max(12, baseVisualSize * 0.36);
+          const outlineBorderWidth = Math.max(2, Math.min(3, baseVisualSize * 0.045));
+          const handleSize = Math.max(16, Math.min(28, actualSize * 0.24));
+          const handleOffset = Math.max(8, Math.min(actualSize * 0.16, 26));
+          const labelOffset = Math.max(10, Math.min(actualSize * 0.24, 44));
           if (hideSticker) {
             return null;
           }
@@ -1926,37 +2413,85 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
               $muted={stickersMuted}
               $interactive={interactive}
               $pointerEnabled={pointerEnabled}
-              $selected={false}
+              $selected={isSelected}
+              $attributed={isAttributed}
               style={{
                 left: `${anchorLeft * 100}%`,
                 top: `${anchorTop * 100}%`,
-                transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`,
+                transform: `translate(-50%, -50%)`,
                 width: `${baseVisualSize}px`,
                 height: `${baseVisualSize}px`,
               }}
               data-sticker-item="true"
+              ref={(node) => {
+                if (!stickerId) return;
+                if (node) {
+                  stickerRefs.current.set(stickerId, node);
+                } else {
+                  stickerRefs.current.delete(stickerId);
+                }
+              }}
               onPointerDown={(event) => handleStickerPointerDown(event, sticker)}
               onDoubleClick={(event) => handleStickerDoubleClick(event, sticker)}
               onContextMenu={(event) => handleStickerContextMenu(event, sticker)}
             >
-            {sticker.assetType === 'image' ? (
-              <img
-                src={stickerSrc}
-                alt={sticker.stickerKey || 'sticker'}
-                style={{ width: `${baseVisualSize}px`, height: `${baseVisualSize}px` }}
+            <StickerOutline
+              $visible={isSelected}
+              $radius={outlineRadius}
+              $borderWidth={outlineBorderWidth}
+              style={{
+                transform: `rotate(${rotation}deg) scale(${outlineScale})`,
+              }}
+            />
+            <StickerBody
+              style={{
+                transform: `rotate(${rotation}deg) scale(${scale})`,
+              }}
+            >
+              {sticker.assetType === 'image' ? (
+                <img
+                  src={stickerSrc}
+                  alt={sticker.stickerKey || 'sticker'}
+                  style={{ width: `${baseVisualSize}px`, height: `${baseVisualSize}px` }}
+                />
+              ) : sticker.assetType === 'video' ? (
+                <StickerVideo
+                  src={stickerSrc}
+                  poster={stickerPoster}
+                  size={baseVisualSize}
+                  muted={stickersMuted}
+                  disableAutoPlay={resolvedAnimationsDisabled || animatedBudgetExceeded}
+                  prefersReducedMotion={prefersReducedMotion || resolvedAnimationsDisabled}
+                  rounded
+                />
+              ) : (
+                <span style={{ fontSize: `${baseEmojiSize}px` }}>{sticker.assetValue || '⭐'}</span>
+              )}
+            </StickerBody>
+            {interactive && (
+              <StickerHandle
+                type="button"
+                aria-label="Resize or rotate sticker"
+                $visible={isSelected}
+                $active={isTransforming}
+                $hidden={isTransforming}
+                onPointerDown={(event) => handleStickerTransformPointerDown(event, sticker)}
+                style={{
+                  width: handleSize,
+                  height: handleSize,
+                  right: -handleOffset,
+                  bottom: -handleOffset,
+                }}
               />
-            ) : sticker.assetType === 'video' ? (
-              <StickerVideo
-                src={stickerSrc}
-                poster={stickerPoster}
-                size={baseVisualSize}
-                muted={stickersMuted}
-                disableAutoPlay={resolvedAnimationsDisabled || animatedBudgetExceeded}
-                prefersReducedMotion={prefersReducedMotion || resolvedAnimationsDisabled}
-                rounded
-              />
-            ) : (
-              <span style={{ fontSize: `${baseEmojiSize}px` }}>{sticker.assetValue || '⭐'}</span>
+            )}
+            {isAttributed && stickerAttribution.label && (
+              <StickerAttribution
+                style={{
+                  transform: `translate(-50%, ${labelOffset}px)`,
+                }}
+              >
+                {stickerAttribution.label}
+              </StickerAttribution>
             )}
             </StickerItem>
           );
