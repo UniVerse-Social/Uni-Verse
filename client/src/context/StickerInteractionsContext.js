@@ -97,12 +97,26 @@ export const StickerInteractionsProvider = ({ children }) => {
     if (!draft) return;
     let matchedTarget = null;
     let matchedRect = null;
+    let matchedPriority = -Infinity;
     targetsRef.current.forEach((target) => {
       const rect = target.getRect();
       if (!rect) return;
-      if (getPointInsideRect(activePoint, rect)) {
+      if (!getPointInsideRect(activePoint, rect)) return;
+
+      const disallowForeign =
+        draft.source === 'existing' &&
+        draft.fromPostId &&
+        draft.fromPostId !== target.id &&
+        !target.allowForeignDrop;
+      if (disallowForeign) {
+        return;
+      }
+
+      const priority = typeof target.priority === 'number' ? target.priority : 0;
+      if (!matchedTarget || priority >= matchedPriority) {
         matchedTarget = target;
         matchedRect = rect;
+        matchedPriority = priority;
       }
     });
 
@@ -212,7 +226,7 @@ export const StickerInteractionsProvider = ({ children }) => {
           });
         } else if (snapshot.source === 'existing') {
           const samePost = snapshot.fromPostId === target.id;
-          if (!samePost) return;
+          if (!samePost && !target.allowForeignDrop) return;
           target.onDropMove?.({
             sticker: snapshot.sticker,
             placementId: snapshot.placementId,
@@ -352,6 +366,11 @@ export const StickerInteractionsProvider = ({ children }) => {
       getRect: options.getRect,
       onDropNew: options.onDropNew,
       onDropMove: options.onDropMove,
+      allowForeignDrop: Boolean(options.allowForeignDrop),
+      priority:
+        typeof options.priority === 'number' && Number.isFinite(options.priority)
+          ? options.priority
+          : 0,
     };
     targetsRef.current.set(id, target);
     return () => {

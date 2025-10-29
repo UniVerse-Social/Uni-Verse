@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import styled, { css, keyframes } from 'styled-components';
-import { FaChevronLeft, FaChevronRight, FaInfoCircle } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight, FaInfoCircle, FaTrashAlt } from 'react-icons/fa';
 import { useStickers } from '../context/StickersContext';
 import { useCustomStickerCatalog } from '../context/CustomStickerContext';
 import { useStickerInteractions } from '../context/StickerInteractionsContext';
@@ -77,9 +77,20 @@ const DockTab = styled.button`
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: rgba(17, 24, 39, 0.62);
-  color: #f1f5f9;
-  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: ${(p) =>
+    p.$trashMode
+      ? p.$trashHot
+        ? 'rgba(220, 38, 38, 0.95)'
+        : 'rgba(239, 68, 68, 0.85)'
+      : 'rgba(17, 24, 39, 0.62)'};
+  color: ${(p) => (p.$trashMode ? '#ffffff' : '#f1f5f9')};
+  border: 1px solid
+    ${(p) =>
+      p.$trashMode
+        ? p.$trashHot
+          ? 'rgba(248, 113, 113, 0.95)'
+          : 'rgba(248, 113, 113, 0.75)'
+        : 'rgba(148, 163, 184, 0.45)'};
   border-radius: 999px;
   padding: 12px 18px;
   cursor: pointer;
@@ -88,8 +99,10 @@ const DockTab = styled.button`
   font-size: 13px;
 
   &:hover {
-    background: rgba(37, 99, 235, 0.88);
-    border-color: rgba(96, 165, 250, 0.85);
+    background: ${(p) =>
+      p.$trashMode ? 'rgba(220, 38, 38, 0.95)' : 'rgba(37, 99, 235, 0.88)'};
+    border-color: ${(p) =>
+      p.$trashMode ? 'rgba(248, 113, 113, 0.95)' : 'rgba(96, 165, 250, 0.85)'};
     color: #fff;
   }
 
@@ -275,6 +288,7 @@ const StickerCard = styled.button`
   justify-content: center;
   transition: transform 0.15s ease;
   user-select: none;
+  touch-action: none;
   width: 100%;
   height: 100%;
   outline: none;
@@ -367,12 +381,14 @@ export default function StickerDock({ animationsDisabled = false }) {
   const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
   const fileInputRef = useRef(null);
   const removeClickRef = useRef({ id: null, ts: 0 });
-  const { beginPickerDrag } = useStickerInteractions();
+  const { beginPickerDrag, registerTarget, activeDrag } = useStickerInteractions();
   const isCompact = useMediaQuery('(max-width: 1100px)');
   const isPocket = useMediaQuery('(max-width: 768px)');
   const infoButtonRef = useRef(null);
   const infoPopoverRef = useRef(null);
   const drawerRef = useRef(null);
+  const dockTabRef = useRef(null);
+  const [trashHover, setTrashHover] = useState(false);
   const [pendingItems, setPendingItems] = useState([]);
   const [showInfo, setShowInfo] = useState(false);
   const {
@@ -418,6 +434,55 @@ export default function StickerDock({ animationsDisabled = false }) {
     });
   }, [animationsDisabled]);
 
+  const trashMode = (isCompact || isPocket) && activeDrag && activeDrag.source === 'existing';
+
+  useEffect(() => {
+    if (!trashMode) {
+      setTrashHover(false);
+      return;
+    }
+    const pointer = activeDrag?.pointer || activeDrag?.center;
+    const rect = dockTabRef.current?.getBoundingClientRect();
+    if (!pointer || !rect) {
+      setTrashHover(false);
+      return;
+    }
+    const inside =
+      pointer.x >= rect.left &&
+      pointer.x <= rect.right &&
+      pointer.y >= rect.top &&
+      pointer.y <= rect.bottom;
+    setTrashHover((prev) => (prev === inside ? prev : inside));
+  }, [activeDrag, trashMode]);
+
+  useEffect(() => {
+    if (!trashMode) return;
+    setShowInfo(false);
+  }, [trashMode]);
+
+  useEffect(() => {
+    if (!(isCompact || isPocket)) return undefined;
+    if (typeof registerTarget !== 'function') return undefined;
+    const unregister = registerTarget('sticker-trash', {
+      getRect: () => dockTabRef.current?.getBoundingClientRect() || null,
+      onDropNew: () => {},
+      allowForeignDrop: true,
+      onDropMove: ({ placementId, fromPostId, sticker }) => {
+        if (!placementId) return;
+        setTrashHover(false);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('sticker-trash-drop', {
+              detail: { placementId, fromPostId, sticker },
+            })
+          );
+        }
+      },
+      priority: 100,
+    });
+    return unregister;
+  }, [registerTarget, isCompact, isPocket]);
+
   const defaultStickers = useMemo(() => {
     if (!Array.isArray(catalog)) return [];
     const seen = new Set();
@@ -435,6 +500,11 @@ export default function StickerDock({ animationsDisabled = false }) {
   const handleTabChange = useCallback((next) => {
     setActiveTab(next);
   }, []);
+
+  const handleDockToggle = useCallback(() => {
+    if (trashMode) return;
+    setOpen((prev) => !prev);
+  }, [trashMode]);
 
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -517,24 +587,37 @@ export default function StickerDock({ animationsDisabled = false }) {
   const arrowIcon = open
     ? <FaChevronLeft size={isPocket ? 18 : 12} />
     : <FaChevronRight size={isPocket ? 18 : 12} />;
+  const tabIcon = trashMode
+    ? <FaTrashAlt size={isPocket ? 18 : 12} />
+    : arrowIcon;
+  const tabLabel = 'Stickers';
+  const tabAriaLabel = trashMode
+    ? 'Drop sticker here to delete'
+    : open
+    ? 'Hide sticker drawer'
+    : 'Show sticker drawer';
+  const tabAriaExpanded = trashMode ? undefined : open;
 
   return (
     <DockWrap $compact={isCompact} $pocket={isPocket}>
       <DockTab
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
-        aria-label={open ? 'Hide sticker drawer' : 'Show sticker drawer'}
+        ref={dockTabRef}
+        onClick={handleDockToggle}
+        aria-expanded={tabAriaExpanded}
+        aria-label={tabAriaLabel}
         $pocket={isPocket}
+        $trashMode={trashMode}
+        $trashHot={trashHover}
       >
         {isPocket ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-            {arrowIcon}
+            {tabIcon}
           </span>
         ) : (
           <>
-            {arrowIcon}
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em' }}>Stickers</span>
+            {tabIcon}
+            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em' }}>{tabLabel}</span>
           </>
         )}
       </DockTab>
@@ -621,7 +704,13 @@ export default function StickerDock({ animationsDisabled = false }) {
                     muted
                     playsInline
                     preload="metadata"
-                    style={{ width: '100%', height: '100%', borderRadius: 12 }}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: 12,
+                      pointerEvents: 'none',
+                      touchAction: 'none',
+                    }}
                   />
                 ) : item.assetType === 'image' || activeTab === CUSTOM_TAB ? (
                   <img src={item.assetValue || item.value} alt={item.label} />
