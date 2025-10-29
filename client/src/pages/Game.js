@@ -170,7 +170,7 @@ const LeaderCard = styled(Card)`
   flex-direction: column;
   width: ${p => (p.$compact ? 'auto' : 'flex')};
   height: ${p => (p.$compact ? 'auto' : 'calc(100svh - 235px)')};
-  min-height: ${p => (p.$compact ? 'auto' : '380px')};
+  min-height: ${p => (p.$compact ? 'auto' : '100px')};
   contain: content;
   ${p => p.$compact ? `
     margin-left: auto;

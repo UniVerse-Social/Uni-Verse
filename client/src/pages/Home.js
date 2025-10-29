@@ -10,6 +10,7 @@ import { API_BASE_URL } from '../config';
 import StickerDock from '../components/StickerDock';
 import CustomStickerContext from '../context/CustomStickerContext';
 import StickerSettingsModal from '../components/StickerSettingsModal';
+import AdSenseBanner from '../components/AdSenseBanner';
 
 const PREF_STORAGE_KEY = 'fc__homePrefs_v1';
 
@@ -461,14 +462,23 @@ const Home = () => {
   useEffect(() => {
     const loadAds = async () => {
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/ads`);
-        setAds(res.data || []);
-      } catch {}
+        const res = await axios.get(`${API_BASE_URL}/api/ads/eligible`, {
+          params: {
+            placement: 'home_feed',
+            city: 'Fullerton',
+            limit: 10,
+            mode: process.env.REACT_APP_AD_MODE || 'dev',
+          },
+        });
+        setAds(Array.isArray(res.data?.items) ? res.data.items : []);
+      } catch (e) {
+        console.warn('Failed to load eligible ads', e?.message || e);
+        setAds([]);
+      }
     };
     loadAds();
   }, []);
 
-  
   const handlePostCreated = (newPost) =>
     setPosts((prev) => {
       const next = [
@@ -511,8 +521,9 @@ const Home = () => {
 
         <CreatePost onPostCreated={handlePostCreated} />
         {filteredPosts.map((p, idx) => {
-          const adIndex = Math.floor(idx / 10) % (ads.length || 1);
-          const shouldShowAd = (idx !== 0) && ((idx + 1) % 10 === 0) && ads.length > 0;
+          const INTERVAL = Number(process.env.REACT_APP_HOME_FEED_AD_INTERVAL || 8);
+          const showAdSlot = (idx !== 0) && ((idx + 1) % INTERVAL === 0);
+
           return (
             <React.Fragment key={p._id}>
               <Post
@@ -521,7 +532,24 @@ const Home = () => {
                 onPostUpdated={handlePostUpdated}
                 animationsDisabled={preferences.disableAnimations}
               />
-              {shouldShowAd && <AdCard ad={ads[adIndex]} />}
+              {showAdSlot && (
+                <>
+                  {/* Real AdSense on production domain + prod mode */}
+                  <AdSenseBanner />
+
+                  {/* Fallback house/demo ad everywhere else (dev, tunnels, staging) */}
+                  { (process.env.REACT_APP_AD_MODE || 'dev').toLowerCase() !== 'prod' && (
+                    <AdCard ad={{
+                      id: 'dev-fallback',
+                      title: 'Support Fullerton Businesses',
+                      body: 'Discover local shops and events around Fullerton.',
+                      ctaText: 'See What’s Nearby',
+                      ctaUrl: '/marketplace',
+                      testOnly: true
+                    }}/>
+                  )}
+                </>
+              )}
             </React.Fragment>
           );
         })}

@@ -12,6 +12,7 @@ import { FiSettings, FiLogOut, FiTrash2, FiX } from 'react-icons/fi';
 import FollowersModal from '../components/FollowersModal';
 import HobbiesModal from '../components/HobbiesModal';
 import { getHobbyEmoji, HOBBY_LIMIT } from '../utils/hobbies';
+import { adminDeleteUserByUsername } from '../api';
 
 /* --------------------------- Styled Components --------------------------- */
 
@@ -583,7 +584,33 @@ const Profile = () => {
   const [badges, setBadges] = useState({ catalog: [], unlocked: [], equipped: ['', '', '', '', ''] });
   const [showBadgesModal, setShowBadgesModal] = useState(false);
   const [activeSlot, setActiveSlot] = useState(0);
+  const onAdminDeleteUser = async () => {
+    if (!currentUser?.isAdmin) return;
 
+    // Ultra-defensive: pull the username from the loaded profile,
+    // the route param, or the URL slug.
+    const slug = (typeof window !== 'undefined'
+      ? decodeURIComponent((window.location.pathname.split('/profile/')[1] || '').split('/')[0])
+      : '');
+    const targetUsername = (userOnPage?.username || username || slug || '').trim();
+
+    if (!targetUsername) {
+      alert('No username found for this profile.');
+      return;
+    }
+
+    if (!window.confirm(`Admin action: permanently delete ${targetUsername}? This cannot be undone.`)) return;
+
+    try {
+      await adminDeleteUserByUsername(targetUsername);
+      alert('Account deleted.');
+      navigate('/');
+    } catch (err) {
+      console.error(err);
+      const msg = err?.response?.data?.message || err?.message || 'Failed to delete user.';
+      alert(msg);
+    }
+  };
   // Reset stale state on route change (prevents ghosts from previous profile)
   useEffect(() => {
     setUserOnPage(null);
@@ -1126,9 +1153,29 @@ const Profile = () => {
                   </SettingsWrap>
                 ) : (
                   currentUser && (
-                    <PrimaryButton $primary={!isFollowing} onClick={handleFollow}>
-                      {isFollowing ? 'Unfollow' : 'Follow'}
-                    </PrimaryButton>
+                    <>
+                      <PrimaryButton $primary={!isFollowing} onClick={handleFollow}>
+                        {isFollowing ? 'Unfollow' : 'Follow'}
+                      </PrimaryButton>
+                      {currentUser.isAdmin && String(currentUser._id) !== String(userOnPage?._id) && (
+                        <button
+                          onClick={onAdminDeleteUser}
+                          title="Admin: permanently delete this account"
+                          style={{
+                            marginLeft: 8,
+                            padding: '10px 12px',
+                            borderRadius: 6,
+                            fontWeight: 600,
+                            border: '1px solid var(--border-color)',
+                            background: '#c62828',
+                            color: '#fff',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Delete account
+                        </button>
+                      )}
+                    </>
                   )
                 )}
               </div>

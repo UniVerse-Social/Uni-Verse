@@ -83,24 +83,6 @@ cd client
 npm start
 ```
 
-## Seeding the database (optional)
-If `server/seed.js` seeds from files in `server/seed-data/`, run:
-```bash
-cd server
-node seed.js
-```
-
-## Common scripts (suggested)
-Add these to `server/package.json` if you use nodemon:
-```json
-{
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  }
-}
-```
-
 ## Contributing
 1. Create a new branch: `git checkout -b feature/<name>`
 2. Commit: `git commit -m "feat: <what you changed>"`
