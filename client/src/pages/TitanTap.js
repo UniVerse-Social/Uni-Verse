@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { API_BASE_URL } from '../config';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { API_BASE_URL, DEFAULT_BANNER_URL } from '../config';
 import UserLink from "../components/UserLink";
 import { getHobbyEmoji } from '../utils/hobbies';
 
@@ -127,13 +128,293 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .card {
   width: 100%;
   max-width: 520px;
-  height: 420px;
-  background: #fff;
-  border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-  padding: 16px;
+  height: 460px;
+  border-radius: 22px;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: linear-gradient(150deg, rgba(255,255,255,0.95), rgba(248,250,255,0.82));
+  border: 1px solid rgba(15,23,42,0.08);
+  box-shadow: 0 28px 48px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(8px);
 }
+.card-banner {
+  position: relative;
+  height: 150px;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+.card-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15,23,42,0.55) 0%, rgba(15,23,42,0.18) 55%, rgba(15,23,42,0) 85%);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.card-banner::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 68%;
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.65) 60%, rgba(255,255,255,0.92) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+.card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px 16px;
+  gap: 14px;
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.98) 45%, rgba(255,255,255,1) 100%);
+}
+.card-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: -70px;
+  padding: 12px 16px;
+  width: calc(100% - 18px);
+  align-self: center;
+  background: rgba(255,255,255,0.82);
+  border-radius: 20px;
+  border: 1px solid rgba(148,163,184,0.22);
+  box-shadow: 0 12px 24px rgba(15,23,42,0.15), 0 4px 8px rgba(37,99,235,0.1);
+  position: relative;
+  z-index: 2;
+}
+@media (max-width: 600px) {
+  .card-hero {
+    width: calc(100% - 10px);
+    padding: 12px 14px;
+  }
+}
+.card-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 26px;
+  overflow: hidden;
+  border: 3px solid transparent;
+  box-shadow: 0 12px 25px rgba(15,23,42,0.35);
+  background:
+    linear-gradient(#eef2ff, #eef2ff) padding-box,
+    linear-gradient(135deg, #2563eb, #f97316) border-box;
+  flex: 0 0 auto;
+}
+.card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.card-avatar.initials {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 28px;
+  color: #334155;
+}
+.card-hero-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.card-name-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card-name {
+  font-weight: 750;
+  font-size: 22px;
+  color: #0f172a;
+}
+.card-name a { color: inherit; text-decoration: none; }
+.card-name a:hover { text-decoration: underline; }
+.card-pronouns {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(79, 97, 255, 0.12);
+  color: #3442c3;
+}
+.card-title-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.meta-chip {
+  padding: 5px 8px;
+  border-radius: 11px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(245,246,248,0.92);
+  border: 1px solid rgba(71,85,105,0.28);
+  color: #1e293b;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.15;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  appearance: none;
+  font-family: inherit;
+}
+.meta-chip span.emoji {
+  font-size: 15px;
+}
+.meta-chip.match {
+  border: 2px solid #2563eb;
+  background:
+    linear-gradient(#f8fafc, #f8fafc) padding-box,
+    linear-gradient(135deg, rgba(37,99,235,0.65), rgba(37,99,235,0.15)) border-box;
+  box-shadow: 0 10px 24px rgba(37,99,235,0.22);
+  color: #1d4ed8;
+}
+.meta-chip:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.meta-chip-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(148,163,184,0.35);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+.meta-chip-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.card-badge {
+  background: rgba(15,23,42,0.08);
+  border: 1px solid rgba(148,163,184,0.45);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.card-badge.lead {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+.bio-snippet {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #334155;
+  max-height: 60px;
+  overflow: hidden;
+  padding-right: 4px;
+}
+.interest-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
+}
+.interest-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(241,245,249,0.92);
+  border: 1px solid rgba(148,163,184,0.45);
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border 0.18s ease;
+  padding-left: 2px;
+  padding-top: 0px;
+}
+.interest-dot:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.interest-dot:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 10px 20px rgba(15,23,42,0.15);
+}
+.interest-dot.common {
+  border: 2px solid #2563eb;
+  background: linear-gradient(135deg, rgba(219,234,254,0.9), rgba(255,255,255,0.98));
+  box-shadow: 0 10px 20px rgba(37,99,235,0.24);
+}
+.tooltip-bubble {
+  position: fixed;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(71,85,105,0.28);
+  box-shadow: 0 14px 26px rgba(15,23,42,0.18);
+  max-width: 260px;
+  text-align: center;
+  z-index: 4000;
+  white-space: normal;
+  line-height: 1.35;
+}
+.tooltip-bubble.align-left {
+  transform: translate(0, calc(-100% - 12px));
+}
+.tooltip-bubble.align-right {
+  transform: translate(-100%, calc(-100% - 12px));
+}
+.tooltip-bubble.mutual {
+  border-color: #2563eb;
+  background: linear-gradient(135deg, rgba(219,234,254,0.95), rgba(255,255,255,0.94));
+  color: #1d4ed8;
+  box-shadow: 0 16px 28px rgba(37,99,235,0.22);
+}
+.mutual-count {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #111827;
+  font-weight: 600;
+}
+.mutual-count strong {
+  color: inherit;
+}
+.card-footer {
+  margin-top: auto;
+  color: #64748b;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.card-footer strong { color: #c2410c; font-weight: 700; }
 @media (max-width: 768px) {
   .deck {
     /* viewport minus header/search/buttons and mobile nav */
@@ -141,17 +422,10 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   }
   .card {
     /* never exceed viewport; still looks like the desktop card */
-    height: min(420px, calc(100vh - 340px - var(--nav-mobile) - env(safe-area-inset-bottom, 0px)));
+    height: min(460px, calc(100vh - 340px - var(--nav-mobile) - env(safe-area-inset-bottom, 0px)));
   }
 }
 
-.card .header { display: flex; align-items: center; gap: 12px; }
-.card .avatar { width: 64px; height: 64px; border-radius: 50%; background: #f0f0f0; display: grid; place-items: center; overflow: hidden; }
-.card .avatar img { width: 100%; height: 100%; object-fit: cover; }
-.card .name { font-weight: 700; font-size: 18px; }
-.card .sub { color: #666; font-size: 12px; margin-top: 2px; }
-.card .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; max-height: 72px; overflow: hidden; }
-.card .hint { margin-top: 18px; color: #888; font-size: 12px; text-align: center; }
 
 .controls { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
 .controls button { padding: 10px 16px; border-radius: 999px; border: 1px solid #111; background: #fff; color: #111; cursor: pointer; }
@@ -236,6 +510,14 @@ function getCurrentUserId() {
   return localStorage.getItem('userId') || localStorage.getItem('uid') || null;
 }
 
+function getCurrentUserProfile() {
+  try {
+    const raw = localStorage.getItem('user') || localStorage.getItem('currentUser');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
 async function api(path, { method = 'GET', body } = {}) {
   const url = path.startsWith('http') ? path : `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
   const res = await fetch(url, {
@@ -257,24 +539,39 @@ async function api(path, { method = 'GET', body } = {}) {
   return res.json();
 }
 
-function SwipeableCard({ user, onDecision }) {
+function SwipeableCard({ user, viewer, clubsMap, onDecision }) {
   const [dx, setDx] = useState(0);
   const [dy, setDy] = useState(0);
   const [rot, setRot] = useState(0);
   const [released, setReleased] = useState(false);
+  const [tooltip, setTooltip] = useState(null);
+  const tooltipTimerRef = useRef(null);
+  const skipSwipeRef = useRef(false);
 
   const handlePointerDown = (e) => {
     if (released) return;
+    if (e.target.closest('a, button, [data-skip-swipe]')) {
+      skipSwipeRef.current = true;
+      return;
+    }
+    skipSwipeRef.current = false;
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const handlePointerMove = (e) => {
-    if (released) return;
+    if (released || skipSwipeRef.current) return;
     if (!(e.buttons & 1)) return;
     const nextDx = dx + (e.movementX || 0);
     const nextDy = dy + (e.movementY || 0);
     setDx(nextDx); setDy(nextDy); setRot(nextDx / 12);
   };
   const handlePointerUp = () => {
+    if (skipSwipeRef.current) {
+      skipSwipeRef.current = false;
+      setDx(0);
+      setDy(0);
+      setRot(0);
+      return;
+    }
     if (released) return;
     const threshold = 120;
     if (dx > threshold) { setReleased(true); onDecision('right', user); }
@@ -298,43 +595,360 @@ function SwipeableCard({ user, onDecision }) {
     return out.slice(0, 5);
   })();
 
+  const leadBadge = badgeLine[0] || null;
+  const supportingBadges = badgeLine.slice(1).filter((b) => b && b !== leadBadge);
+
+  const viewerHobbiesSource = viewer?.hobbies;
+  const viewerHobbies = useMemo(() => {
+    const raw = Array.isArray(viewerHobbiesSource) ? viewerHobbiesSource : [];
+    return new Set(raw);
+  }, [viewerHobbiesSource]);
+
+  const viewerClubsSource = viewer?.clubs;
+  const viewerClubIds = useMemo(() => {
+    const out = new Set();
+    const raw = Array.isArray(viewerClubsSource) ? viewerClubsSource : [];
+    raw.forEach((club) => {
+        if (!club) return;
+        if (typeof club === 'string') {
+          out.add(String(club));
+        } else if (typeof club === 'object') {
+          const id = club._id || club.id || club.clubId;
+          if (id) out.add(String(id));
+        }
+      });
+    return out;
+  }, [viewerClubsSource]);
+
+  const userHobbiesSource = user?.hobbies;
+  const userInterests = useMemo(
+    () => (Array.isArray(userHobbiesSource) ? userHobbiesSource : []),
+    [userHobbiesSource]
+  );
+  const orderedInterests = useMemo(() => {
+    if (!userInterests.length) return [];
+    const common = [];
+    const others = [];
+    userInterests.forEach((interest) => {
+      if (viewerHobbies.has(interest)) common.push(interest);
+      else others.push(interest);
+    });
+    return [...common, ...others];
+  }, [userInterests, viewerHobbies]);
+  const mutualInterests = useMemo(
+    () => orderedInterests.filter((h) => viewerHobbies.has(h)),
+    [orderedInterests, viewerHobbies]
+  );
+
+  const showTooltip = useCallback((target, message, variant = 'default', sourceType = null, sourceValue = null) => {
+    if (!target || typeof window === 'undefined') return;
+    const targetRect = target.getBoundingClientRect();
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const rawLeft = targetRect.left + targetRect.width / 2;
+    const rawTop = targetRect.top;
+    let align = 'center';
+    const edgeThreshold = 120;
+    if (rawLeft < edgeThreshold) align = 'left';
+    else if (viewportWidth - rawLeft < edgeThreshold) align = 'right';
+
+    let clampedLeft = rawLeft;
+    if (align === 'left') {
+      clampedLeft = Math.max(16, rawLeft);
+    } else if (align === 'right') {
+      clampedLeft = Math.min(viewportWidth - 16, rawLeft);
+    } else {
+      clampedLeft = Math.max(16, Math.min(rawLeft, viewportWidth - 16));
+    }
+    const clampedTop = Math.max(32, rawTop);
+
+    setTooltip({
+      id: `${Date.now()}-${Math.random()}`,
+      message,
+      variant,
+      left: clampedLeft,
+      top: clampedTop,
+      align,
+      sourceType,
+      sourceValue,
+    });
+
+    if (tooltipTimerRef.current) {
+      clearTimeout(tooltipTimerRef.current);
+    }
+    tooltipTimerRef.current = setTimeout(() => {
+      setTooltip(null);
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (tooltipTimerRef.current) {
+        clearTimeout(tooltipTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (tooltip?.sourceType === 'interest' && tooltip.sourceValue && !userInterests.includes(tooltip.sourceValue)) {
+      setTooltip(null);
+    }
+  }, [tooltip, userInterests]);
+
+  const hasDepartmentMatch =
+    !!viewer?.department &&
+    !!user?.department &&
+    viewer.department === user.department;
+
+  const metaChips = [];
+  if (user.department) {
+    metaChips.push({
+      label: user.department,
+      icon: '🏛️',
+      match: hasDepartmentMatch,
+      type: 'department',
+    });
+  }
+  if (user.classStanding || user.classYear || user.gradYear) {
+    const label =
+      user.classStanding ||
+      (user.classYear ? `Class of ${user.classYear}` : null) ||
+      (user.gradYear ? `Class of ${user.gradYear}` : null);
+    if (label) metaChips.push({ label, icon: '🎓', type: 'class' });
+  }
+  if (typeof user.major === 'string' && user.major.trim()) {
+    metaChips.push({ label: user.major.trim(), icon: '📘', type: 'major' });
+  }
+  const userClubsSource = user?.clubs;
+  const userClubsData = useMemo(
+    () => (Array.isArray(userClubsSource) ? userClubsSource : []),
+    [userClubsSource]
+  );
+
+  const sharedClubInfos = useMemo(() => {
+    const lookup = clubsMap instanceof Map ? clubsMap : null;
+    const results = [];
+    userClubsData.forEach((club) => {
+      let id = null;
+      let name = '';
+      if (typeof club === 'string') {
+        id = club;
+      } else if (club) {
+        id = club._id || club.id || club.clubId || null;
+        name = club.name || club.title || club.label || '';
+      }
+      if (!id) return;
+      const lookupEntry = lookup ? lookup.get(String(id)) : null;
+      if (lookupEntry) {
+        name = lookupEntry.name || lookupEntry.title || name || 'Club';
+      } else if (!name) {
+        name = 'Club';
+      }
+      if (viewerClubIds.has(String(id)) && !results.includes(name)) {
+        results.push(name);
+      }
+    });
+    return results;
+  }, [userClubsData, clubsMap, viewerClubIds]);
+
+  const handleMetaChipClick = useCallback(
+    (target, chip) => {
+      if (!chip) return;
+      let message = chip.label;
+      let variant = chip.match ? 'mutual' : 'default';
+      const formatList = (items) => {
+        if (!Array.isArray(items) || !items.length) return '';
+        if (items.length === 1) return items[0];
+        if (items.length === 2) return `${items[0]} and ${items[1]}`;
+        const last = items[items.length - 1];
+        return `${items.slice(0, -1).join(', ')} and ${last}`;
+      };
+
+      if (chip.match) {
+        if (chip.type === 'department') {
+          message = `You both are in the ${chip.label} department!`;
+        } else if (chip.type === 'club') {
+          const listText = formatList(sharedClubInfos);
+          message = listText ? `You both are in ${listText}!` : `You both are in this club!`;
+        }
+      }
+
+      showTooltip(target, message, variant, chip.type, chip.match ? chip.label : null);
+    },
+    [showTooltip, sharedClubInfos]
+  );
+  const locationLabel =
+    (typeof user.location === 'string' && user.location.trim()) ||
+    (typeof user.city === 'string' && user.city.trim()) ||
+    '';
+  if (locationLabel) {
+    metaChips.push({ label: locationLabel, icon: '📍', type: 'location' });
+  }
+
+  const bannerUrl = user.bannerPicture || DEFAULT_BANNER_URL;
+  const rawBio = user.bio || user.statusMessage || user.tagline || '';
+  const bioSnippet = typeof rawBio === 'string' ? rawBio.trim() : '';
+
   return (
-    <div className="card-wrap" style={style}
-      onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
+    <div
+      className="card-wrap"
+      style={style}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
       <div className="card">
-        <div className="header">
-          <div className="avatar">
-            {user.profilePicture ? <img src={user.profilePicture} alt={user.username || 'user'} /> : <span style={{ fontWeight: 700 }}>{(user.username || '?').slice(0,1).toUpperCase()}</span>}
-          </div>
-          <div>
-            <div className="name">
-              <UserLink username={user.username}>{user.username}</UserLink>
+        <div
+          className="card-banner"
+          style={{ backgroundImage: `url(${bannerUrl})` }}
+          aria-hidden="true"
+        />
+        <div className="card-body">
+          <div className="card-hero">
+            <div className={`card-avatar ${user.profilePicture ? '' : 'initials'}`}>
+              {user.profilePicture ? (
+                <img src={user.profilePicture} alt={user.username || 'user'} />
+              ) : (
+                <span>{(user.username || '?').slice(0, 1).toUpperCase()}</span>
+              )}
             </div>
-            <div className="sub">{user.department ? `Dept: ${user.department}` : ''}</div>
+            <div className="card-hero-info">
+              <div className="card-name-row">
+                <div className="card-name">
+                  <UserLink username={user.username} hideBadge>{user.username}</UserLink>
+                </div>
+                {user.pronouns && (
+                  <span className="card-pronouns">{user.pronouns}</span>
+                )}
+                {leadBadge && (
+                  <span className="card-title-badge">{leadBadge}</span>
+                )}
+              </div>
+              {metaChips.length > 0 && (
+                <div className="card-meta" aria-label="Profile highlights">
+                  {metaChips.map((chip, idx) => (
+                    <button
+                      type="button"
+                      key={`${chip.label}-${idx}`}
+                      className={`meta-chip ${chip.match ? 'match' : ''}`}
+                      data-skip-swipe
+                      onClick={(e) => handleMetaChipClick(e.currentTarget, chip)}
+                    >
+                      {chip.avatar ? (
+                        <span className="meta-chip-avatar" aria-hidden="true">
+                          <img src={chip.avatar} alt="" />
+                        </span>
+                      ) : (chip.icon || chip.fallbackIcon) && (
+                        <span className="emoji" aria-hidden>
+                          {chip.icon || chip.fallbackIcon}
+                        </span>
+                      )}
+                      <span>{chip.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+
+          {supportingBadges.length > 0 && (
+            <div className="card-badges" aria-label="Equipped badges">
+              {supportingBadges.map((b, i) => (
+                <span key={`${b}-${i}`} className="card-badge">
+                  {b}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {orderedInterests.length > 0 && (
+            <>
+              <div className="interest-cloud" aria-label="Interests">
+                {orderedInterests.map((interest) => {
+                  const isCommon = viewerHobbies.has(interest);
+                  const isDimmed = mutualInterests.length > 0 && !isCommon;
+                  return (
+                    <button
+                      key={interest}
+                      type="button"
+                      className={`interest-dot ${isCommon ? 'common' : ''} ${
+                        isDimmed ? 'dimmed' : ''
+                      }`}
+                      data-skip-swipe
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onPointerUp={(e) => e.stopPropagation()}
+                      onClick={(e) =>
+                        showTooltip(
+                          e.currentTarget,
+                          isCommon
+                            ? `You both enjoy ${interest}!`
+                            : `${user?.username || 'They'} enjoys ${interest}!`,
+                          isCommon ? 'mutual' : 'default',
+                          'interest',
+                          interest
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          showTooltip(
+                            e.currentTarget,
+                            isCommon
+                              ? `You both enjoy ${interest}!`
+                              : `${user?.username || 'They'} enjoys ${interest}!`,
+                            isCommon ? 'mutual' : 'default',
+                            'interest',
+                            interest
+                          );
+                        }
+                      }}
+                      aria-label={
+                        isCommon
+                          ? `${interest}, shared interest`
+                          : `${interest} interest`
+                      }
+                    >
+                      {getHobbyEmoji(interest)}
+                    </button>
+                  );
+                })}
+              </div>
+              {tooltip && typeof document !== 'undefined' &&
+                createPortal(
+                  <div
+                    key={tooltip.id}
+                    className={`tooltip-bubble ${tooltip.variant === 'mutual' ? 'mutual' : ''} ${tooltip.align ? `align-${tooltip.align}` : ''}`}
+                    style={{ left: tooltip.left, top: tooltip.top }}
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span>{tooltip.message}</span>
+                  </div>,
+                  document.body
+                )}
+            </>
+          )}
+
+          {bioSnippet && (
+            <div className="bio-snippet" aria-label="Bio">
+              {bioSnippet.length > 180 ? `${bioSnippet.slice(0, 177)}…` : bioSnippet}
+            </div>
+          )}
+
+          <div className="card-footer">
+            <span className="swipe-hint">
+              Drag right to connect, left to pass
+            </span>
+          </div>
+
+          {mutualInterests.length > 0 && (
+            <div className="mutual-count" role="status">
+              <strong>
+                {mutualInterests.length} mutual interest
+                {mutualInterests.length === 1 ? '' : 's'}
+              </strong>
+            </div>
+          )}
         </div>
-
-        {/* --- NEW: badges row (title first) --- */}
-        {badgeLine.length > 0 && (
-          <div className="badges" aria-label="Equipped badges">
-            {badgeLine.map((b, i) => (
-              <span key={i} className={`badge ${i === 0 ? 'title' : ''}`}>{b}</span>
-            ))}
-          </div>
-        )}
-
-        {Array.isArray(user.hobbies) && user.hobbies.length > 0 && (
-          <div className="chips">
-            {user.hobbies.slice(0, 6).map((h, i) => (
-              <span key={i} className="chip" title={h}>
-                <span className="chip-emoji" aria-hidden="true">{getHobbyEmoji(h)}</span>
-                {h}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div className="hint">Drag right to connect, left to pass</div>
       </div>
     </div>
   );
@@ -354,6 +968,17 @@ const TitanTap = () => {
   const [tagError, setTagError] = useState('');
 
   const userId = useMemo(() => getCurrentUserId(), []);
+  const viewerProfile = useMemo(() => getCurrentUserProfile(), []);
+  const clubDirectory = useMemo(() => {
+    const entries = Array.isArray(tagData.clubs) ? tagData.clubs : [];
+    const map = new Map();
+    entries.forEach((club) => {
+      if (club && club._id) {
+        map.set(String(club._id), club);
+      }
+    });
+    return map;
+  }, [tagData.clubs]);
   const leaderboardMap = useMemo(
     () => tagData.leaderboardMap || {},
     [tagData.leaderboardMap]
@@ -718,8 +1343,21 @@ const TitanTap = () => {
           </div>
         )}
         {filteredDeck.map((user, idx) => (
-          <div key={user._id} style={{ zIndex: 1000 + idx }}>
-            <SwipeableCard user={user} onDecision={decideTop} />
+          <div
+            key={user._id}
+            style={{
+              zIndex: 1000 + (filteredDeck.length - idx),
+              opacity: idx === 0 ? 1 : 0,
+              pointerEvents: idx === 0 ? 'auto' : 'none',
+              transition: 'opacity 160ms ease'
+            }}
+          >
+            <SwipeableCard
+              user={user}
+              viewer={viewerProfile}
+              clubsMap={clubDirectory}
+              onDecision={decideTop}
+            />
           </div>
         ))}
       </div>

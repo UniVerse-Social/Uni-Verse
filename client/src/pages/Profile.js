@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AuthContext } from '../App';
@@ -295,6 +296,24 @@ const InterestDot = styled.span`
   @media (max-width: 480px) { width: 30px; height: 30px; font-size: 18px; }
 `;
 
+const InterestTooltip = styled.div`
+  position: fixed;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 10px));
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(71,85,105,0.28);
+  box-shadow: 0 14px 26px rgba(15,23,42,0.18);
+  max-width: 240px;
+  text-align: center;
+  z-index: 3500;
+  line-height: 1.4;
+`;
+
 const InterestsHint = styled.span`
   font-size: 12px;
   color: rgba(249, 250, 251, 0.75);
@@ -579,6 +598,8 @@ const Profile = () => {
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
   const [showHobbiesModal, setShowHobbiesModal] = useState(false);
+  const [interestTooltip, setInterestTooltip] = useState(null);
+  const interestTooltipTimerRef = useRef(null);
 
   // Badges state
   const [badges, setBadges] = useState({ catalog: [], unlocked: [], equipped: ['', '', '', '', ''] });
@@ -617,7 +638,14 @@ const Profile = () => {
     setPosts([]);
     setShowFollowers(false);
     setShowFollowing(false);
+    setInterestTooltip(null);
   }, [username]);
+
+  useEffect(() => () => {
+    if (interestTooltipTimerRef.current) {
+      clearTimeout(interestTooltipTimerRef.current);
+    }
+  }, []);
 
   // Fetch profile and posts
   const fetchUserAndPosts = useCallback(async () => {
@@ -867,6 +895,14 @@ const Profile = () => {
   };
 
   const isOwnProfile = !!currentUser && !!userOnPage && String(currentUser._id) === String(userOnPage._id);
+  const viewerHobbies = useMemo(
+    () => new Set(Array.isArray(currentUser?.hobbies) ? currentUser.hobbies : []),
+    [currentUser?.hobbies]
+  );
+  const viewedUserHobbies = useMemo(
+    () => (Array.isArray(userOnPage?.hobbies) ? userOnPage.hobbies : []),
+    [userOnPage?.hobbies]
+  );
 
   /* ---- Badges helpers ---- */
 
@@ -908,12 +944,85 @@ const Profile = () => {
     }
   };
 
+  const showInterestTooltip = useCallback(
+    (target, interest) => {
+      if (!target || typeof window === 'undefined') return;
+      const rect = target.getBoundingClientRect();
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      const rawLeft = rect.left + rect.width / 2;
+      const rawTop = rect.top;
+      const edgeThreshold = 120;
+      let align = 'center';
+      if (rawLeft < edgeThreshold) align = 'left';
+      else if (viewportWidth - rawLeft < edgeThreshold) align = 'right';
+
+      let clampedLeft = rawLeft;
+      if (align === 'left') clampedLeft = Math.max(16, rawLeft);
+      else if (align === 'right') clampedLeft = Math.min(viewportWidth - 16, rawLeft);
+      else clampedLeft = Math.max(16, Math.min(rawLeft, viewportWidth - 16));
+      const clampedTop = Math.max(32, rawTop);
+
+      let message;
+      const safeInterest = interest || '';
+      if (isOwnProfile) {
+        message = `You enjoy ${safeInterest}!`;
+      } else if (viewerHobbies.has(safeInterest)) {
+        message = `You both enjoy ${safeInterest}!`;
+      } else {
+        message = `${userOnPage?.username || 'They'} enjoys ${safeInterest}!`;
+      }
+
+      setInterestTooltip({
+        id: `${Date.now()}-${Math.random()}`,
+        message,
+        left: clampedLeft,
+        top: clampedTop,
+        align,
+        interest: safeInterest,
+      });
+
+      if (interestTooltipTimerRef.current) {
+        clearTimeout(interestTooltipTimerRef.current);
+      }
+      interestTooltipTimerRef.current = setTimeout(() => {
+        setInterestTooltip(null);
+      }, 2000);
+    },
+    [isOwnProfile, viewerHobbies, userOnPage?.username]
+  );
+
+  useEffect(() => {
+    if (interestTooltip && interestTooltip.interest && !viewedUserHobbies.includes(interestTooltip.interest)) {
+      setInterestTooltip(null);
+    }
+  }, [interestTooltip, viewedUserHobbies]);
+
   /* --------------------------- Render --------------------------- */
 
   if (!userOnPage) return <Page>Loading...</Page>;
 
   return (
     <>
+      {interestTooltip && typeof document !== 'undefined' &&
+        createPortal(
+          <InterestTooltip
+            style={{
+              left: interestTooltip.left,
+              top: interestTooltip.top,
+              transform:
+                interestTooltip.align === 'left'
+                  ? 'translate(0, calc(-100% - 10px))'
+                  : interestTooltip.align === 'right'
+                    ? 'translate(-100%, calc(-100% - 10px))'
+                    : 'translate(-50%, calc(-100% - 10px))',
+            }}
+            role="status"
+            aria-live="polite"
+          >
+            {interestTooltip.message}
+          </InterestTooltip>,
+          document.body
+        )}
       <GlobalClamp />
       {/* Crop modals */}
       {imageToCrop && (
@@ -1189,7 +1298,20 @@ const Profile = () => {
               {Array.isArray(userOnPage.hobbies) && userOnPage.hobbies.length > 0 ? (
                 <InterestsList aria-label="Selected interests">
                   {userOnPage.hobbies.map((hobby) => (
-                    <InterestDot key={hobby} title={hobby} aria-label={hobby}>
+                    <InterestDot
+                      key={hobby}
+                      title={hobby}
+                      aria-label={hobby}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => showInterestTooltip(e.currentTarget, hobby)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          showInterestTooltip(e.currentTarget, hobby);
+                        }
+                      }}
+                    >
                       {getHobbyEmoji(hobby)}
                     </InterestDot>
                   ))}
