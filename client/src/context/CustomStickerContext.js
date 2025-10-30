@@ -56,7 +56,7 @@ export const CustomStickerProvider = ({ user, children }) => {
     removeCustomSticker,
   } = useCustomStickers(user);
 
-  const storageKey = useMemo(() => makeDefaultsKey(user), [user?._id, user?.username]);
+  const storageKey = useMemo(() => makeDefaultsKey(user), [user]);
   const [stickerDefaults, setStickerDefaults] = useState(() => readDefaultsFromStorage(storageKey));
 
   useEffect(() => {

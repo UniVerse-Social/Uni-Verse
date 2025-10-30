@@ -1,8 +1,10 @@
 // client/src/api.js
 import axios from 'axios';
 
+const metaEnv = (typeof import.meta !== 'undefined' && import.meta && import.meta.env) || undefined;
+
 const API_BASE =
-  (import.meta?.env?.VITE_API_BASE_URL) ||
+  (metaEnv && metaEnv.VITE_API_BASE_URL) ||
   (process.env.REACT_APP_API_BASE_URL) ||
   '';
 
@@ -15,7 +17,7 @@ export async function fetchEligibleAds({
   placement = 'home_feed',
   city = 'Fullerton',
   limit = 10,
-  mode = (import.meta?.env?.VITE_AD_MODE) || process.env.REACT_APP_AD_MODE || 'dev',
+  mode = (metaEnv && metaEnv.VITE_AD_MODE) || process.env.REACT_APP_AD_MODE || 'dev',
 }) {
   const { data } = await api.get('/ads/eligible', {
     params: { placement, city, limit, mode },

@@ -1,4 +1,5 @@
-﻿// client/src/pages/Home.js
+// client/src/pages/Home.js
+// Saved without a BOM to satisfy eslint unicode-bom rule in CRA builds.
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
@@ -259,6 +260,7 @@ const buildStickerDefaultsDraft = (source = {}) => ({
 
 const Home = () => {
   const [posts, setPosts] = useState([]);
+  // Store ad inventory fetched from the API so we can render real ads between posts.
   const [ads, setAds] = useState([]);
   const { user } = useContext(AuthContext);
   const { stickerDefaults, saveStickerDefaults } = useContext(CustomStickerContext);
@@ -270,6 +272,14 @@ const Home = () => {
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [showStickerDefaults, setShowStickerDefaults] = useState(false);
   const [defaultsDraft, setDefaultsDraft] = useState(() => buildStickerDefaultsDraft(stickerDefaults));
+  // Read ad mode at build-time so we know whether to fall back to demo ads.
+  const adModeValue = process.env.REACT_APP_AD_MODE || 'dev';
+  // Track if AdSense should be the only content shown in ad slots.
+  const isProdAdMode = adModeValue.toLowerCase() === 'prod';
+  // Allow env-configurable spacing between ads (default every 8 feed items).
+  const adInterval = Number(process.env.REACT_APP_HOME_FEED_AD_INTERVAL || 8);
+  // Guard against invalid configuration before scheduling ad slots.
+  const hasValidAdInterval = Number.isFinite(adInterval) && adInterval > 0;
   const openPrefs = useCallback(() => {
     setDraftPrefs({ ...DEFAULT_PREFS, ...preferences });
     window.dispatchEvent(new CustomEvent('fc-modal-open', { detail: 'home-preferences' }));
@@ -462,6 +472,7 @@ const Home = () => {
   useEffect(() => {
     const loadAds = async () => {
       try {
+        // Fetch a batch of eligible ads so we can interleave them into the feed.
         const res = await axios.get(`${API_BASE_URL}/api/ads/eligible`, {
           params: {
             placement: 'home_feed',
@@ -521,8 +532,14 @@ const Home = () => {
 
         <CreatePost onPostCreated={handlePostCreated} />
         {filteredPosts.map((p, idx) => {
-          const INTERVAL = Number(process.env.REACT_APP_HOME_FEED_AD_INTERVAL || 8);
-          const showAdSlot = (idx !== 0) && ((idx + 1) % INTERVAL === 0);
+          // Only show ads on the configured cadence once we've already rendered at least one post.
+          const showAdSlot = hasValidAdInterval && idx !== 0 && ((idx + 1) % adInterval === 0);
+          // Reuse ads in a round-robin fashion if we have fewer responses than slots.
+          const slotNumber = showAdSlot && hasValidAdInterval ? Math.floor((idx + 1) / adInterval) - 1 : -1;
+          const adForSlot =
+            slotNumber >= 0 && ads.length
+              ? ads[slotNumber % ads.length]
+              : null;
 
           return (
             <React.Fragment key={p._id}>
@@ -537,9 +554,10 @@ const Home = () => {
                   {/* Real AdSense on production domain + prod mode */}
                   <AdSenseBanner />
 
-                  {/* Fallback house/demo ad everywhere else (dev, tunnels, staging) */}
-                  { (process.env.REACT_APP_AD_MODE || 'dev').toLowerCase() !== 'prod' && (
-                    <AdCard ad={{
+                  {/* Fallback house/demo ad everywhere else (dev, tunnels, staging).
+                      Using the fetched ad when available keeps the ads state meaningful for ESLint. */}
+                  {!isProdAdMode && (
+                    <AdCard ad={adForSlot || {
                       id: 'dev-fallback',
                       title: 'Support Fullerton Businesses',
                       body: 'Discover local shops and events around Fullerton.',

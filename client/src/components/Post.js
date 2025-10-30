@@ -2514,7 +2514,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
               <Username
                 ref={usernameRef}
                 to={`/profile/${post.username}`}
-                data-username-link
+                data-username-link={post.username}
               >
                 {post.username}
               </Username>
