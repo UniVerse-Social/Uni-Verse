@@ -2,7 +2,7 @@
 module.exports = {
   webpack: {
     configure: (config) => {
-      // Silence only the noisy chess.js sourcemap warning
+      // Keep your existing warning filter
       config.ignoreWarnings = [
         ...(config.ignoreWarnings || []),
         (warning) =>
@@ -13,5 +13,14 @@ module.exports = {
       ];
       return config;
     },
+  },
+
+  // NEW: steer webpack-dev-server to compute the WS URL from the page's origin
+  devServer: (config) => {
+    config.allowedHosts = 'all'; // allow *.trycloudflare.com
+    config.client = config.client || {};
+    // "auto" scheme + host; no hard-coded :3000 so tunnels work
+    config.client.webSocketURL = 'auto://0.0.0.0/ws';
+    return config;
   },
 };

@@ -420,7 +420,42 @@ export default function TetrisArena(){
 
   const ensureSocket = useCallback(()=>{
     if (socketRef.current) return socketRef.current;
-    const s = io(API_BASE_URL, { transports:["websocket"] });
+
+    // Derive a tunnel-safe base (works for localhost too)
+    let WS_BASE = (API_BASE_URL && API_BASE_URL.trim()) || '';
+    WS_BASE = WS_BASE.replace(/\/+$/, '').replace(/\/api\/?$/, '');
+
+    // If the page is on a Cloudflare Tunnel, force sockets to use the SAME host
+    try {
+      const po = new URL(window.location.origin);
+      const wb = new URL(WS_BASE || po.origin);
+      if (/trycloudflare\.com$/i.test(po.hostname) && po.hostname !== wb.hostname) {
+        WS_BASE = po.origin;
+      }
+    } catch {}
+
+    // If the page is on a Cloudflare Tunnel, force sockets to use the SAME host
+    try {
+      const po = new URL(window.location.origin);
+      const wb = new URL(WS_BASE || po.origin);
+      if (/trycloudflare\.com$/i.test(po.hostname) && po.hostname !== wb.hostname) {
+        WS_BASE = po.origin;
+      }
+    } catch {}
+
+    const s = io(WS_BASE || undefined, {
+      path: '/api/socket.io',
+      transports: ['polling', 'websocket'], // start with polling, then upgrade
+      upgrade: true,
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 750,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      forceNew: true,
+    });
+
     socketRef.current = s;
 
     s.on("connect", ()=>setStatus("Connected. Queueing…"));

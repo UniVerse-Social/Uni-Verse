@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useContext, useCallback } from "react";
 import styled from "styled-components";
+import { createPortal } from "react-dom";
 import { io } from "socket.io-client";
 import axios from "axios";
 import { API_BASE_URL } from "../config";
@@ -70,6 +71,55 @@ const Key = styled.div`min-width:48px;padding:8px 12px;border-radius:10px;border
 
 const Overlay = styled.div`position:absolute;inset:0;display:grid;place-items:center;background:rgba(255,255,255,.35);z-index:2;`;
 const CountOverlay = styled(Overlay)`background:rgba(255,255,255,.45);font-weight:900;font-size:72px;color:#111;`;
+
+const ResultOverlay = styled.div`
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;                 /* iOS Safari dynamic viewport */
+  background: rgba(0,0,0,.32);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2147483647;            /* sit above anything */
+  isolation: isolate;             /* own stacking context */
+  pointer-events: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+`;
+
+const ResultModal = styled.div`
+  width: 540px; max-width: 94vw;
+  max-height: min(92dvh, 560px);
+  overflow: auto;
+  background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.18);
+  border: 1px solid #e5e7eb; padding: 16px;
+`;
+
+// Same thresholds used elsewhere for the badge
+const perGameRank = (n) => {
+  if (n >= 1500) return 'Champion';
+  if (n >= 900)  return 'Diamond';
+  if (n >= 600)  return 'Platinum';
+  if (n >= 400)  return 'Gold';
+  if (n >= 250)  return 'Silver';
+  if (n >= 100)  return 'Bronze';
+  return 'Wood';
+};
+
+// Trophies (Fishing only) + overall place for the modal
+const fetchMyFishingTrophies = async (userId) => {
+  try {
+    const { data } = await axios.get(`${API_BASE_URL}/api/games/stats/${userId}`);
+    return (data?.trophiesByGame?.fishing) || 0;
+  } catch { return 0; }
+};
+const fetchMyOverallPlace = async (userId) => {
+  try {
+    const q = new URLSearchParams({ limit: '100', userId });
+    const { data } = await axios.get(`${API_BASE_URL}/api/games/leaderboard/overall?${q.toString()}`);
+    return data?.me?.rank ?? null;
+  } catch { return null; }
+};
 
 const TimerBadge = styled.div`position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:3;background:#fff;border:1px solid var(--border-color);border-radius:999px;padding:4px 10px;font-weight:900;font-size:14px;`;
 const ScoreBadge = styled.div`position:absolute;top:6px;${p=>p.$side==="L"?"left:8px;":"right:8px;"}z-index:3;background:#fff;border:1px solid var(--border-color);border-radius:10px;padding:4px 8px;font-weight:900;font-size:12px;`;
@@ -184,6 +234,9 @@ export default function FishingArena({ onResult }) {
   const [score, setScore] = useState({ L: 0, R: 0 });
 
   const [message, setMessage] = useState("Pick a mode to start.");
+  const [resultModal, setResultModal] = useState(null); // { didWin, resultText, trophies, rank, place }
+  const [resigning, setResigning] = useState(false);
+  const resigningRef = useRef(false);
 
   // trophies: ALWAYS ±6 for ranked
   const awardedRef = useRef(false);
@@ -209,6 +262,12 @@ export default function FishingArena({ onResult }) {
   }, []);
 
   useEffect(() => {
+    const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 860px)').matches;
+    if (resultModal && isPhone) document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [resultModal]);
+
+  useEffect(() => {
     // Derive a stable WS base (strip trailing slashes and optional /api)
     const envBase = (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE)
       ? String(process.env.REACT_APP_API_BASE)
@@ -231,13 +290,26 @@ export default function FishingArena({ onResult }) {
 
     WS_BASE = WS_BASE.replace(/\/+$/, "").replace(/\/api\/?$/, "");
 
+    // Prefer SAME tunnel host if the page is on Cloudflare (avoids cross-host WS issues)
+    try {
+      const po = new URL(window.location.origin);
+      const wb = new URL(WS_BASE);
+      if (/trycloudflare\.com$/i.test(po.hostname) && po.hostname !== wb.hostname) {
+        WS_BASE = po.origin;
+      }
+    } catch {}
+
     const s = io(WS_BASE, {
-      path: "/socket.io",
-      transports: ["websocket", "polling"],
+      path: '/api/socket.io',                 // mount under /api (rides existing ingress)
+      transports: ['polling', 'websocket'],   // start with polling, upgrade to WS when allowed
+      upgrade: true,
       withCredentials: true,
       reconnection: true,
-      reconnectionAttempts: 5,
-      timeout: 10000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 750,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      forceNew: true,
     });
     sockRef.current = s;
 
@@ -245,12 +317,19 @@ export default function FishingArena({ onResult }) {
     s.on("connect_error", (e) => { setMessage(`Socket connect error: ${e?.message || e}`); });
     s.on("error", (e) => { setMessage(`Socket error: ${e?.message || e}`); });
 
-    s.on("fishing:queued", () => { setMode("queued"); setMessage("Looking for opponent…"); });
-    s.on("fishing:queueLeft", () => { setMode("idle"); setMessage("Pick a mode to start."); });
+    s.on("fishing:queued", () => {
+      resigningRef.current = false; setResigning(false); setResultModal(null);
+      setMode("queued"); setMessage("Looking for opponent…");
+    });
+    s.on("fishing:queueLeft", () => {
+      resigningRef.current = false; setResigning(false); setResultModal(null);
+      setMode("idle"); setMessage("Pick a mode to start.");
+    });
 
     s.on("fishing:start", ({ roomId, you, opp, side, state, ranked }) => {
       roomRef.current = roomId;
       awardedRef.current = false;
+      resigningRef.current = false; setResigning(false); setResultModal(null);
 
       sideRef.current = side;
       setMeSide(side);
@@ -294,21 +373,28 @@ export default function FishingArena({ onResult }) {
       setMessage("Opponent left. Looking for a new match…");
     });
 
-    s.on("fishing:gameover", async ({ roomId: rid, winnerUserId, ranked, score: finalScore }) => {
-      if (rid && rid !== roomRef.current) return;
-      const win = String(winnerUserId) === String(user._id);
+  s.on("fishing:gameover", async ({ roomId: rid, winnerUserId, ranked, score: finalScore }) => {
+    if (rid && rid !== roomRef.current) return;
+    const didWin = String(winnerUserId) === String(user._id);
 
-      // persist trophies (±6) for ranked games
-      if (ranked && !awardedRef.current) await awardRef.current(win ? "win" : "loss");
+    if (ranked && !awardedRef.current) {
+      await awardRef.current(didWin ? "win" : "loss");
+      if (onResultRef.current) onResultRef.current("fishing", didWin ? 6 : -6, didWin);
+    }
 
-      // update the Recent Games feed with ±6
-      if (ranked && onResultRef.current) {
-        onResultRef.current("fishing", win ? 6 : -6, win);
-      }
+    const resultText = didWin
+      ? `You win! ${finalScore?.L ?? 0}-${finalScore?.R ?? 0}`
+      : `You lose! ${finalScore?.L ?? 0}-${finalScore?.R ?? 0}`;
 
-      setMessage(win ? `You win! ${finalScore?.L ?? 0}-${finalScore?.R ?? 0}` : `You lose! ${finalScore?.L ?? 0}-${finalScore?.R ?? 0}`);
-      roomRef.current = null; setMode("idle"); setRoom(null); setMatch("over");
-    });
+    const trophies = user?._id ? await fetchMyFishingTrophies(user._id) : 0;
+    const rank = perGameRank(trophies);
+    const place = user?._id ? await fetchMyOverallPlace(user._id) : null;
+
+    setMessage(resultText);
+    setResultModal({ didWin, resultText, trophies, rank, place });
+
+    roomRef.current = null; setMode("idle"); setRoom(null); setMatch("over");
+  });
 
     return () => {
       try {
@@ -357,13 +443,51 @@ export default function FishingArena({ onResult }) {
     sockRef.current?.emit("fishing:practice", { userId: user._id, username: user.username });
   };
 
-  const resign = () => {
+  const resign = async () => {
+    // Mobile multi-tap guard
+    if (resigningRef.current) return;
+    resigningRef.current = true;
+    setResigning(true);
+
     if (mode === "queued") {
       cancelQueue();
+      setResigning(false); resigningRef.current = false;
       return;
     }
-    if (roomRef.current) sockRef.current?.emit("fishing:leave", { roomId: roomRef.current });
-    roomRef.current = null; setMode("idle"); setRoom(null); setMessage("Pick a mode to start.");
+
+    if (!roomRef.current) {
+      setMode("idle"); setRoom(null); setMessage("Pick a mode to start.");
+      setResigning(false); resigningRef.current = false;
+      return;
+    }
+
+    const rid = roomRef.current;
+    sockRef.current?.emit("fishing:leave", { roomId: rid });
+
+    // Immediate feedback so users stop tapping
+    setResultModal({ didWin: false, resultText: "You resigned.", trophies: null, rank: null, place: null });
+
+    // Award exactly once
+    const shouldAward = ranked && !awardedRef.current && user?._id;
+    if (shouldAward) awardedRef.current = true;
+
+    try {
+      if (shouldAward) {
+        await awardRef.current("loss");
+        if (onResultRef.current) onResultRef.current("fishing", -6, false);
+      }
+      if (user?._id) {
+        const [trophies, place] = await Promise.all([
+          fetchMyFishingTrophies(user._id),
+          fetchMyOverallPlace(user._id),
+        ]);
+        const rank = perGameRank(trophies);
+        setResultModal(prev => prev && { ...prev, trophies, rank, place });
+      }
+    } finally {
+      roomRef.current = null; setMode("idle"); setRoom(null); setMessage("Pick a mode to start.");
+      // keep lock until modal is dismissed (see buttons below)
+    }
   };
 
   const MobilePad = styled.div`
@@ -460,124 +584,161 @@ export default function FishingArena({ onResult }) {
   const pileOffsetR = Math.max(6, stageW - (fisherLeftR + FISHER_W) - 110);
 
   return (
-    <Wrap>
-      <Controls>
-        <Button onClick={startBot} $disabled={mode === "queued" || mode === "playing"}>Practice vs Bot</Button>
-        <Button $primary onClick={queueOnline} $disabled={mode === "queued" || mode === "playing"}>Play Online</Button>
-        <Button onClick={resign}>{mode === "queued" ? "Cancel Queue" : "Resign"}</Button>
-        <Badge>{mode === "playing" ? (ranked ? "Ranked" : "Practice") : mode === "queued" ? "Queued" : "Practice"}</Badge>
-        <Badge>Fish: {size.name}</Badge>
-        <Badge>Score: {myScore}</Badge>
-      </Controls>
+    <>
+      <Wrap>
+        <Controls>
+          <Button onClick={startBot} $disabled={mode === "queued" || mode === "playing"}>Practice vs Bot</Button>
+          <Button $primary onClick={queueOnline} $disabled={mode === "queued" || mode === "playing"}>Play Online</Button>
+          <Button onClick={resign} $disabled={resigning}>
+            {mode === "queued" ? "Cancel Queue" : (resigning ? "Resigning…" : "Resign")}
+          </Button>
+          <Badge>{mode === "playing" ? (ranked ? "Ranked" : "Practice") : mode === "queued" ? "Queued" : "Practice"}</Badge>
+          <Badge>Fish: {size.name}</Badge>
+          <Badge>Score: {myScore}</Badge>
+        </Controls>
 
-      <Stage ref={stageRef}>
-        <CenterLine />
-        <WavesCanvas stageW={stageW} />
+        <Stage ref={stageRef}>
+          <CenterLine />
+          <WavesCanvas stageW={stageW} />
 
-        <TimerBadge>{timeLeft.toString().padStart(2, "0")}s</TimerBadge>
-        <ScoreBadge $side="L">Fish {score.L}</ScoreBadge>
-        <ScoreBadge $side="R">Fish {score.R}</ScoreBadge>
+          <TimerBadge>{timeLeft.toString().padStart(2, "0")}s</TimerBadge>
+          <ScoreBadge $side="L">Fish {score.L}</ScoreBadge>
+          <ScoreBadge $side="R">Fish {score.R}</ScoreBadge>
 
-        <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
-          <line {...lineL} stroke="#0d1b2a" strokeWidth="2" strokeLinecap="round" />
-          <line {...lineR} stroke="#0d1b2a" strokeWidth="2" strokeLinecap="round" />
-        </svg>
+          <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
+            <line {...lineL} stroke="#0d1b2a" strokeWidth="2" strokeLinecap="round" />
+            <line {...lineR} stroke="#0d1b2a" strokeWidth="2" strokeLinecap="round" />
+          </svg>
 
-        <FisherWrap $left={fisherLeftL} $me={meSide === "L"}>
-          <Name>{meSide === "L" ? meUser?.username || "You" : oppUser?.username || "—"}</Name>
-          <FisherSprite />
-        </FisherWrap>
-        <FisherWrap $left={fisherLeftR} $me={meSide === "R"}>
-          <Name>{meSide === "R" ? meUser?.username || "You" : oppUser?.username || "—"}</Name>
-          <FisherSprite />
-        </FisherWrap>
+          <FisherWrap $left={fisherLeftL} $me={meSide === "L"}>
+            <Name>{meSide === "L" ? meUser?.username || "You" : oppUser?.username || "—"}</Name>
+            <FisherSprite />
+          </FisherWrap>
+          <FisherWrap $left={fisherLeftR} $me={meSide === "R"}>
+            <Name>{meSide === "R" ? meUser?.username || "You" : oppUser?.username || "—"}</Name>
+            <FisherSprite />
+          </FisherWrap>
 
-        <FishWrap $x={fishLDraw.x} $y={fishLDraw.y}><FishCanvas dir={fishLDraw.dir} /></FishWrap>
-        <Splash $x={fishLDraw.x} $y={fishLDraw.y} />
-        <FishWrap $x={fishRDraw.x} $y={fishRDraw.y}><FishCanvas dir={fishRDraw.dir} /></FishWrap>
-        <Splash $x={fishRDraw.x} $y={fishRDraw.y} />
-        {match === "live" && need && (
-          <QTEPane $side={meSide}>
-            <Key>{need.replace("Arrow", "")}</Key>
-          </QTEPane>
-        )}
-        <PileWrap $side="L" $offset={pileOffsetL}>
-          {pileLayout(score.L).map((p, i) => (
-            <PileFish key={i} $x={p.x} $y={p.y} $r={p.r}>
-              <FishCanvas dir={1} />
-            </PileFish>
-          ))}
-        </PileWrap>
+          <FishWrap $x={fishLDraw.x} $y={fishLDraw.y}><FishCanvas dir={fishLDraw.dir} /></FishWrap>
+          <Splash $x={fishLDraw.x} $y={fishLDraw.y} />
+          <FishWrap $x={fishRDraw.x} $y={fishRDraw.y}><FishCanvas dir={fishRDraw.dir} /></FishWrap>
+          <Splash $x={fishRDraw.x} $y={fishRDraw.y} />
 
-        <PileWrap $side="R" $offset={pileOffsetR}>
-          {pileLayout(score.R).map((p, i) => (
-            <PileFish key={i} $x={p.x} $y={p.y} $r={-p.r}>
-              <FishCanvas dir={-1} />
-            </PileFish>
-          ))}
-        </PileWrap>
-        {match === "live" && (
-          <MobilePad
-            onTouchMove={(e)=>e.preventDefault()}
-            onWheel={(e)=>e.preventDefault()}
-            onContextMenu={(e)=>e.preventDefault()}
-          >
-            {/* Up */}
-            <DirBtn
-              aria-label="Up"
-              style={{ left: "50%", top: "8px", transform: "translateX(-50%)" }}
-              onPointerDown={(e)=>{ e.preventDefault(); sendTap("up"); }}
+          {match === "live" && need && (
+            <QTEPane $side={meSide}>
+              <Key>{need.replace("Arrow", "")}</Key>
+            </QTEPane>
+          )}
+
+          <PileWrap $side="L" $offset={pileOffsetL}>
+            {pileLayout(score.L).map((p, i) => (
+              <PileFish key={i} $x={p.x} $y={p.y} $r={p.r}>
+                <FishCanvas dir={1} />
+              </PileFish>
+            ))}
+          </PileWrap>
+
+          <PileWrap $side="R" $offset={pileOffsetR}>
+            {pileLayout(score.R).map((p, i) => (
+              <PileFish key={i} $x={p.x} $y={p.y} $r={-p.r}>
+                <FishCanvas dir={-1} />
+              </PileFish>
+            ))}
+          </PileWrap>
+
+          {match === "live" && (
+            <MobilePad
+              onTouchMove={(e)=>e.preventDefault()}
+              onWheel={(e)=>e.preventDefault()}
+              onContextMenu={(e)=>e.preventDefault()}
             >
-              <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
-                <path d="M11 5 L18 15 H4 Z" fill="#fff" />
-              </svg>
-            </DirBtn>
+              {/* Up */}
+              <DirBtn
+                aria-label="Up"
+                style={{ left: "50%", top: "8px", transform: "translateX(-50%)" }}
+                onPointerDown={(e)=>{ e.preventDefault(); sendTap("up"); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
+                  <path d="M11 5 L18 15 H4 Z" fill="#fff" />
+                </svg>
+              </DirBtn>
 
-            {/* Left */}
-            <DirBtn
-              aria-label="Left"
-              style={{ left: "8px", top: "50%", transform: "translateY(-50%)" }}
-              onPointerDown={(e)=>{ e.preventDefault(); sendTap("left"); }}
-            >
-              <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
-                <path d="M6 11 L16 4 V18 Z" fill="#fff" />
-              </svg>
-            </DirBtn>
+              {/* Left */}
+              <DirBtn
+                aria-label="Left"
+                style={{ left: "8px", top: "50%", transform: "translateY(-50%)" }}
+                onPointerDown={(e)=>{ e.preventDefault(); sendTap("left"); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
+                  <path d="M6 11 L16 4 V18 Z" fill="#fff" />
+                </svg>
+              </DirBtn>
 
-            {/* Right */}
-            <DirBtn
-              aria-label="Right"
-              style={{ right: "8px", top: "50%", transform: "translateY(-50%)" }}
-              onPointerDown={(e)=>{ e.preventDefault(); sendTap("right"); }}
-            >
-              <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
-                <path d="M16 11 L6 4 V18 Z" fill="#fff" />
-              </svg>
-            </DirBtn>
+              {/* Right */}
+              <DirBtn
+                aria-label="Right"
+                style={{ right: "8px", top: "50%", transform: "translateY(-50%)" }}
+                onPointerDown={(e)=>{ e.preventDefault(); sendTap("right"); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
+                  <path d="M16 11 L6 4 V18 Z" fill="#fff" />
+                </svg>
+              </DirBtn>
 
-            {/* Down */}
-            <DirBtn
-              aria-label="Down"
-              style={{ left: "50%", bottom: "8px", transform: "translateX(-50%)" }}
-              onPointerDown={(e)=>{ e.preventDefault(); sendTap("down"); }}
-            >
-              <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
-                <path d="M11 17 L18 7 H4 Z" fill="#fff" />
-              </svg>
-            </DirBtn>
-          </MobilePad>
-        )}
-        <DockBody />
-        {match === "countdown" && <CountOverlay>{countdown}</CountOverlay>}
-        {mode !== "playing" && !roomId && (
-          <Overlay><div style={{ fontWeight: 900 }}>{message}</div></Overlay>
-        )}
-      </Stage>
+              {/* Down */}
+              <DirBtn
+                aria-label="Down"
+                style={{ left: "50%", bottom: "8px", transform: "translateX(-50%)" }}
+                onPointerDown={(e)=>{ e.preventDefault(); sendTap("down"); }}
+              >
+                <svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true" style={{ pointerEvents:"none" }}>
+                  <path d="M11 17 L18 7 H4 Z" fill="#fff" />
+                </svg>
+              </DirBtn>
+            </MobilePad>
+          )}
 
-      <HUDLine>
-        <b>{instruction}</b>
-        <Bar><Fill $pct={(progress / (size?.chunks || 10)) * 100} /></Bar>
-      </HUDLine>
-    </Wrap>
+          <DockBody />
+          {match === "countdown" && <CountOverlay>{countdown}</CountOverlay>}
+          {mode !== "playing" && !roomId && (
+            <Overlay><div style={{ fontWeight: 900 }}>{message}</div></Overlay>
+          )}
+        </Stage>
+
+        <HUDLine>
+          <b>{instruction}</b>
+          <Bar><Fill $pct={(progress / (size?.chunks || 10)) * 100} /></Bar>
+        </HUDLine>
+      </Wrap>
+
+      {resultModal && createPortal(
+        <ResultOverlay onClick={() => setResultModal(null)}>
+          <ResultModal onClick={(e) => e.stopPropagation()}>
+            <div style={{fontSize:18, fontWeight:800, marginBottom:6}}>
+              {resultModal.didWin ? 'You win! 🎉' : 'You lose'}
+            </div>
+            <div style={{fontSize:13, color:'#6b7280'}}>{resultModal.resultText}</div>
+
+            <div style={{display:'flex', gap:10, alignItems:'center', marginTop:10, padding:'8px 10px',
+                        border:'1px solid #e5e7eb', borderRadius:10}}>
+              <span style={{fontWeight:800}}>🏆 {resultModal.trophies}</span>
+              <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'#111', color:'#fff'}}>
+                {resultModal.rank || ' '}
+              </span>
+            </div>
+            <div style={{marginTop:6, fontSize:12, color:'#6b7280'}}>
+              Overall leaderboard place: <b>#{resultModal.place ?? '—'}</b>
+            </div>
+
+            <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginTop:12}}>
+              <Button onClick={() => { setResultModal(null); setMode("idle"); setMessage("Pick a mode to start."); setResigning(false); resigningRef.current = false; }}>Back</Button>
+              <Button onClick={() => { setResultModal(null); setResigning(false); resigningRef.current = false; startBot(); }}>Practice Again</Button>
+              <Button $primary onClick={() => { setResultModal(null); setResigning(false); resigningRef.current = false; queueOnline(); }}>Matchmake Online</Button>
+            </div>
+          </ResultModal>
+        </ResultOverlay>,
+        document.body
+      )}
+    </>
   );
 }

@@ -35,7 +35,7 @@ const Page = styled.div`
 `;
 
 const TopBar = styled.nav`
-  position: relative; /* anchor dropdown */
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -44,11 +44,14 @@ const TopBar = styled.nav`
   border: 1px solid var(--border-color);
   border-radius: 14px;
   box-shadow: 0 8px 18px rgba(0,0,0,.06);
+  min-width: 0;          /* NEW: let children shrink */
+  flex-wrap: nowrap;     /* NEW: keep coins visible */
 `;
 
 const TitleButton = styled.button`
   appearance: none;
   border: 0;
+  position: relative; /* anchor chevron */
   background: linear-gradient(92deg, #ff8718 0%, #ffb95e 25%, #3b5cff 85%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -62,11 +65,36 @@ const TitleButton = styled.button`
   text-shadow: 0 1px 0 rgba(255,255,255,0.05), 0 3px 6px rgba(0,0,0,0.30);
   padding: 6px 10px;
   cursor: pointer;
-  border-radius: 10px;
-  transition: transform .08s ease-in-out, background .2s ease;
+  border-radius: 12px;
+  transition: transform .08s ease-in-out, background .2s ease, box-shadow .15s ease, border-color .15s ease;
   white-space: nowrap;
   &:hover { transform: translateY(-1px) scale(1.02); }
   &:active { transform: translateY(0) scale(.99); }
+
+  /* Phone tweaks: shrink, cap width, add outline & chevron */
+  @media (max-width: 900px) {
+    font-size: clamp(22px, 7vw, 34px);   /* NEW: responsive text */
+    padding-right: 36px;                 /* room for chevron */
+    border: 2px solid #3b5cff;           /* outline */
+    box-shadow: 0 0 0 3px rgba(59,92,255,.18), 0 8px 18px rgba(0,0,0,.08);
+    flex: 0 1 auto;                      /* NEW: allow shrink */
+    max-width: min(54vw, 240px);         /* NEW: never hog space */
+    min-width: 0;                        /* NEW: cooperate with flexbox */
+
+    &::after{
+      content: "▾";
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%) rotate(${p => (p.$expanded ? '180deg' : '0deg')});
+      transition: transform .18s ease;
+      font-weight: 900;
+      font-size: 18px;
+      color: #111;
+      text-shadow: 0 1px 0 rgba(255,255,255,.4);
+      pointer-events: none;
+    }
+  }
 `;
 
 const TabsRow = styled.div`
@@ -116,6 +144,8 @@ const CoinStat = styled.div`
   margin-left:auto; padding:6px 10px;
   border:1px solid var(--border-color); background:#fff; border-radius:999px;
   font-weight:900; font-size:13px;
+  flex: 0 0 auto;        /* NEW: don't shrink */
+  white-space: nowrap;   /* NEW: keep on one line */
 `;
 
 /* Use minmax(0,1fr) so the right column never overflows and gets "cut off" */
@@ -188,6 +218,8 @@ const PodiumWrap = styled.div`
   align-items: end;
   gap: 10px;
   margin: 6px auto 10px;
+  /* dynamic top padding to clear the floating avatar ring */
+  padding-top: ${p => (p.$pad || 0)}px;
   width: 100%;
   max-width: ${p => (p.$compact ? '520px' : 'unset')};
 `;
@@ -258,6 +290,17 @@ const PodiumScore = styled.div`
   text-align: center;
 `;
 
+const PodiumTitle = styled.div`
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
 const RowItem = styled.div`
   display:flex; align-items:center; justify-content:space-between;
   padding: 6px 8px;
@@ -269,14 +312,16 @@ const RowItem = styled.div`
 
 /* Smooth, easy scrolling area for the extended leaderboard list */
 const ScrollArea = styled.div`
-overflow: auto;
+  overflow: auto;
   flex: 1;
   min-height: 140px;
   /* touch-friendly scrolling niceties */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   scroll-behavior: smooth;
- `;
+  /* On compact/mobile, create an internal scroller with a sensible cap */
+  max-height: ${p => (p.$maxh ? `${Math.max(140, p.$maxh)}px` : 'unset')};
+`;
 
 /* Mobile buttons under the leaderboard */
 const ActionsBar = styled.div`
@@ -392,6 +437,8 @@ function normalizeOverallRows(arr) {
   return arr.map((r, i) => {
     const userObj = r.user || {};
     const username = r.username || r.name || userObj.username || r.userName || '—';
+    const title =
+          r.title || r.role || r.badge || userObj.title || userObj.role || userObj.badge || '';
     const score = typeof r.score === 'number'
       ? r.score
       : (typeof r.trophies === 'number'
@@ -399,7 +446,7 @@ function normalizeOverallRows(arr) {
           : (typeof r.total === 'number' ? r.total : 0));
     const avatarUrl = r.avatarUrl || r.avatar || userObj.avatarUrl || userObj.avatar || '';
     const _id = r._id || r.userId || userObj._id || `row-${i}`;
-    return { _id, username, score, avatarUrl };
+    return { _id, username, title, score, avatarUrl };
   });
 }
 
@@ -472,11 +519,40 @@ function OverallLeaderboard({ myTotal, compact = false }) {
   const userId = user?._id;
   const userName = user?.username;
   const userAvatarUrl = user?.avatarUrl;
-
+  // Prevent header/podium collisions by padding the podium grid as needed
   const [leaders, setLeaders] = React.useState([]);
   const [me, setMe] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [avatarCache, setAvatarCache] = React.useState({});
+
+  const podPad = React.useMemo(() => {
+    const centerSize = compact ? 50 : 64;     // Sizes used in S[]
+    const ringOffset = compact ? 28 : 38;     // AvatarRing 'top' (absolute, positive)
+    return Math.max(0, centerSize - ringOffset) + 12; // +12px breathing room
+  }, [compact]);
+
+  // Dynamic list height on phones: fit screen and keep buttons visible
+  const listRef = React.useRef(null);
+  const [listMaxH, setListMaxH] = React.useState(0);
+  React.useEffect(() => {
+    if (!compact) return;
+    const compute = () => {
+      const vp = window.innerHeight || document.documentElement?.clientHeight || 0;
+      const el = listRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const NAV = 64;   // bottom navbar (safe)
+      const GAP = 14;   // breathing room
+      const reserve = 110 + NAV + GAP;
+      const next = Math.max(140, Math.floor(vp - r.top - reserve));
+      setListMaxH(next);
+    };
+    compute(); // once on mount/content change
+    const mq = window.matchMedia('(orientation: portrait)');
+    const onOrient = () => compute();
+    mq.addEventListener('change', onOrient);
+    return () => mq.removeEventListener('change', onOrient);
+  }, [compact, leaders]);
 
   React.useEffect(() => {
     let alive = true;
@@ -585,7 +661,7 @@ function OverallLeaderboard({ myTotal, compact = false }) {
         <Subtle>Loading…</Subtle>
       ) : (
         <>
-          <PodiumWrap $compact={compact}>
+          <PodiumWrap $compact={compact} $pad={podPad}>
             {S.map(({i,h,s,label}) => {
               const p = P(i);
               const opacity = p.placeholder ? 0.5 : 1;
@@ -593,13 +669,14 @@ function OverallLeaderboard({ myTotal, compact = false }) {
                 <div key={label} style={{ position:'relative', width:'100%', maxWidth: 240 }}>
                   <Pedestal $h={h} style={{opacity}}>
                     <RankBadge>#{label}</RankBadge>
-                    <AvatarRing $size={s} $compact={compact}>
+                    <AvatarRing $size={s} $compact={compact} data-rank={label}>
                       <Avatar size={s} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
                     </AvatarRing>
                     <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
                       <PodiumName>
                         {p.placeholder ? '—' : <UserLink username={p.username}>{p.username}</UserLink>}
                       </PodiumName>
+                      {!p.placeholder && p.title ? <PodiumTitle>{p.title}</PodiumTitle> : null}
                       <PodiumScore>{p.score} 🏆</PodiumScore>
                     </div>
                   </Pedestal>
@@ -609,37 +686,22 @@ function OverallLeaderboard({ myTotal, compact = false }) {
           </PodiumWrap>
 
           {/* Compact: short list; Desktop: long list below */}
-          {compact ? (
-            <>
-              {[P(3), P(4), P(5)].map((p) => (
-                <RowItem key={p.place} style={{opacity: p.placeholder ? .5 : 1}}>
-                  <div style={{display:'flex', alignItems:'center', gap:8}}>
-                    <span style={{fontSize:12, color:'#6b7280'}}>#{p.place}</span>
-                    <Avatar size={28} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
-                    {p.placeholder ? '—' : <UserLink username={p.username}>{p.username}</UserLink>}
-                  </div>
-                  <div>{p.score} 🏆</div>
-                </RowItem>
-              ))}
-            </>
-          ) : (
-            <ScrollArea>
-              {positions.slice(3).map((p) => (
-                <RowItem key={p.place} style={{opacity: p.placeholder ? .45 : 1}}>
-                  <div style={{display:'flex', alignItems:'center', gap:8, minWidth:0}}>
-                    <span style={{fontSize:12, color:'#6b7280'}}>#{p.place}</span>
-                    <Avatar size={28} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
-                    {p.placeholder ? '—' : (
+          <ScrollArea ref={listRef} $maxh={compact ? listMaxH : undefined}>
+            {positions.slice(3).map((p) => (
+              <RowItem key={p.place} style={{opacity: p.placeholder ? .45 : 1}}>
+                <div style={{display:'flex', alignItems:'center', gap:8, minWidth:0}}>
+                  <span style={{fontSize:12, color:'#6b7280'}}>#{p.place}</span>
+                  <Avatar size={28} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
+                  {p.placeholder ? '—' : (
                     <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
                       <UserLink username={p.username}>{p.username}</UserLink>
                     </span>
                   )}
-                  </div>
-                  <div>{p.score} 🏆</div>
-                </RowItem>
-              ))}
-            </ScrollArea>
-          )}
+                </div>
+                <div>{p.score} 🏆</div>
+              </RowItem>
+            ))}
+          </ScrollArea>
         </>
       )}
     </LeaderCard>
@@ -819,9 +881,12 @@ export default function Games() {
       <TopBar ref={topRef} role="tablist" aria-label="Games">
         <TitleButton
           role="tab"
+          $expanded={isNarrow && view === 'home' && menuOpen}
           aria-selected={view === 'home'}
+          aria-haspopup={isNarrow ? 'menu' : undefined}
+          aria-expanded={isNarrow && view === 'home' ? menuOpen : undefined}
+          aria-controls={isNarrow ? 'games-menu' : undefined}
           onClick={() => {
-            // On phones: if on home, toggle dropdown; if not, go home.
             if (isNarrow) {
               if (view === 'home') setMenuOpen(v => !v);
               else setView('home');
@@ -860,7 +925,12 @@ export default function Games() {
         </CoinStat>
 
         {/* Mobile dropdown anchored to the colorful Games title */}
-        <MenuPanel $open={isNarrow && view === 'home' && menuOpen} role="menu" aria-label="Game selector">
+          <MenuPanel
+            id="games-menu"
+            $open={isNarrow && view === 'home' && menuOpen}
+            role="menu"
+            aria-label="Game selector"
+          >
           {GAMES.map(g => (
             <TabButton
               key={g.key}

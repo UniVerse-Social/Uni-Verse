@@ -89,9 +89,13 @@ module.exports = function attachPoker(io) {
   const DEFAULT_PUBLIC_TABLES = 12;
   const READY_MS = 10_000;
 
-  const JOIN_GRACE_MS = 1800;
+  const JOIN_GRACE_MS = 3000;
   const HEARTBEAT_MS = 2000;
-  const STALE_SEAT_MS = 12000;
+  // Allow mobile/tunnel pauses without dropping the seat
+  const STALE_SEAT_MS = 45000;
+
+  // Per-turn play clock (env overrideable)
+  const TURN_MS = Number(process.env.POKER_TURN_MS || 30000);
 
   const GLB = (globalThis.__POKER__ ||= { cache: new Map() });
   const cache = GLB.cache;
@@ -185,16 +189,27 @@ module.exports = function attachPoker(io) {
     if (obj.ready) obj.ready = { deadline: obj.ready.deadline, accepted: new Set(obj.ready.accepted || []), timer: null };
     return obj;
   }
+
   async function broadcastLobbyCount(t) {
     const now = Date.now();
+
+    // Count a seat if its socket is still present in the room OR it has been seen recently.
+    let presentIds = new Set();
+    try {
+      const sockets = await io.in(t.id).fetchSockets();
+      presentIds = new Set(sockets.map(s => s.id));
+    } catch {}
+
     const players = t.seats.reduce((n, s) => {
       if (!s) return n;
       if (s.leaving) return n;
       const withinGrace = (now - (Number(s.joinedAt)||0)) < JOIN_GRACE_MS;
-      const fresh = (now - (Number(s.lastSeen)||0)) < STALE_SEAT_MS;
+      const isPresent   = presentIds.has(String(s.id));
+      const fresh       = isPresent || (now - (Number(s.lastSeen)||0)) < STALE_SEAT_MS;
       if (!withinGrace && !fresh) return n;
       return n + 1;
     }, 0);
+
     io.emit('poker:lobbies:update', { id: t.id, players });
   }
 
@@ -269,32 +284,6 @@ module.exports = function attachPoker(io) {
     if (changed){ await broadcastState(t); await enforceMinimumPlayers(t); await broadcastLobbyCount(t); }
   }
 
-  async function stepTurnExternal(t){
-    if (t.round === 'idle') return;
-    const order = participantIndices(t);
-    // If betting is settled for everyone, advance the round
-    const need = t.toCall;
-    const needers = order.filter(si=>{
-      const s = t.seats[si];
-      if (!s || s.folded || s.allin) return false;
-      const paid = t.betPaid?.[si]||0;
-      return paid < need || !s.acted;
-    });
-    if (needers.length === 0) return advanceRound(t);
-
-    // Otherwise move to next eligible seat
-    const cur = t.turn;
-    let i = order.indexOf(cur);
-    for (let k=1;k<=order.length;k++){
-      const nxt = order[(i+k)%order.length];
-      const s = t.seats[nxt];
-      if (s && !s.folded && !s.allin){
-        t.turn = nxt; t.lastActionAt = Date.now(); await broadcastState(t); return;
-      }
-    }
-    await advanceRound(t);
-  }
-
   async function adjustCoins(userId, delta){
     const gp = await GameProfile.findOne({ userId });
     if (!gp) return false;
@@ -367,7 +356,8 @@ module.exports = function attachPoker(io) {
 
       // Seats whose sockets vanished — but honor a short grace after join
       const withinGrace = (now - (Number(s.joinedAt)||0)) < JOIN_GRACE_MS;
-      const fresh = (now - (Number(s.lastSeen)||0)) < STALE_SEAT_MS;
+      const isPresent = presentIds.has(String(s.id)); // socket still in the room
+      const fresh = isPresent || (now - (Number(s.lastSeen)||0)) < STALE_SEAT_MS;
       if (!withinGrace && !fresh) {
         if (liveHand && !s.waiting) {
           if (!s.folded) s.folded = true;
@@ -445,28 +435,11 @@ module.exports = function attachPoker(io) {
       if (s && !s.folded && !s.allin){
         t.turn = nxt; t.lastActionAt = Date.now();
         await broadcastState(t);
+        startTurnTimer(t);
         return;
       }
     }
     await advanceRound(t);
-  }
-
-  // Apply queued leaves once the table is idle
-  async function processPendingLeaves(t){
-    if (t.round !== 'idle') return;
-    let changed = false;
-    for (let i = 0; i < t.seats.length; i++){
-      const s = t.seats[i];
-      if (s && s.leaving){
-        await adjustCoins(s.userId, s.stack);
-        t.seats[i] = null;
-        changed = true;
-      }
-    }
-    if (changed){
-      await broadcastState(t);
-      await enforceMinimumPlayers(t);
-    }
   }
 
   // Background sweeper every 20s
@@ -474,9 +447,44 @@ module.exports = function attachPoker(io) {
 
   function clearReadyTimer(t){ if (t.ready?.timer){ clearInterval(t.ready.timer); t.ready.timer=null; } }
 
+  function clearTurnTimer(t) {
+    if (t.turnTimer) { clearTimeout(t.turnTimer); t.turnTimer = null; }
+    t.turnDeadline = null;
+  }
+
+  function startTurnTimer(t) {
+    clearTurnTimer(t);
+    if (!t || t.round === 'idle') return;
+    t.turnDeadline = Date.now() + TURN_MS;
+
+    t.turnTimer = setTimeout(async () => {
+      try {
+        // If the hand ended or turn moved meanwhile, do nothing
+        if (t.round === 'idle') return;
+
+        const seatIdx = t.turn;
+        const p = t.seats[seatIdx];
+        if (!p || p.waiting || p.folded || p.allin) {
+          await stepTurnExternal(t);
+          return;
+        }
+
+        // Auto-action on timeout
+        if ((t.toCall || 0) === 0) {
+          await act(t, seatIdx, 'check');
+        } else {
+          await act(t, seatIdx, 'fold');
+        }
+      } catch (e) {
+        console.warn('[Poker] turn timeout error', e?.message || e);
+      }
+    }, TURN_MS);
+  }
+
   async function beginReadyPhase(t){
     clearReadyTimer(t);
-    await processPendingLeaves(t);
+    clearTurnTimer(t);
+    await processPendingLeaves(t); 
     await pruneStaleSeats(t, null);
 
     // NEW: everyone seated should be eligible for the next hand
@@ -562,6 +570,7 @@ module.exports = function attachPoker(io) {
     t.bet = t.bb; t.toCall = t.bb; t.turn = nextToAct; t.lastActionAt = Date.now();
 
     await broadcastState(t);
+    startTurnTimer(t); 
   }
 
   async function advanceRound(t){
@@ -577,9 +586,11 @@ module.exports = function attachPoker(io) {
     t.bet = 0; t.toCall=0; t.betPaid = {}; for (const i of order){ const s=t.seats[i]; if (s) s.acted=false; }
     const di = order.indexOf(t.dealer); t.turn = order[(di+1)%order.length]; t.lastActionAt = Date.now();
     await broadcastState(t);
+    startTurnTimer(t); 
   }
 
   async function showdown(t){
+    clearTurnTimer(t); 
     const order = participantIndices(t);
     const contenders = order.map(i=>t.seats[i]).filter(s=>s && !s.folded);
     if (contenders.length===1){
@@ -662,6 +673,7 @@ module.exports = function attachPoker(io) {
           if (reset){ for (const si of order){ const ss=t.seats[si]; if (ss) ss.acted=false; } s.acted=false; }
           t.turn = nxt; t.lastActionAt = Date.now();
           await broadcastState(t);         // broadcastState now persists too
+          startTurnTimer(t);
           return;
         }
       }
@@ -703,7 +715,34 @@ module.exports = function attachPoker(io) {
       if (!t) return socket.emit('poker:error', { message:'Table not found' });
       if (t.isPrivate && t.pass && t.pass!==pass) return socket.emit('poker:error', { message:'Wrong passcode' });
 
-      // De-dupe safely: evict any old seat for this user without killing our current socket
+      // if this user already has a seat, just move it to the new socket
+      const existingIdx = t.seats.findIndex(s => s && String(s.userId) === String(userId));
+      if (existingIdx >= 0) {
+        const s = t.seats[existingIdx];
+        s.id = socket.id;
+        s.username = username || s.username;
+        s.disconnected = false;
+        s.lastSeen = Date.now();
+        await saveTable(t);
+
+        tableId = tid; seat = existingIdx;
+        await socket.join(t.id);
+
+        socket.emit('poker:joined', {
+          id:t.id, name:t.name, round:t.round,
+          seats:t.seats.map(x=>x?({id:x.id,userId:x.userId,username:x.username,stack:x.stack,seat:x.seat,waiting:!!x.waiting}):null),
+          board:t.board, pot:t.pot, turn:t.turn, toCall:t.toCall, bet:t.bet,
+          dealer:t.dealer, sb:t.sbSeat, bb:t.bbSeat,
+          ready: toReadyPayload(t),
+          chat: t.chat.slice(-CHAT_MAX)
+        });
+        await broadcastState(t);
+        return;
+      }
+
+      // Otherwise proceed with a normal new seat
+      await socket.join(t.id);
+      // De-dupe others/stales, but never evict the socket that’s joining now
       await pruneStaleSeats(t, { userId, socketId: socket.id });
 
       const sIdx = t.seats.findIndex(x=>!x);
@@ -770,12 +809,12 @@ module.exports = function attachPoker(io) {
           }
           socket.emit('poker:error', { message: 'You will leave after the current hand.' });
         } else {
-          await adjustCoins(p.userId, p.stack);
-          t.seats[seat] = null;
-          if (t.ready){ t.ready.accepted.delete(seat); }
+          // Keep the seat for a short grace period; pruning will cash out later if they don’t return.
+          p.disconnected = true;
+          p.lastSeen = Date.now();
+          await saveTable(t);
           await broadcastState(t);
-          await enforceMinimumPlayers(t);
-          await broadcastLobbyCount(t); // NEW: update lobby tiles immediately
+          // No immediate cash-out; lets them reconnect and reclaim the seat.
         }
       }
       socket.leave(tableId); tableId=null; seat=-1;

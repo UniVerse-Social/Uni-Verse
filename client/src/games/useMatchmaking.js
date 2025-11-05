@@ -18,7 +18,33 @@ export function useMatchmaking(game, me) {
 
   const ensure = () => {
     if (socketRef.current) return socketRef.current;
-    const s = io(API_BASE_URL || undefined, { transports: ['websocket'] });
+
+    // Prefer same-origin when we’re on a Cloudflare Tunnel.
+    const pageOrigin =
+      (typeof window !== 'undefined' && window.location && window.location.origin) || '';
+    let WS_BASE = (API_BASE_URL || pageOrigin || '').replace(/\/+$/, '').replace(/\/api\/?$/, '');
+
+    try {
+      const po = new URL(pageOrigin);
+      const wb = new URL(WS_BASE);
+      if (/trycloudflare\.com$/i.test(po.hostname) && po.hostname !== wb.hostname) {
+        WS_BASE = po.origin; // force same tunnel for sockets
+      }
+    } catch {}
+
+    const s = io(WS_BASE || undefined, {
+      path: '/api/socket.io',
+      transports: ['polling', 'websocket'],
+      upgrade: true,
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 750,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      forceNew: true,
+    });
+
     socketRef.current = s;
     s.on('connect', () => setConnected(true));
     s.on('disconnect', () => setConnected(false));

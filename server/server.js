@@ -20,12 +20,19 @@ const ALLOWED_ORIGINS = RAW_ALLOWED_ORIGINS.split(',')
   .map((value) => value.trim())
   .filter(Boolean);
 
+// server/server.js
+const allowLocalhost = (o) =>
+  /^https?:\/\/(localhost|127(?:\.\d{1,3}){3})(:\d+)?$/i.test(o);
+
+const allowCF = (o) =>
+  /^https?:\/\/([a-z0-9-]+\.)?trycloudflare\.com$/i.test(o);
+
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin) return callback(null, true); // allow same-origin / server-side requests
-    if (ALLOWED_ORIGINS.includes(origin)) {
-      return callback(null, true);
-    }
+    if (!origin) return callback(null, true);           // SSR / same-origin
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    if (allowLocalhost(origin)) return callback(null, true);  // ANY localhost port
+    if (allowCF(origin)) return callback(null, true);         // Cloudflare tunnels
     return callback(null, false);
   },
   credentials: true,
@@ -89,9 +96,22 @@ mongoose
 /* -------------------- HTTP + SOCKET.IO -------------------- */
 const server = http.createServer(app);
 
+// Accept localhost + your configured list + any *.trycloudflare.com origin.
+// Also keep both websocket & polling so proxies can fall back safely.
+// Accept localhost + env list + any *.trycloudflare.com.
+// Keep both transports so proxies (Cloudflare) can fall back to HTTP polling.
+// Put Socket.IO under /api so Cloudflare’s /api/* ingress also carries websockets.
 const io = new Server(server, {
+  path: '/api/socket.io',
+  transports: ['websocket', 'polling'],
   cors: {
-    origin: ALLOWED_ORIGINS,
+    origin(origin, cb) {
+      if (!origin) return cb(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      if (allowLocalhost(origin)) return cb(null, true);          // any localhost:* in dev
+      if (allowCF(origin)) return cb(null, true);                 // *.trycloudflare.com
+      return cb(null, false);
+    },
     credentials: true,
   },
 });

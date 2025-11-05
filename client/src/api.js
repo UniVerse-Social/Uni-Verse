@@ -1,17 +1,22 @@
 // client/src/api.js
 import axios from 'axios';
 
-const metaEnv = (typeof import.meta !== 'undefined' && import.meta && import.meta.env) || undefined;
+import { API_BASE_URL } from './config';
 
-const API_BASE =
-  (metaEnv && metaEnv.VITE_API_BASE_URL) ||
-  (process.env.REACT_APP_API_BASE_URL) ||
-  '';
+// Vite env shim (safe no-op in CRA/Webpack builds)
+const metaEnv =
+  (typeof import.meta !== 'undefined' && import.meta && import.meta.env) || undefined;
+
+const REST_BASE =
+  (API_BASE_URL && API_BASE_URL.trim()) ||
+  ((typeof window !== 'undefined' && window.location.origin) || '');
+
 
 export const api = axios.create({
-  baseURL: `${API_BASE}/api`,
+  baseURL: `${REST_BASE.replace(/\/+$/,'')}/api`,
   withCredentials: true,
 });
+
 // ----- Ads helpers -----
 export async function fetchEligibleAds({
   placement = 'home_feed',

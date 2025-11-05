@@ -147,6 +147,11 @@ export default function PokerArena({ onResult }) {
   const [myCards, setMyCards] = useState([]);
   const [potPulse, setPotPulse] = useState(false);
   const socketRef = useRef(null);
+  const tableIdRef = useRef(null);
+   
+  useEffect(() => {
+    tableIdRef.current = tableId;
+  }, [tableId]);
 
   const mySeat = useMemo(() => {
     if (!state?.seats) return -1;
@@ -171,100 +176,131 @@ export default function PokerArena({ onResult }) {
     return acc.has(mySeat);
   }, [state?.ready, mySeat]);
 
-useEffect(() => {
-  // Derive a robust WS base like Chess/Checkers: trim trailing slashes and any /api
-  const envBase = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
-    ? String(process.env.REACT_APP_API_BASE)
-    : '';
-  let WS_BASE =
-    (API_BASE_URL && API_BASE_URL.trim()) ||
-    (envBase && envBase.trim()) ||
-    '';
+  useEffect(() => {
+    // Derive a robust WS base like Chess/Checkers: trim trailing slashes and any /api
+    const envBase = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
+      ? String(process.env.REACT_APP_API_BASE)
+      : '';
+    let WS_BASE =
+      (API_BASE_URL && API_BASE_URL.trim()) ||
+      (envBase && envBase.trim()) ||
+      '';
 
-  if (!WS_BASE) {
-    const { protocol, hostname, host } = window.location;
-    const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
-    if (isLocal) {
-      const srvPort = '5000';
-      WS_BASE = `${protocol}//${hostname}:${srvPort}`;
-    } else {
-      WS_BASE = `${protocol}//${host}`;
+    if (!WS_BASE) {
+      const { protocol, hostname, host } = window.location;
+      const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+      WS_BASE = isLocal ? `${protocol}//${hostname}:5000` : `${protocol}//${host}`;
     }
-  }
-  WS_BASE = WS_BASE.replace(/\/+$/, '').replace(/\/api\/?$/, '');
+    WS_BASE = WS_BASE.replace(/\/+$/, '').replace(/\/api\/?$/, '');
 
-  const socket = io(WS_BASE, {
-    path: '/socket.io',
-    transports: ['websocket', 'polling'],
-    withCredentials: true,
-    reconnection: true,
-    reconnectionAttempts: 5,
-    timeout: 10000,
-  });
-  socketRef.current = socket;
+    // If the page itself is on a Cloudflare Tunnel, force sockets to use the SAME host
+    try {
+      const po = new URL(window.location.origin);
+      const wb = new URL(WS_BASE || po.origin);
+      if (/trycloudflare\.com$/i.test(po.hostname) && po.hostname !== wb.hostname) {
+        WS_BASE = po.origin;
+      }
+    } catch {}
 
-  const list = () => socket.emit('poker:list', { stake, stakes: stake });
+    const socket = io(WS_BASE, {
+      path: '/api/socket.io',
+      transports: ['polling', 'websocket'],
+      upgrade: true,
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 20,
+      reconnectionDelay: 750,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+    });
+    socketRef.current = socket;
 
-  socket.on('connect', list);
-  socket.on('connect_error', (e) => {
-    // surface connection issues in dev consoles; UI still stays clean
-    try { console.warn('[Poker] socket connect error:', e?.message || e); } catch {}
-  });
+    const list = () => socket.emit('poker:list', { stake, stakes: stake });
 
-  list();                            // first fetch
-  const poll = setInterval(list, 4000);
+    // On every (re)connect, if we were at a table, reclaim the same seat.
+    const handleConnect = () => {
+      if (tableIdRef.current) {
+        socket.emit('poker:join', {
+          tableId: tableIdRef.current,
+          userId: user?._id,
+          username: user?.username,
+        });
+      } else {
+        list();
+      }
+    };
 
-  socket.on('poker:lobbies', (arr) => setTables(Array.isArray(arr) ? arr : []));
-  socket.on('poker:lobbies:update', (u) => {
-    if (!u || !u.id) return;
-    setTables(prev => prev.map(t => (t.id === u.id ? { ...t, players: u.players } : t)));
-  });
-  socket.on('poker:joined', (payload) => {
-    setTableId(payload.id);
-    setState(payload);
-    setChat((payload.chat || []).slice(-20));
-    setMyCards([]);
+    socket.on('connect', handleConnect);
+    socket.on('connect_error', (e) => {
+      try { console.warn('[Poker] socket connect error:', e?.message || e); } catch {}
+    });
 
-    // initialize previous pot so first state diff is correct and linter stays happy
-    lastPotRef.current = Number(payload?.pot || 0);
-    setPotPulse(false);
+    socket.on('poker:lobbies', (arr) => setTables(Array.isArray(arr) ? arr : []));
+    socket.on('poker:lobbies:update', (u) => {
+      if (!u || !u.id) return;
+      setTables(prev => prev.map(t => (t.id === u.id ? { ...t, players: u.players } : t)));
+    });
 
-    const meIdx = (payload.seats || []).findIndex(
-      s => s && String(s.userId) === String(user?._id)
-    );
-    const start = meIdx >= 0 ? Number(payload.seats[meIdx].stack || 0) : 0;
-    buyInRef.current = start;
-    lastStackRef.current = start;
-  });
+    socket.on('poker:joined', (payload) => {
+      setTableId(payload.id);
+      setState(payload);
+      setChat((payload.chat || []).slice(-20));
+      setMyCards([]);
 
-  socket.on('poker:state', (s) => {
-    const nextPot = Number(s?.pot || 0);
-    const prevPot = Number(lastPotRef.current || 0);
+      // initialize previous pot so first state diff is correct
+      lastPotRef.current = Number(payload?.pot || 0);
+      setPotPulse(false);
 
-    // Pulse only when the pot actually changes, then reset the flag
-    if (nextPot !== prevPot) {
-      setPotPulse(true);
-      setTimeout(() => setPotPulse(false), 420); // slightly > CSS .4s for a clean reset
-    }
-    lastPotRef.current = nextPot;
+      const meIdx = (payload.seats || []).findIndex(
+        s => s && String(s.userId) === String(user?._id)
+      );
+      const start = meIdx >= 0 ? Number(payload.seats[meIdx].stack || 0) : 0;
+      buyInRef.current = start;
+      lastStackRef.current = start;
+    });
 
-    setState(s);
-    if (s?.round === 'idle') setMyCards([]);
+    socket.on('poker:state', (s) => {
+      const nextPot = Number(s?.pot || 0);
+      const prevPot = Number(lastPotRef.current || 0);
+      if (nextPot !== prevPot) {
+        setPotPulse(true);
+        setTimeout(() => setPotPulse(false), 420);
+      }
+      lastPotRef.current = nextPot;
 
-    const meIdx = (s?.seats || []).findIndex(
-      x => x && String(x.userId) === String(user?._id)
-    );
-    if (meIdx >= 0) {
-      lastStackRef.current = Number(s.seats[meIdx]?.stack || 0);
-    }
-  });
+      setState(s);
+      if (s?.round === 'idle') setMyCards([]);
 
-  socket.on('poker:hole', (cards) => setMyCards(Array.isArray(cards) ? cards : []));
-  socket.on('poker:chat', (m) => setChat(x => [...x, m].slice(-20)));
-  socket.on('poker:error', (e) => alert(e.message || 'Poker error'));
+      const meIdx = (s?.seats || []).findIndex(
+        x => x && String(x.userId) === String(user?._id)
+      );
+      if (meIdx >= 0) {
+        lastStackRef.current = Number(s.seats[meIdx]?.stack || 0);
+      }
+    });
 
-  return () => { clearInterval(poll); socket.disconnect(); };
-}, [stake, user?._id]);
+    socket.on('poker:hole', (cards) => setMyCards(Array.isArray(cards) ? cards : []));
+    socket.on('poker:chat', (m) => setChat(x => [...x, m].slice(-20)));
+    socket.on('poker:error', (e) => alert(e.message || 'Poker error'));
+
+    // initial fetch + periodic lobby refresh
+    list();
+    const pollId = setInterval(list, 4000);
+
+    return () => {
+      clearInterval(pollId);
+      socket.off('connect', handleConnect);
+      socket.off('connect_error');
+      socket.off('poker:lobbies');
+      socket.off('poker:lobbies:update');
+      socket.off('poker:joined');
+      socket.off('poker:state');
+      socket.off('poker:hole');
+      socket.off('poker:chat');
+      socket.off('poker:error');
+      socket.disconnect();
+    };
+  }, [stake, user?._id, user?.username]);
 
   useEffect(() => {
     let tId;

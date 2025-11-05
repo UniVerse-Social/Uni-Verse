@@ -623,13 +623,26 @@ export default function CheckersArena() {
     WS_BASE = WS_BASE.replace(/\/+$/, '').replace(/\/api\/?$/, '');
     try { console.info('[Checkers] WS_BASE =', WS_BASE); } catch {}
 
+    // Prefer SAME tunnel host if the page is on Cloudflare (avoids cross-host WS issues)
+    try {
+      const po = new URL(window.location.origin);
+      const wb = new URL(WS_BASE);
+      if (/trycloudflare\.com$/i.test(po.hostname) && po.hostname !== wb.hostname) {
+        WS_BASE = po.origin;
+      }
+    } catch {}
+
     const s = io(WS_BASE, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
+      path: '/api/socket.io',                 // mount under /api (rides existing ingress)
+      transports: ['polling', 'websocket'],   // start with polling, upgrade to WS when allowed
+      upgrade: true,
       withCredentials: true,
       reconnection: true,
-      reconnectionAttempts: 5,
-      timeout: 10000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 750,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      forceNew: true,
     });
     socketRef.current = s;
 

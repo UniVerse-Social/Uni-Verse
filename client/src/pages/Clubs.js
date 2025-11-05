@@ -100,7 +100,7 @@ const Col = styled.div`
   min-height: 0;
   /* allow the column to shrink inside the grid and avoid overflow */
   min-width: 0;
-  max-height: 75%;
+  max-height: 80%;
   overflow: hidden;
 `;
 

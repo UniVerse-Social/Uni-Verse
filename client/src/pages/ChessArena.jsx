@@ -995,15 +995,31 @@ useEffect(() => {
     }
 
     WS_BASE = WS_BASE.replace(/\/+$/, '').replace(/\/api\/?$/, '');
+
+    // If the page itself is on a Cloudflare Tunnel, prefer SAME origin for sockets.
+    try {
+      const po = new URL(window.location.origin);
+      const wb = new URL(WS_BASE);
+      if (/trycloudflare\.com$/i.test(po.hostname) && po.hostname !== wb.hostname) {
+        WS_BASE = po.origin;
+      }
+    } catch {}
+
     try { console.info('[Chess] WS_BASE =', WS_BASE); } catch {}
 
     const s = io(WS_BASE, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'], // allow polling fallback locally/CF
+      path: '/api/socket.io',
+      // Start with HTTP long-polling so it always works through Cloudflare/carriers,
+      // then Socket.IO will upgrade to websocket when available.
+      transports: ['polling', 'websocket'],
+      upgrade: true,
       withCredentials: true,
       reconnection: true,
-      reconnectionAttempts: 5,
-      timeout: 10000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 750,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      forceNew: true,
     });
     socketRef.current = s;
 
