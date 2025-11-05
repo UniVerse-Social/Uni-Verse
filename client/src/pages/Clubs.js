@@ -35,13 +35,13 @@ const Shell = styled.div`
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: calc(105vh - 105px);
+  height: calc(105vh - 115px);
   overflow-x: hidden;
   padding-bottom: 30px;
 
   @media (max-width: 900px) {
     /* Keep your mobile behavior */
-    height: calc(100vh - 100px);
+    height: calc(100vh - 115px);
     overflow-x: hidden;
   }
 `;
@@ -78,7 +78,7 @@ const Subbar = styled.div`
 const Page = styled.div`
   display:grid; 
   gap:16px; 
-  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  grid-template-columns: 290px minmax(0, 1fr) 320px;
   auto: 1; 
   overflow:hidden;     /* grid never exceeds viewport */
 
@@ -98,6 +98,9 @@ const Col = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* allow the column to shrink inside the grid and avoid overflow */
+  min-width: 0;
+  max-height: 75%;
   overflow: hidden;
 `;
 
