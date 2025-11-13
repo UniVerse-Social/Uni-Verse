@@ -86,7 +86,12 @@ const Login = () => {
     return (
         <LoginContainer>
             <LoginForm onSubmit={handleSubmit}>
-                <h2>Login to Fullerton Connect</h2>
+                <h2>
+                  {(() => {
+                    const school = safeParse(localStorage.getItem('educonnect_school'));
+                    return school?.name ? `Login to ${school.name}` : 'Login to Fullerton Connect';
+                  })()}
+                </h2>
                 <Input
                     type="text" // Changed from "email" to "text"
                     placeholder="Email or Username"
@@ -109,3 +114,4 @@ const Login = () => {
 };
 
 export default Login;
+function safeParse(s){ try { return JSON.parse(s || ''); } catch { return null; } }

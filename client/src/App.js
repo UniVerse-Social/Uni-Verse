@@ -14,9 +14,21 @@ import './App.css';
 import DMPage from './pages/DMs';
 import Games from './pages/Game';
 import LegalDocPage from './pages/LegalDocPage';
+import AI from './pages/AI';
+import NotedAI from './pages/NotedAI';
+import DraftlyAI from './pages/DraftlyAI';
+import CiteLab from './pages/CiteLab';
+import Resumate from './pages/Resumate';
 import { StickerProvider } from './context/StickersContext';
 import { CustomStickerProvider } from './context/CustomStickerContext';
 import { StickerInteractionsProvider } from './context/StickerInteractionsContext';
+// --- EduConnect entry pages ---
+import UniversitySelect from './pages/EduConnect/UniversitySelect';
+import VerifyStudent from './pages/EduConnect/VerifyStudent';
+
+// 🆕 DM drawer provider + component
+import { DMDrawerProvider } from './context/DMDrawerContext';
+import DMDrawer from './components/DMDrawer';
 
 // ---------- Global username click handler ----------
 function GlobalUsernameLinker() {
@@ -69,6 +81,16 @@ const GlobalTheme = createGlobalStyle`
 
 export const AuthContext = createContext(null);
 
+function PublicEntryRouter() {
+  const w = (typeof window !== 'undefined') ? window : undefined;
+  const verifiedFlag = !!w && w.localStorage.getItem('educonnect_verified') === '1';
+  const verifiedUntil = !!w ? Number(w.localStorage.getItem('educonnect_verified_until') || 0) : 0;
+  const verified = verifiedFlag || (verifiedUntil > Date.now());
+  const hasSchool = !!w && !!w.localStorage.getItem('educonnect_school');
+  if (!hasSchool) return <Navigate to="/edu/select" replace />;
+  return <Navigate to={verified ? "/login" : "/edu/verify"} replace />;
+}
+
 function App() {
   const [user, setUser] = useState(null);
 
@@ -96,7 +118,8 @@ function App() {
             <GlobalTheme />
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               {user ? (
-                <>
+                // 🧃 Wrap the authenticated app with the DM drawer provider and render the drawer once
+                <DMDrawerProvider>
                   <GlobalUsernameLinker />
                   <Navbar />
                   <Routes>
@@ -113,7 +136,11 @@ function App() {
                     />
                     <Route path="/games" element={<Games />} />
                     <Route path="/dms" element={<DMPage />} />
-
+                    <Route path="/ai" element={<AI />} />
+                    <Route path="/ai/noted" element={<NotedAI />} />
+                    <Route path="/ai/draftly" element={<DraftlyAI />} />
+                    <Route path="/ai/citelab" element={<CiteLab />} />
+                    <Route path="/ai/resumate" element={<Resumate />} />
                     {/* Legal pages available while logged in */}
                     <Route path="/terms" element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />} />
                     <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
@@ -121,11 +148,17 @@ function App() {
 
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>
+
+                  {/* Drawer lives once at the root so it's available on every screen */}
+                  <DMDrawer />
+
                   <FooterSwitch />
-                </>
+                </DMDrawerProvider>
               ) : (
                 <>
                   <Routes>
+                    <Route path="/edu/select" element={<UniversitySelect />} />
+                    <Route path="/edu/verify" element={<VerifyStudent />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
 
@@ -134,7 +167,7 @@ function App() {
                     <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
                     <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
 
-                    <Route path="*" element={<Navigate to="/login" />} />
+                    <Route path="*" element={<PublicEntryRouter />} />
                   </Routes>
                   <FooterSwitch />
                 </>

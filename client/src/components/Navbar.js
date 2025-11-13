@@ -1,8 +1,9 @@
 import React, { useState, useContext } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 import { FaHome, FaSearch, FaUser, FaUsers, FaGamepad, FaEnvelope } from 'react-icons/fa';
 import { AuthContext } from '../App';
+import { useDMDrawer } from '../context/DMDrawerContext';
 
 const MOBILE_BREAKPOINT = '600px'; // when the logo “hits” the nav on small screens
 
@@ -13,13 +14,15 @@ const MobileTopBar = styled.div`
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     display: flex;
     align-items: center;
-    height: 56px;
-    position: sticky;
-    top: 0;
-    z-index: 1001;
-    background: var(--container-white);
-    border-bottom: 1px solid var(--border-color);
-    padding: 0 16px;
+   height: calc(56px + env(safe-area-inset-top, 0px));
+   padding: env(safe-area-inset-top, 0px) 16px 0;
+   position: fixed;
+   top: 0; left: 0; right: 0;
+   z-index: 1001;
+   background: var(--container-white);
+   border-bottom: 1px solid var(--border-color);
+   transform: translateZ(0);
+   will-change: transform;
   }
 `;
 
@@ -35,7 +38,7 @@ const OrangeText = styled.span`
 `;
 
 /* ——— Floating DM pill (stays top-right) ——— */
-const DMButton = styled(Link)`
+const DMButton = styled.button`
   position: fixed;
   top: 8px;
   right: 18px;
@@ -49,6 +52,8 @@ const DMButton = styled(Link)`
   place-items: center;
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
   transition: transform .15s ease, filter .15s ease;
+  border: none;
+  cursor: pointer;
   &:hover { transform: translateY(-1px); filter: brightness(1.05); }
 `;
 
@@ -69,10 +74,18 @@ const Badge = styled.span`
   border: 2px solid var(--container-white);
 `;
 
-/* ——— Primary nav ———
-   Desktop: sticky at top (unchanged)
-   Mobile: fixed at bottom
-*/
+ const DesktopOffset = styled.div`
+   height: 60px;
+   @media (max-width: ${MOBILE_BREAKPOINT}) { display: none; }
+ `;
+ const MobileTopOffset = styled.div`
+   display: none;
+   @media (max-width: ${MOBILE_BREAKPOINT}) {
+     display: block;
+     height: 56px; /* same as MobileTopBar */
+   }
+ `;
+
 const NavWrapper = styled.nav`
   background-color: var(--container-white);
   border-bottom: 1px solid var(--border-color);
@@ -81,9 +94,11 @@ const NavWrapper = styled.nav`
   display: flex;
   align-items: center;
   justify-content: center;
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 1000;
+  left: 0;
+  right: 0;
+  z-index: 1000; 
 
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     position: fixed;
@@ -144,6 +159,9 @@ const NavLinks = styled.div`
 `;
 
 const StyledNavLink = styled(NavLink)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
   color: #111111;
   &.active { color: #0d2d7d; }
@@ -155,9 +173,25 @@ const StyledNavLink = styled(NavLink)`
   }
 `;
 
+const AIIcon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #111111;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.4px;
+`;
+
 const Navbar = () => {
   const [unread] = useState(0);
   const { user } = useContext(AuthContext);
+  const { open } = useDMDrawer();
   if (!user) return null;
 
   return (
@@ -169,11 +203,14 @@ const Navbar = () => {
         </MobileLogo>
       </MobileTopBar>
 
-      {/* Floating DM button (stays at top-right on all sizes) */}
-      <DMButton to="/dms" aria-label="Direct Messages">
+      {/* Floating DM button (opens right drawer) */}
+      <DMButton aria-label="Direct Messages" onClick={open}>
         <FaEnvelope />
         {unread > 0 && <Badge>{unread > 99 ? '99+' : unread}</Badge>}
       </DMButton>
+
+      <DesktopOffset />
+      <MobileTopOffset />
 
       {/* Main nav – desktop top / mobile bottom */}
       <NavWrapper>
@@ -187,6 +224,7 @@ const Navbar = () => {
             <StyledNavLink to="/" end><FaHome /></StyledNavLink>
             <StyledNavLink to="/titantap"><FaSearch /></StyledNavLink>
             <StyledNavLink to="/clubs"><FaUsers /></StyledNavLink>
+            <StyledNavLink to="/ai"><AIIcon>AI</AIIcon></StyledNavLink>
             <StyledNavLink to="/games"><FaGamepad /></StyledNavLink>
             <StyledNavLink to={`/profile/${user.username}`}><FaUser /></StyledNavLink>
           </NavLinks>

@@ -6,11 +6,13 @@ const http = require('http');
 const path = require('path');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const { Server } = require('socket.io');
 
 const authRoute = require('./routes/auth');
 const userRoute = require('./routes/users');
 const postRoute = require('./routes/posts');
+const verificationRoute = require('./routes/verification');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -40,6 +42,7 @@ const corsOptions = {
 
 /* -------------------- MIDDLEWARE -------------------- */
 app.use(cors(corsOptions));
+app.use(cookieParser(process.env.COOKIE_SECRET || undefined));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -74,6 +77,7 @@ app.use('/api/profile-cards', require('./routes/profileCards'));
 app.use('/api/auth', authRoute);
 app.use('/api/users', userRoute);
 app.use('/api/posts', postRoute);
+app.use('/api/verification', verificationRoute);
 
 /* -------------------- STATIC REACT BUILD (Path A) -------------------- */
 const buildPath = path.join(__dirname, '..', 'client', 'build');

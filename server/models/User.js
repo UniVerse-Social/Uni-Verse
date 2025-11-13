@@ -55,6 +55,11 @@ const UserSchema = new mongoose.Schema(
     badgesEquipped: { type: [String], default: [] },
     feedPreferences: { type: FeedPreferencesSchema, default: () => ({}) },
     stickerSettings: { type: mongoose.Schema.Types.Mixed, default: {} }, // per-user default sticker settings
+
+    // EduConnect (optional): persist school + edu email verification across devices
+    universityId: { type: String, default: '' },       // e.g., 'csuf'
+    studentEmail: { type: String, default: '', lowercase: true },
+    eduEmailVerifiedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

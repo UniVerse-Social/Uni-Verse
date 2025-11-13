@@ -10,7 +10,10 @@
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.7.2",
     "chess.js": "^1.4.0",
+    "jszip": "^3.10.1",
     "lodash": "^4.17.21",
+    "mammoth": "^1.11.0",
+    "pdfjs-dist": "^5.4.394",
     "react": "^18.2.0",
     "react-chessboard": "^4.7.3",
     "react-dom": "^18.2.0",
@@ -22,6 +25,7 @@
     "socket.io-client": "^4.8.1",
     "stockfish": "^16.0.0",
     "styled-components": "^5.3.11",
+    "tesseract.js": "^6.0.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

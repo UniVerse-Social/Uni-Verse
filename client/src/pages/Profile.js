@@ -186,6 +186,12 @@ const InfoAndActions = styled.div`
   column-gap: 12px;
   padding-bottom: 10px;
   min-width: 0;                                   /* let the info column shrink */
+  & > div:last-child { justify-self: end; }
+  @media (max-width: 600px) {
+    /* Let the action cell size to its content; tighten the gap */
+    grid-template-columns: 1fr max-content;
+    column-gap: 8px;
+  }
 `;
 
 const Info = styled.div`
@@ -220,6 +226,10 @@ const Stats = styled.div`
     gap: 4px;
     white-space: nowrap;
     min-width: 0;
+  }
+  @media (max-width: 600px) {
+    flex-wrap: wrap;
+    row-gap: 2px;
   }
 `;
 
@@ -409,9 +419,12 @@ const BadgeEmoji = styled.span`
 
 const ModalBackdrop = styled.div`
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.35);
+  background: rgba(0,0,0,0.45);
   display: grid; place-items: center;
-  z-index: 50;
+  z-index: 2200; /* above top/bottom nav and DM pill */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  overscroll-behavior: contain;
 `;
 
 const ModalCard = styled.div`
@@ -420,8 +433,13 @@ const ModalCard = styled.div`
   border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-  width: min(720px, 95vw);
-  padding: 18px;
+  width: min(720px, 96vw);
+  max-height: calc(
+    100vh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
+  );
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
 `;
 
 const ModalHeader = styled.div`
@@ -438,8 +456,10 @@ const ModalBody = styled.div` font-size: 14px; color: #333; `;
 const SlotsBar = styled.div`
   display: flex;
   gap: 12px;
+  row-gap: 8px;
   margin-bottom: 12px;
   align-items: center;
+  flex-wrap: wrap; /* let Unequip wrap on narrow screens */
 `;
 
 const SlotMini = styled(BadgeSlot)`
@@ -485,18 +505,51 @@ const BadgeName = styled.div` font-weight: 700; `;
 const BadgeMeta = styled.div` font-size: 12px; color: #6b7280; `;
 
 const PrimaryButton = styled.button`
-  padding: 10px 20px;
+  padding: clamp(6px, 1.6vw, 10px) clamp(10px, 3vw, 20px);
   border-radius: 6px;
   font-weight: 600;
-  font-size: 16px;
+  font-size: clamp(12px, 3.3vw, 16px);
   cursor: pointer;
   background-color: ${props => (props.$primary ? '#1877f2' : '#e4e6eb')};
   color: ${props => (props.$primary ? 'white' : '#333')};
   border: none;
   transition: filter 0.2s;
+  white-space: nowrap;   /* never break “Unfollow” to two lines */
+  max-width: 100%;
+  flex-shrink: 0;
   &:hover { filter: brightness(0.95); }
 `;
 
+/* Admin “Delete account” button that shrinks like Follow */
+const DangerButton = styled.button`
+  padding: clamp(6px, 1.6vw, 10px) clamp(8px, 2.6vw, 16px);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: clamp(12px, 3vw, 16px);
+  border: 1px solid var(--border-color);
+  background: #c62828;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+`;
+
+/* Right-column container for actions (settings/follow/delete) */
+const Actions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
+
+  @media (max-width: 600px) {
+    /* Keep actions in the right column, but STACK them vertically */
+    flex-direction: column;
+    align-items: stretch;                /* make both buttons equal width */
+    gap: 6px;
+    max-width: min(48vw, 240px);         /* cap column width so info doesn't squish */
+    & > * { width: 100%; }               /* Follow on top, Delete account under it */
+  }
+`;
 const PostsGrid = styled.div`
   padding-top: 20px;
   width: 100%;
@@ -1242,7 +1295,7 @@ const Profile = () => {
                 <Bio>{userOnPage.bio || `Welcome to ${userOnPage.username}'s page!`}</Bio>
               </Info>
 
-              <div ref={settingsRef}>
+              <Actions ref={settingsRef}>
                 {isOwnProfile ? (
                   <SettingsWrap>
                     <SettingsButton aria-label="Settings" onClick={() => setShowSettings((v) => !v)} title="Settings">
@@ -1267,27 +1320,18 @@ const Profile = () => {
                         {isFollowing ? 'Unfollow' : 'Follow'}
                       </PrimaryButton>
                       {currentUser.isAdmin && String(currentUser._id) !== String(userOnPage?._id) && (
-                        <button
+                        <DangerButton
                           onClick={onAdminDeleteUser}
                           title="Admin: permanently delete this account"
-                          style={{
-                            marginLeft: 8,
-                            padding: '10px 12px',
-                            borderRadius: 6,
-                            fontWeight: 600,
-                            border: '1px solid var(--border-color)',
-                            background: '#c62828',
-                            color: '#fff',
-                            cursor: 'pointer'
-                          }}
+                          aria-label="Delete account"
                         >
                           Delete account
-                        </button>
+                        </DangerButton>
                       )}
                     </>
                   )
                 )}
-              </div>
+              </Actions>
             </InfoAndActions>
           </Header>
 
