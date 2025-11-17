@@ -1,0 +1,12 @@
+[
+  { "id": "csuf", "name": "California State University, Fullerton", "slug": "fullerton", "domains": ["csu.fullerton.edu"], "loginRoute": "/login" },
+  { "id": "ucla", "name": "University of California, Los Angeles", "slug": "ucla", "domains": ["ucla.edu","g.ucla.edu"], "loginRoute": "/login" },
+  { "id": "ucb", "name": "University of California, Berkeley", "slug": "berkeley", "domains": ["berkeley.edu"], "loginRoute": "/login" },
+  { "id": "ufl", "name": "University of Florida", "slug": "florida", "domains": ["ufl.edu"], "loginRoute": "/login" },
+  { "id": "umich", "name": "University of Michigan", "slug": "umich", "domains": ["umich.edu"], "loginRoute": "/login" },
+  { "id": "uta", "name": "The University of Texas at Austin", "slug": "utexas", "domains": ["utexas.edu"], "loginRoute": "/login" },
+  { "id": "asu", "name": "Arizona State University", "slug": "asu", "domains": ["asu.edu"], "loginRoute": "/login" },
+  { "id": "psu", "name": "Pennsylvania State University", "slug": "pennstate", "domains": ["psu.edu"], "loginRoute": "/login" },
+  { "id": "osu", "name": "The Ohio State University", "slug": "ohiostate", "domains": ["osu.edu"], "loginRoute": "/login" },
+  { "id": "ucf", "name": "University of Central Florida", "slug": "ucf", "domains": ["ucf.edu","knights.ucf.edu"], "loginRoute": "/login" }
+]
