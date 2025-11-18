@@ -1,4 +1,4 @@
-# fullerton-connect
+# UniVerse
 
 A full‑stack MERN social app with posts, profiles, DMs, and image upload/cropping.
 
