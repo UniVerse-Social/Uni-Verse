@@ -15,18 +15,32 @@ const Wrap = styled.div`
   }
 `;
 const Panel = styled.div`
-  border:1px solid var(--border-color); background:var(--container-white);
-  border-radius:12px; padding:12px; max-width:100%; overflow:hidden;
+  border:1px solid var(--border-color);
+  background:var(--container-white);
+  color: var(--text-color);
+  border-radius:12px;
+  padding:12px;
+  max-width:100%;
+  overflow:hidden;
   display:flex; flex-direction:column; align-items:center;
+  box-shadow: 0 14px 32px rgba(0,0,0,.35);
 `;
 const Button = styled.button`
-  padding: 8px 12px; border-radius: 10px; border: 1px solid #111; cursor: pointer;
-  background: ${p=>p.$primary ? '#111' : '#fff'}; color: ${p=>p.$primary ? '#fff' : '#111'};
+  padding: 8px 12px; border-radius: 10px; cursor: pointer;
+  border: 1px solid ${p=>p.$primary ? 'transparent' : 'var(--border-color)'};
+  background: ${p=>p.$primary ? 'var(--primary-orange)' : 'rgba(255,255,255,0.06)'};
+  color: ${p=>p.$primary ? '#000' : 'var(--text-color)'};
   font-weight: 700; font-size: 14px;
+  transition: background .15s ease, box-shadow .15s ease, transform .08s ease, color .15s ease;
+  box-shadow: ${p=>p.$primary ? '0 8px 22px rgba(0,0,0,.35)' : 'none'};
+  &:hover { background: ${p=>p.$primary ? 'linear-gradient(90deg,var(--primary-orange),#59D0FF)' : 'rgba(255,255,255,0.10)'}; transform: translateY(-1px); }
+  &:active { transform: translateY(0); }
 `;
 const Alert = styled.div`
-  margin-top:12px; background:#fff7ed; border:1px solid #fed7aa; color:#9a3412;
-  padding:10px 12px; border-radius:10px; font-size:13px;
+  margin-top:12px; padding:10px 12px; border-radius:10px; font-size:13px;
+  border:1px solid rgba(239,68,68,.35);
+  background: rgba(239,68,68,.12);
+  color:#fca5a5;
 `;
 const MobileOnly = styled.div`
   display: none;
@@ -38,7 +52,7 @@ const MobileDropdown = styled.details`
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 8px 10px;
-  box-shadow: 0 8px 18px rgba(0,0,0,.05);
+  box-shadow: 0 14px 32px rgba(0,0,0,.35);
   summary { list-style: none; cursor: pointer; font-weight: 800; }
   summary::-webkit-details-marker { display: none; }
 
@@ -46,25 +60,31 @@ const MobileDropdown = styled.details`
     &[open] { position: fixed; inset: 0; margin: 0; padding: 0; border-radius: 0; z-index: 1000; background: rgba(0,0,0,.35); }
     &[open] > summary {
       position: fixed; top: calc(env(safe-area-inset-top, 0px) + 8px);
-      left: 8px; right: 8px; padding: 12px 14px; background: #fff; border:1px solid var(--border-color);
+      left: 8px; right: 8px; padding: 12px 14px;
+      background: var(--container-white); color: var(--text-color);
+      border:1px solid var(--border-color);
       border-radius:10px; z-index:1001;
     }
     &[open] .content {
       position: absolute; top: calc(env(safe-area-inset-top, 0px) + 56px); left:0; right:0; bottom:0;
-      background: var(--container-white); border-radius:12px 12px 0 0; padding:10px; overflow:auto;
+      background: var(--container-white); color: var(--text-color);
+      border-radius:12px 12px 0 0; padding:10px; overflow:auto;
       -webkit-overflow-scrolling: touch;
     }
     &[open] .x {
       position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px);
       right: calc(env(safe-area-inset-right, 0px) + 10px);
       z-index: 1002; width:36px; height:36px; border:1px solid var(--border-color);
-      background:#fff; border-radius:999px; box-shadow:0 8px 18px rgba(0,0,0,.12);
+      background:var(--container-white); color: var(--text-color);
+      border-radius:999px; box-shadow:0 14px 32px rgba(0,0,0,.35);
       display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:900; line-height:1;
     }
     &[open] .close {
       position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-      z-index: 1002; border:1px solid var(--border-color); background:#fff; border-radius:999px;
-      padding:10px 14px; box-shadow:0 8px 18px rgba(0,0,0,.12); font-weight:800;
+      z-index: 1002; border:1px solid var(--border-color);
+      background:var(--container-white); color: var(--text-color);
+      border-radius:999px; padding:10px 14px;
+      box-shadow:0 14px 32px rgba(0,0,0,.35); font-weight:800;
     }
   }
 `;
@@ -632,9 +652,9 @@ export default function ReversiArena() {
           )}
           <Button onClick={resign}>Resign</Button>
         </div>
-        <div style={{marginTop:10, color:'#555'}}>{status}</div>
+        <div style={{marginTop:10, color:'rgba(230,233,255,0.75)'}}>{status}</div>
         {!!notice && <Alert>{notice}</Alert>}
-        <div style={{marginTop:12, fontSize:12, color:'#6b7280'}}>
+        <div style={{marginTop:12, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
           Wins vs real players grant <b>+6 trophies</b>. Bot games are unranked.
         </div>
         {resultModal && (
@@ -644,25 +664,25 @@ export default function ReversiArena() {
         }} onClick={()=>setResultModal(null)}>
           <div
             onClick={(e)=>e.stopPropagation()}
-            style={{ width:540, maxWidth:'94vw', background:'#fff', borderRadius:14, boxShadow:'0 20px 60px rgba(0,0,0,.18)', border:'1px solid #e5e7eb', padding:16 }}
+            style={{ width:540, maxWidth:'94vw', background:'var(--container-white)', color:'var(--text-color)', borderRadius:14, boxShadow:'0 24px 64px rgba(0,0,0,.45)', border:'1px solid var(--border-color)', padding:16 }}
           >
             <div style={{fontSize:18, fontWeight:800, marginBottom:6}}>
               {resultModal.didWin ? 'You win! 🎉' : (/draw/i.test(resultModal.resultText) ? 'Draw' : 'You lose')}
             </div>
-            <div style={{fontSize:13, color:'#6b7280'}}>{resultModal.resultText}</div>
-            <div style={{display:'flex', gap:10, alignItems:'center', marginTop:10, padding:'8px 10px', border:'1px solid #e5e7eb', borderRadius:10}}>
+            <div style={{fontSize:13, color:'rgba(230,233,255,0.65)'}}>{resultModal.resultText}</div>
+            <div style={{display:'flex', gap:10, alignItems:'center', marginTop:10, padding:'8px 10px', border:'1px solid var(--border-color)', borderRadius:10}}>
               <span style={{fontWeight:800}}>🏆 {resultModal.trophies}</span>
-              <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'#111', color:'#fff'}}>
+              <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'var(--primary-orange)', color:'#000'}}>
                 {resultModal.rank}
               </span>
             </div>
-            <div style={{marginTop:6, fontSize:12, color:'#6b7280'}}>
+            <div style={{marginTop:6, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
               Overall leaderboard place: <b>#{resultModal.place ?? '—'}</b>
             </div>
             <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginTop:12}}>
-              <button onClick={()=>{ setMode(null); setRoomId(null); setResultModal(null); setStatus('Pick a mode to start.'); }} style={{padding:'8px 12px', borderRadius:10, border:'1px solid #111', background:'#fff'}}>Back</button>
-              <button onClick={()=>{ setResultModal(null); startBot(); }} style={{padding:'8px 12px', borderRadius:10, border:'1px solid #111', background:'#fff'}}>Play Bot Again</button>
-              <button onClick={()=>{ setResultModal(null); startOnline(); }} style={{padding:'8px 12px', borderRadius:10, border:'1px solid #111', background:'#111', color:'#fff'}}>Matchmake Online</button>
+              <button onClick={()=>{ setMode(null); setRoomId(null); setResultModal(null); setStatus('Pick a mode to start.'); }} style={{padding:'8px 12px', borderRadius:10, border:'1px solid var(--border-color)', background:'rgba(255,255,255,0.06)', color:'var(--text-color)'}}>Back</button>
+              <button onClick={()=>{ setResultModal(null); startBot(); }} style={{padding:'8px 12px', borderRadius:10, border:'1px solid var(--border-color)', background:'rgba(255,255,255,0.06)', color:'var(--text-color)'}}>Play Bot Again</button>
+              <button onClick={()=>{ setResultModal(null); startOnline(); }} style={{padding:'8px 12px', borderRadius:10, border:'0', background:'var(--primary-orange)', color:'#000', fontWeight:800}}>Matchmake Online</button>
             </div>
           </div>
         </div>

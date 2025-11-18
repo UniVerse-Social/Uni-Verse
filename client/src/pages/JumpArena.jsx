@@ -12,6 +12,21 @@ const overlap = (a, b) => !(
   a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y
 );
 
+// ---- theme colors (overridable via CSS vars) ----
+const cssVar = (name, fallback) => {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch { return fallback; }
+};
+
+const JUMP_COLORS = {
+  top:     cssVar('--jump-player-top',    '#60A5FA'), // blue-400
+  bottom:  cssVar('--jump-player-bottom', '#A78BFA'), // violet-400
+  obstacle:cssVar('--jump-obstacle',      '#9CA3AF'), // slate-400
+  label:   cssVar('--jump-label',         'rgba(230,233,255,.95)'),
+};
+
 /** ----- sprites ----- */
 const SPRITES = {
   player: [
@@ -60,8 +75,8 @@ function drawIdleBoard(ctx) {
   ctx.fillText("Opponent Lane", W / 2, 16); ctx.fillText("Your Lane", W / 2, HALF + 16);
   const topG = HEADER + GROUND_Y, botG = HEADER + GROUND_Y + HALF;
   ctx.fillStyle = "#cbd5e1"; ctx.fillRect(0, topG, W, 2); ctx.fillRect(0, botG, W, 2);
-  drawSprite(ctx, SPRITES.player, 74, topG, 2.5, "#4b5563"); ctx.fillStyle = "#111"; ctx.font = "bold 10px system-ui"; ctx.fillText("RIVAL", 74, topG - 4);
-  drawSprite(ctx, SPRITES.player, 74, botG, 2.5, "#111"); ctx.fillText("YOU", 74, botG - 4);
+  drawSprite(ctx, SPRITES.player, 74, topG, 2.5, JUMP_COLORS.top); ctx.fillStyle = JUMP_COLORS.label; ctx.font = "bold 10px system-ui"; ctx.fillText("RIVAL", 74, topG - 4);
+  drawSprite(ctx, SPRITES.player, 74, botG, 2.5, JUMP_COLORS.bottom); ctx.fillText("YOU", 74, botG - 4);
   ctx.fillStyle = "#6b7280"; ctx.font = "bold 16px system-ui,-apple-system,Segoe UI,Roboto"; ctx.fillText("Pick a mode to start.", W / 2, H / 2);
 }
 
@@ -75,7 +90,7 @@ function drawResult(ctx, text) {
 function createEngine(ctx, hooks = {}) {
   let HOOKS = { online: false, getLives: () => ({ top: 3, bottom: 3 }), onInput: null, onHit: null, ...hooks };
 
-  const lanes = [{ top: 0, color: "#4b5563" }, { top: HALF, color: "#111" }];
+  const lanes = [{ top: 0, color: JUMP_COLORS.top }, { top: HALF, color: JUMP_COLORS.bottom }];
 
   const state = {
     running: false, last: 0, elapsed: 0,
@@ -217,8 +232,8 @@ function createEngine(ctx, hooks = {}) {
       // move/draw
       for (const o of st.obs) {
         o.x -= spd * dt;
-        if (o.type === "cactus") drawSprite(ctx, SPRITES.cactus, o.x, o.y, o.scale, "#111");
-        else { o.flap = (o.flap || 0) + dt; const frame = Math.sin(o.flap * 10) > 0 ? SPRITES.bird1 : SPRITES.bird2; drawSprite(ctx, frame, o.x, o.y, o.scale, "#111"); }
+        if (o.type === "cactus") drawSprite(ctx, SPRITES.cactus, o.x, o.y, o.scale, JUMP_COLORS.obstacle);
+        else { o.flap = (o.flap || 0) + dt; const frame = Math.sin(o.flap * 10) > 0 ? SPRITES.bird1 : SPRITES.bird2; drawSprite(ctx, frame, o.x, o.y, o.scale, JUMP_COLORS.obstacle); }
       }
       while (st.obs.length && st.obs[0].x < -40) st.obs.shift();
 
@@ -245,7 +260,7 @@ function createEngine(ctx, hooks = {}) {
       const blinking = now < r.blinkUntil && Math.floor(now / 60) % 2 === 0;
       if (!blinking) {
         const hb = drawSprite(ctx, r.duck ? SPRITES.playerDuck : SPRITES.player, r.x, baseGround + r.y, 2.5, L.color, "#fff");
-        ctx.fillStyle = "#111"; ctx.font = "bold 10px system-ui"; ctx.textAlign = "center"; ctx.fillText(i === 0 ? "RIVAL" : "YOU", r.x, hb.y + hb.h - 4);
+        ctx.fillStyle = JUMP_COLORS.label; ctx.font = "bold 10px system-ui"; ctx.textAlign = "center"; ctx.fillText(i === 0 ? "RIVAL" : "YOU", r.x, hb.y + hb.h - 4);
 
         for (const o of st.obs) {
           const oBox = (o.type === "cactus")
@@ -498,13 +513,13 @@ export default function JumpArena() {
     >
       <div
         style={{
-          border: "1px solid #ddd",
+          border: "1px solid var(--border-color)",
           borderRadius: 12,
-          background: "linear-gradient(#f8fafc,#eef2f7)",
+          background: "var(--container-white)",
           width: "100%",
           maxWidth: W,
           height: "auto",
-          boxShadow: "0 8px 24px rgba(0,0,0,.08)",
+          boxShadow: "0 14px 32px rgba(0,0,0,.35)",
           overflow: "hidden",
           justifySelf: "center",
         }}
@@ -523,9 +538,9 @@ export default function JumpArena() {
             padding: 8,
             textAlign: "center",
             fontSize: 12,
-            color: "#6b7280",
-            borderTop: "1px solid #e5e7eb",
-            background: "#fff",
+            color: "rgba(230,233,255,0.65)",
+            borderTop: "1px solid var(--border-color)",
+            background: "var(--container-white)",
           }}
         >
           Mobile: tap <b>left</b> to jump · tap/hold <b>right</b> to duck
@@ -538,6 +553,7 @@ export default function JumpArena() {
           background: "var(--container-white)",
           borderRadius: 12,
           padding: 12,
+          boxShadow: "0 14px 32px rgba(0,0,0,.35)",
         }}
       >
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -546,10 +562,10 @@ export default function JumpArena() {
           <button onClick={resign} style={btn()}>Resign</button>
         </div>
 
-        <div style={{ marginTop: 10, color: "#555" }}>{status}</div>
+        <div style={{ marginTop: 10, color: "rgba(230,233,255,0.75)" }}>{status}</div>
 
         {mode === "online" && (
-          <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
+          <div style={{ marginTop: 10, fontSize: 12, color: "rgba(230,233,255,0.65)" }}>
             <div><b>Match:</b> {names.top} (top) vs {names.bottom} (bottom)</div>
             <div><b>Hearts:</b> Top {lives.top}/3 · Bottom {lives.bottom}/3</div>
           </div>
@@ -570,5 +586,14 @@ export default function JumpArena() {
 }
 
 function btn(primary = false) {
-  return { padding: "8px 12px", borderRadius: 10, border: "1px solid #111", cursor: "pointer", background: primary ? "#111" : "#fff", color: primary ? "#fff" : "#111" };
+  return {
+    padding: "8px 12px",
+    borderRadius: 10,
+    cursor: "pointer",
+    fontWeight: 800,
+    border: `1px solid ${primary ? "transparent" : "var(--border-color)"}`,
+    background: primary ? "var(--primary-orange)" : "rgba(255,255,255,0.06)",
+    color: primary ? "#000" : "var(--text-color)",
+    boxShadow: primary ? "0 8px 22px rgba(0,0,0,.35)" : "none",
+  };
 }

@@ -23,7 +23,7 @@ const Card = styled.div`
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 14px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  box-shadow: 0 14px 32px rgba(0,0,0,0.35);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -40,7 +40,7 @@ const Avatar = styled.div`
   height: 42px;
   border-radius: 50%;
   overflow: hidden;
-  background: #f2f2f2;
+  background: #1a2147;
   display: grid;
   place-items: center;
   font-weight: 700;
@@ -58,9 +58,9 @@ const TitleBadge = styled.span`
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f3f4f6;
-  color: #111;
-  border: 1px solid var(--border-color);
+  background: rgba(139,123,255,0.16);
+  color: var(--text-color);
+  border: 1px solid rgba(139,123,255,0.35);
 `;
 
 const Timestamp = styled.div`
@@ -68,32 +68,17 @@ const Timestamp = styled.div`
   align-items: baseline;
   gap: 6px;
   font-size: 12px;
-  color: #6b7280;
+  color: rgba(230,233,255,0.65);
   flex-wrap: wrap;
 `;
 
-const DateLabel = styled.span`
-  font-weight: 600;
-  color: #374151;
-`;
+const DateLabel = styled.span` font-weight: 600; color: rgba(230,233,255,0.82); `;
 
-const EditedStamp = styled.span`
-  font-size: 11px;
-  color: #9ca3af;
-`;
+const EditedStamp = styled.span` font-size: 11px; color: rgba(230,233,255,0.55); `;
 
-const Body = styled.div`
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 15px;
-`;
+const Body = styled.div` white-space: pre-wrap; word-break: break-word; font-size: 15px; color: var(--text-color); `;
 
-const Actions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  color: #374151;
-`;
+const Actions = styled.div` display:flex; align-items:center; gap:18px; color: rgba(230,233,255,0.82); `;
 
 const Action = styled.span`
   display: flex;
@@ -104,7 +89,7 @@ const Action = styled.span`
 `;
 
 const CommentPreviewInline = styled.span`
-  color: #64748b;
+  color: rgba(230,233,255,0.62);
   font-size: 12px;
   margin-left: 8px;
   flex: 1;

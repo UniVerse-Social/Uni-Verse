@@ -14,33 +14,47 @@ a[data-username-link]:hover { text-decoration: underline; }
 
 /* THEME */
 :root{
-  --primary-orange: #F58025;
+  --primary-orange: #8B7BFF; /* primary accent (purple) */
 
-  /* surfaces */
-  --container-white: #eeeeee;   /* a touch lighter than before */
-  --border-color: #eeeeee;
-  --text-color: #111111;
+  /* dark surfaces (navbar/cards) */
+  --container-white: #0f1329;  /* deep navy surface */
+  --border-color: #1a2147;
+  --text-color: #E6E9FF;       /* readable on dark base */
 
-  /* Lighter dark-grey textured background */
+  /* space background: black → deep blue/purple + subtle nebulae */
   --background-grey:
-    radial-gradient(1200px 600px at 0% 0%, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 60%),
-    radial-gradient(1000px 500px at 100% 100%, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 60%),
-    radial-gradient(800px 400px at 0% 100%, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 60%),
-    radial-gradient(900px 480px at 100% 0%, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 60%),
-    repeating-linear-gradient(135deg, rgba(255,255,255,0.035) 0 2px, rgba(0,0,0,0) 2px 6px),
-    linear-gradient(135deg, #F58025 0%, #302e24 50%, #0d2d7d 100%);
+    radial-gradient(1000px 600px at 10% 10%, rgba(123, 92, 255, 0.12) 0%, rgba(123,92,255,0) 60%),
+    radial-gradient(900px 520px at 85% 80%, rgba(89, 208, 255, 0.10) 0%, rgba(89,208,255,0) 60%),
+    radial-gradient(700px 400px at 20% 85%, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, #050510 0%, #0B1D3A 60%, #2E1E57 100%);
 }
 
 html, body, #root{
   min-height: 100%;
-  background: var(--background-grey) !important;
+  background: transparent !important;   /* let the fixed layer show through */
   color: var(--text-color);
+}
+
+/* Keep the background locked to the viewport (no scroll/stretch) */
+#root { isolation: isolate; }            /* ensure the bg sits behind all app content */
+#root::before{
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--background-grey);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;                /* fit to viewport, not document height */
+  /* belt & suspenders for some browsers */
+  background-attachment: fixed;
 }
 
 /* scrollbars */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
-*::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.25); border-radius: 8px; }
-*::-webkit-scrollbar-track { background: rgba(255,255,255,0.12); }
+*::-webkit-scrollbar-thumb { background: rgba(230,233,255,0.25); border-radius: 8px; }
+*::-webkit-scrollbar-track { background: rgba(0,0,0,0.15); }
 
 /* Cards/surfaces */
 .surface {
@@ -51,5 +65,4 @@ html, body, #root{
 }
 
 /* headings readable on dark base */
-h1,h3,h4,h5,h6 { color:#ffffff; }
-h2 { color:#000000; }
+h1,h2,h3,h4,h5,h6 { color:#FFFFFF; }

@@ -27,14 +27,19 @@ const MobileTopBar = styled.div`
 `;
 
 const MobileLogo = styled(NavLink)`
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
   font-size: 22px;
-  font-weight: 800;
-  color: #0d2d7d;
+  font-weight: 900;
   text-decoration: none;
+  color: inherit;
 `;
-
-const OrangeText = styled.span`
-  color: var(--primary-orange);
+const BrandWord = styled.span`
+  background: linear-gradient(90deg, var(--primary-orange) 0%, #59D0FF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 `;
 
 /* ——— Floating DM pill (stays top-right) ——— */
@@ -130,10 +135,13 @@ const NavContainer = styled.div`
 `;
 
 const Logo = styled(NavLink)`
-  font-size: 27px;
-  font-weight: bold;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 35px;
+  font-weight: 900;
   text-decoration: none;
-  color: #0d2d7d;
+  color: inherit;
   position: absolute;
   left: 20px;
 
@@ -163,8 +171,8 @@ const StyledNavLink = styled(NavLink)`
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  color: #111111;
-  &.active { color: #0d2d7d; }
+  color: var(--text-color);
+  &.active { color: var(--primary-orange); }
   &:hover { transform: translateY(-1px); filter: brightness(1.05); }
 
   @media (max-width: ${MOBILE_BREAKPOINT}) {
@@ -180,12 +188,13 @@ const AIIcon = styled.span`
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  background: #111111;
-  color: #ffffff;
+  background: var(--text-color);
+  color: #000000;
   font-size: 11px;
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.4px;
+  
 `;
 
 const Navbar = () => {
@@ -199,7 +208,7 @@ const Navbar = () => {
       {/* Mobile-only top logo bar */}
       <MobileTopBar>
         <MobileLogo to="/">
-          Fullerton<OrangeText>Connect</OrangeText>
+          <BrandWord>UniVerse</BrandWord>
         </MobileLogo>
       </MobileTopBar>
 
@@ -217,7 +226,7 @@ const Navbar = () => {
         <NavContainer>
           {/* Desktop-only logo (hidden on mobile) */}
           <Logo to="/">
-            Fullerton<OrangeText>Connect</OrangeText>
+            <BrandWord>UniVerse</BrandWord>
           </Logo>
 
           <NavLinks>

@@ -36,17 +36,14 @@ const Input = styled.input`
 
 const Button = styled.button`
     padding: 12px;
-    background-color: var(--border-color);
-    color: black;
+    background-color: var(--primary-orange);
+    color: #fff;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 16px;
-    font-weight: bold;
+    font-weight: 700;
     cursor: pointer;
-    &:hover {
-        background-color: orange;
-        opacity: 0.9;
-    }
+    &:hover { opacity: 0.9; }
 `;
 
 const SignupLink = styled(Link)`
@@ -57,14 +54,20 @@ const SignupLink = styled(Link)`
         text-decoration: underline;
     }
 `;
-
+const SmallLinkButton = styled.button`
+  background: none; border: none; padding: 0; margin-top: 8px;
+  color: var(--primary-orange); cursor: pointer; text-decoration: underline; font: inherit;
+`;
 
 const Login = () => {
     const [loginIdentifier, setLoginIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const { login } = useContext(AuthContext);
     const navigate = useNavigate();
-
+    const changeSchool = () => {
+        localStorage.removeItem('educonnect_school');
+        navigate('/edu/select');
+    };
     const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -89,7 +92,7 @@ const Login = () => {
                 <h2>
                   {(() => {
                     const school = safeParse(localStorage.getItem('educonnect_school'));
-                    return school?.name ? `Login to ${school.name}` : 'Login to Fullerton Connect';
+                    return school?.name ? `Login to ${school.name}` : 'Login to UniVerse';
                   })()}
                 </h2>
                 <Input
@@ -108,6 +111,9 @@ const Login = () => {
                 />
                 <Button type="submit">Log In</Button>
                 <SignupLink to="/signup">Don't have an account? Sign Up</SignupLink>
+                <SmallLinkButton type="button" onClick={changeSchool}>
+                    Choose a different university
+                </SmallLinkButton>
             </LoginForm>
         </LoginContainer>
     );

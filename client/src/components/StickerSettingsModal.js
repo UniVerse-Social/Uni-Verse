@@ -2,35 +2,36 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
-
- // ensure the modal never crashes if `values` is missing
+// ensure the modal never crashes if `values` is missing
 const DEFAULTS = {
-  allowMode: 'everyone', // 'everyone' | 'followers' | 'none'
-  allowstickytext: false,
-  allowstickymedia: false,
+  allowMode: 'none',         // Disabled by default
+  allowstickytext: false,    // off
+  allowstickymedia: false,   // off
   allowlist: '',
   denylist: '',
-  maxCount: 20,
-  hideFeedStickers: false,
-  showStickerPanel: true,
+  maxCount: 20,              // slider still valid (min 1)
+  hideFeedStickers: true,    // hide stickers in feed by default
+  showStickerPanel: false,   // panel hidden by default
 };
 
 const Backdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1500;
   padding: 24px;
+  backdrop-filter: saturate(120%) blur(2px);
 `;
 
 const Modal = styled.div`
-  background: #ffffff;
+  background: var(--container-white);
+  color: var(--text-color);
   border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  box-shadow: 0 28px 48px rgba(15, 23, 42, 0.3);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 28px 48px rgba(0, 0, 0, 0.45);
   width: 100%;
   max-width: 540px;
   display: flex;
@@ -40,7 +41,7 @@ const Modal = styled.div`
 
 const Header = styled.div`
   padding: 20px 24px 12px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -50,14 +51,19 @@ const Header = styled.div`
 const Title = styled.h2`
   margin: 0;
   font-size: 18px;
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: 800;
+  color: var(--text-color);
 `;
 
 const Body = styled.div`
   padding: 24px;
   display: grid;
   gap: 8px;
+
+  /* make native inputs pick up brand color */
+  input[type="radio"],
+  input[type="checkbox"],
+  input[type="range"] { accent-color: var(--primary-orange); }
 `;
 
 const Row = styled.div`
@@ -72,27 +78,31 @@ const RadioLabel = styled.label`
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #1f2937;
+  color: rgba(230, 233, 255, 0.9);
 `;
 
 const FieldLabel = styled.label`
   display: block;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 6px;
-  color: #1f2937;
+  color: rgba(230, 233, 255, 0.9);
 `;
 
 const Textarea = styled.textarea`
   width: 100%;
   min-height: 25px;
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.55);
-  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  padding: 10px 12px;
   font-size: 13px;
   resize: vertical;
-  background: rgba(248, 250, 252, 0.75);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-color);
   box-sizing: border-box;
+
+  &::placeholder { color: rgba(230, 233, 255, 0.55); }
+  &:focus { outline: none; box-shadow: 0 0 0 2px rgba(139,123,255,0.25); }
 `;
 
 const FieldGrid = styled.div`
@@ -116,43 +126,45 @@ const FieldGroup = styled.div`
 
 const Footer = styled.div`
   padding: 18px 24px;
-  border-top: 1px solid rgba(226, 232, 240, 0.7);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between; /* left + right groups */
   align-items: center;
   gap: 12px;
+  background: rgba(0, 0, 0, 0.05);
 `;
 
 const Button = styled.button`
-  border: none;
+  border: 1px solid var(--border-color);
   border-radius: 999px;
   padding: 8px 18px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 800;
   cursor: pointer;
-  background: ${(p) => (p.$primary ? '#2563eb' : 'rgba(226, 232, 240, 0.8)')};
-  color: ${(p) => (p.$primary ? '#fff' : '#1f2937')};
-  transition: background 0.2s ease, color 0.2s ease;
+  color: ${(p) => (p.$primary ? '#fff' : 'var(--text-color)')};
+  background: ${(p) =>
+    p.$primary
+      ? 'linear-gradient(90deg, var(--primary-orange), rgba(89,208,255,0.95))'
+      : 'rgba(255, 255, 255, 0.08)'};
+  transition: filter 0.2s ease, background 0.2s ease, color 0.2s ease;
 
-  &:hover {
-    background: ${(p) => (p.$primary ? '#1d4ed8' : 'rgba(226, 232, 240, 1)')};
-  }
+  &:hover { filter: brightness(0.98); }
 `;
 
-// NEW: destructive-style button (declared with the others)
+// destructive-style button
 const DestructiveButton = styled.button`
   border: 1px solid rgba(239, 68, 68, 0.35);
-  color: #b91c1c;
-  background: rgba(254, 226, 226, 0.6);
+  color: #ffd9d9;
+  background: rgba(239, 68, 68, 0.14);
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
   &:hover {
-    background: rgba(254, 202, 202, 0.9);
-    border-color: rgba(239, 68, 68, 0.6);
+    background: rgba(239, 68, 68, 0.22);
+    border-color: rgba(239, 68, 68, 0.55);
   }
   &:disabled {
     opacity: 0.65;
@@ -169,23 +181,24 @@ const SliderRow = styled.div`
 
 const SliderInput = styled.input`
   flex: 1;
-  accent-color: #2563eb;
+  accent-color: var(--primary-orange);
 `;
 
 const SliderValue = styled.span`
   min-width: 32px;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 14px;
-  color: #0f172a;
+  color: var(--text-color);
   text-align: right;
 `;
 
 const InfoNote = styled.p`
   margin: 2px 0 0;
   line-height: 1.2;
-  font-size: 9px;
-  color: #64748b;
+  font-size: 10px;
+  color: rgba(230, 233, 255, 0.55);
 `;
+
 const PortalTarget = typeof document !== 'undefined' ? document.body : null;
 
 const FooterLeft = styled.div`
@@ -197,19 +210,18 @@ const FooterLeft = styled.div`
 const ResetButton = styled.button`
   border: none;
   background: transparent;
-  color: #2563eb;
-  font-weight: 600;
+  color: var(--primary-orange);
+  font-weight: 800;
   cursor: pointer;
   padding: 6px 0;
-  &:hover {
-    text-decoration: underline;
-  }
+  &:hover { text-decoration: underline; }
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
     text-decoration: none;
   }
 `;
+
 const FooterRight = styled.div`
   display: flex;
   align-items: center;
@@ -226,6 +238,7 @@ const StickerSettingsModal = ({
 }) => {
   const [clearing, setClearing] = useState(false);
   const isPostModal = typeof onClearAll === 'function';
+
   useEffect(() => {
     if (open) {
       window.dispatchEvent(new CustomEvent('fc-modal-open', { detail: 'sticker-settings' }));
@@ -325,6 +338,7 @@ const StickerSettingsModal = ({
       emit('showStickerPanel', { target: { checked: DEFAULTS.showStickerPanel } });
     }
   };
+
   if (!open || !PortalTarget) return null;
 
   const modal = (
@@ -383,10 +397,10 @@ const StickerSettingsModal = ({
             </RadioLabel>
           </Row>
 
-          <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
+          <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color)' }} />
           <div>
             <FieldLabel>Placement</FieldLabel>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '6px 0' }}>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '6px 0', color: 'var(--text-color)' }}>
               <input
                 type="checkbox"
                 checked={!!v.allowstickytext}
@@ -394,7 +408,7 @@ const StickerSettingsModal = ({
               />
               Allow stickers over post text
             </label>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-color)' }}>
               <input
                 type="checkbox"
                 checked={!!v.allowstickymedia}
@@ -403,7 +417,7 @@ const StickerSettingsModal = ({
               Allow stickers over images/media
             </label>
             <SliderRow>
-              <label htmlFor="max-stickers-slider" style={{ fontWeight: 600, fontSize: 13, color: '#1f2937' }}>
+              <label htmlFor="max-stickers-slider" style={{ fontWeight: 700, fontSize: 13, color: 'rgba(230,233,255,0.9)' }}>
                 Max stickers per post
               </label>
               <SliderValue>{v.maxCount}</SliderValue>
@@ -421,28 +435,30 @@ const StickerSettingsModal = ({
             </InfoNote>
           </div>
 
-          <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
+          <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color)' }} />
 
           <FieldGrid>
             <FieldGroup>
               <FieldLabel htmlFor="sticker-allowlist">
-                Allowlist (user IDs, comma separated)
+                Allowlist (usernames, comma separated)
               </FieldLabel>
               <Textarea
                 id="sticker-allowlist"
                 value={v.allowlist || ''}
                 onChange={onChange('allowlist')}
+                placeholder="Jim, Bob, Joe"
               />
             </FieldGroup>
 
             <FieldGroup>
               <FieldLabel htmlFor="sticker-denylist">
-                Denylist (user IDs, comma separated)
+                Denylist (usernames, comma separated)
               </FieldLabel>
               <Textarea
                 id="sticker-denylist"
                 value={v.denylist || ''}
                 onChange={onChange('denylist')}
+                placeholder="Cassy, Kim"
               />
             </FieldGroup>
           </FieldGrid>
@@ -494,28 +510,29 @@ const StickerSettingsModal = ({
             )
           )}
         </Body>
-      <Footer>
-        <FooterLeft>
-          {!isPostModal && (
-            <ResetButton type="button" onClick={handleResetDefaults}>
-              Reset to default
-            </ResetButton>
-          )}
-          {typeof onClearAll === 'function' && (
-            <DestructiveButton
-              type="button"
-              onClick={handleClearAll}
-              disabled={clearing}
-            >
-              {clearing ? 'Clearing…' : 'Clear all stickers'}
-            </DestructiveButton>
-          )}
-        </FooterLeft>
-        <FooterRight>
-          <Button type="button" onClick={onCancel}>Cancel</Button>
-          <Button type="button" $primary onClick={onSave}>Save</Button>
-        </FooterRight>
-      </Footer>
+
+        <Footer>
+          <FooterLeft>
+            {!isPostModal && (
+              <ResetButton type="button" onClick={handleResetDefaults}>
+                Reset to default
+              </ResetButton>
+            )}
+            {typeof onClearAll === 'function' && (
+              <DestructiveButton
+                type="button"
+                onClick={handleClearAll}
+                disabled={clearing}
+              >
+                {clearing ? 'Clearing…' : 'Clear all stickers'}
+              </DestructiveButton>
+            )}
+          </FooterLeft>
+          <FooterRight>
+            <Button type="button" onClick={onCancel}>Cancel</Button>
+            <Button type="button" $primary onClick={onSave}>Save</Button>
+          </FooterRight>
+        </Footer>
       </Modal>
     </Backdrop>
   );
@@ -524,13 +541,14 @@ const StickerSettingsModal = ({
 };
 
 export default StickerSettingsModal;
+
 const ToggleStack = styled.div`
   display: grid;
   gap: 10px;
   margin-top: 8px;
 `;
+
 const PanelToggle = styled.button`
-  border: none;
   border-radius: 12px;
   padding: 12px 16px;
   width: 100%;
@@ -538,20 +556,21 @@ const PanelToggle = styled.button`
   align-items: center;
   justify-content: space-between;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  background: ${(p) => (p.$active ? 'rgba(37, 99, 235, 0.12)' : 'rgba(226, 232, 240, 0.65)')};
-  color: ${(p) => (p.$active ? '#1d4ed8' : '#1f2937')};
-  border: 1px solid ${(p) => (p.$active ? 'rgba(37, 99, 235, 0.35)' : 'rgba(148, 163, 184, 0.45)')};
-  transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
+
+  background: ${(p) => (p.$active ? 'rgba(139,123,255,0.16)' : 'rgba(255,255,255,0.06)')};
+  color: var(--text-color);
+  border: 1px solid ${(p) => (p.$active ? 'rgba(139,123,255,0.45)' : 'var(--border-color)')};
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 
   span {
     font-size: 12px;
-    font-weight: 500;
-    color: ${(p) => (p.$active ? '#1d4ed8' : '#475569')};
+    font-weight: 600;
+    color: ${(p) => (p.$active ? 'rgba(230,233,255,0.85)' : 'rgba(230,233,255,0.70)')};
   }
 
   &:hover {
-    background: ${(p) => (p.$active ? 'rgba(37, 99, 235, 0.18)' : 'rgba(226, 232, 240, 0.9)')};
+    background: ${(p) => (p.$active ? 'rgba(139,123,255,0.22)' : 'rgba(255,255,255,0.10)')};
   }
 `;

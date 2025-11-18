@@ -31,14 +31,26 @@ const rodTipFromRight = (left) => ({ x: left + SPRITE_CENTER_OFFSET + ROD_X_RIGH
 const Wrap = styled.div`display:grid;grid-template-rows:auto 1fr auto;gap:10px;height:100%;`;
 const Controls = styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:center;`;
 const Button = styled.button`
-  padding:8px 12px;border-radius:12px;border:1px solid #111;cursor:pointer;
-  background:${p=>p.$primary?"#111":"#fff"};color:${p=>p.$primary?"#fff":"#111"};font-weight:800;
-  opacity:${p=>p.$disabled?0.6:1};pointer-events:${p=>p.$disabled?"none":"auto"};`;
-const Badge = styled.span`display:inline-block;border:1px solid var(--border-color);padding:2px 8px;border-radius:999px;background:#fff;font-weight:800;font-size:12px;`;
+  padding:8px 12px;border-radius:12px;cursor:pointer;font-weight:800;
+  border:1px solid ${p=>p.$primary?'transparent':'var(--border-color)'};
+  background:${p=>p.$primary?'var(--primary-orange)':'rgba(255,255,255,0.06)'};
+  color:${p=>p.$primary?'#000':'var(--text-color)'};
+  box-shadow:${p=>p.$primary?'0 8px 22px rgba(0,0,0,.35)':'none'};
+  opacity:${p=>p.$disabled?0.6:1};pointer-events:${p=>p.$disabled?"none":"auto"};
+  transition:background .15s ease,box-shadow .15s ease,transform .08s ease;
+  &:hover{ background:${p=>p.$primary?'linear-gradient(90deg,var(--primary-orange),#59D0FF)':'rgba(255,255,255,0.10)'}; transform:translateY(-1px); }
+  &:active{ transform:translateY(0); }
+`;
+const Badge = styled.span`
+  display:inline-block;padding:2px 8px;border-radius:999px;font-weight:800;font-size:12px;
+  border:1px solid var(--border-color); background:var(--container-white); color:var(--text-color);
+`;
 
 const Stage = styled.div`
   position:relative;height:${STAGE_H}px;border:1px solid var(--border-color);
-  border-radius:14px;overflow:hidden;background:linear-gradient(#9ed0f1,#6bb3da);`;
+  border-radius:14px;overflow:hidden;background:linear-gradient(#9ed0f1,#6bb3da);
+  box-shadow:0 14px 32px rgba(0,0,0,.35);
+`;
 const CenterLine = styled.div`position:absolute;top:0;bottom:${DOCK_H}px;left:50%;width:2px;background:#0002;z-index:1;`;
 const WavesCanvasEl = styled.canvas`position:absolute;left:0;right:0;top:0;bottom:${DOCK_H}px;width:100%;height:${STAGE_H-DOCK_H}px;z-index:0;pointer-events:none;`;
 
@@ -50,7 +62,7 @@ const DockBody = styled.div`
   background-size:100% 100%,100% 100%,10px 10px,10px 10px;background-position:0 0,0 0,3px 3px,13px 8px;`;
 
 const FisherWrap = styled.div`position:absolute;bottom:${FISHER_BOTTOM}px;width:${FISHER_W}px;height:${FISHER_H}px;display:grid;place-items:center;left:${p=>p.$left}px;filter:${p=>p.$me?"drop-shadow(0 0 .35rem #3b82f6)":"none"};`;
-const Name = styled.div`position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-weight:900;font-size:13px;color:#111;text-shadow:0 1px 0 #fff;`;
+const Name = styled.div`position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-weight:900;font-size:13px;color:var(--text-color);text-shadow:0 1px 0 rgba(0,0,0,.35);`;
 
 const FishWrap = styled.div`position:absolute;top:${p=>p.$y}px;left:${p=>p.$x}px;width:72px;height:32px;pointer-events:none;`;
 const Splash = styled.div`
@@ -59,18 +71,18 @@ const Splash = styled.div`
   @keyframes splash {0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.8);opacity:0}}
 `;
 
-const HUDLine = styled.div`display:flex;gap:10px;align-items:center;`;
-const Bar = styled.div`height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;flex:1;`;
-const Fill = styled.div`height:100%;background:#111;width:${p=>p.$pct}%;transition:width .12s ease;`;
+const HUDLine = styled.div`display:flex;gap:10px;align-items:center; color:var(--text-color);`;
+const Bar = styled.div`height:10px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;flex:1;border:1px solid var(--border-color);`;
+const Fill = styled.div`height:100%;background:linear-gradient(90deg,var(--primary-orange),#59D0FF);width:${p=>p.$pct}%;transition:width .12s ease;`;
 
 const QTEPane = styled.div`
   position:absolute;top:14%;left:${p=>p.$side==="L"?"25%":"75%"};transform:translateX(-50%);
-  display:flex;justify-content:center;gap:8px;z-index:3;background:rgba(255,255,255,.92);
+  display:flex;justify-content:center;gap:8px;z-index:3;background:var(--container-white);color:var(--text-color);
   border:1px solid var(--border-color);border-radius:12px;padding:10px 12px;`;
-const Key = styled.div`min-width:48px;padding:8px 12px;border-radius:10px;border:1px solid var(--border-color);background:#fff;text-align:center;font-weight:800;`;
+const Key = styled.div`min-width:48px;padding:8px 12px;border-radius:10px;border:1px solid var(--border-color);background:rgba(255,255,255,0.06);color:var(--text-color);text-align:center;font-weight:800;`;
 
-const Overlay = styled.div`position:absolute;inset:0;display:grid;place-items:center;background:rgba(255,255,255,.35);z-index:2;`;
-const CountOverlay = styled(Overlay)`background:rgba(255,255,255,.45);font-weight:900;font-size:72px;color:#111;`;
+const Overlay = styled.div`position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.36);color:var(--text-color);z-index:2;`;
+const CountOverlay = styled(Overlay)`background:rgba(0,0,0,.42);font-weight:900;font-size:72px;`;
 
 const ResultOverlay = styled.div`
   position: fixed;
@@ -91,8 +103,9 @@ const ResultModal = styled.div`
   width: 540px; max-width: 94vw;
   max-height: min(92dvh, 560px);
   overflow: auto;
-  background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.18);
-  border: 1px solid #e5e7eb; padding: 16px;
+  background: var(--container-white); color: var(--text-color);
+  border-radius: 14px; box-shadow: 0 24px 64px rgba(0,0,0,.45);
+  border: 1px solid var(--border-color); padding: 16px;
 `;
 
 // Same thresholds used elsewhere for the badge
@@ -121,8 +134,8 @@ const fetchMyOverallPlace = async (userId) => {
   } catch { return null; }
 };
 
-const TimerBadge = styled.div`position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:3;background:#fff;border:1px solid var(--border-color);border-radius:999px;padding:4px 10px;font-weight:900;font-size:14px;`;
-const ScoreBadge = styled.div`position:absolute;top:6px;${p=>p.$side==="L"?"left:8px;":"right:8px;"}z-index:3;background:#fff;border:1px solid var(--border-color);border-radius:10px;padding:4px 8px;font-weight:900;font-size:12px;`;
+const TimerBadge = styled.div`position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:3;background:var(--container-white);color:var(--text-color);border:1px solid var(--border-color);border-radius:999px;padding:4px 10px;font-weight:900;font-size:14px;`;
+const ScoreBadge = styled.div`position:absolute;top:6px;${p=>p.$side==="L"?"left:8px;":"right:8px;"}z-index:3;background:var(--container-white);color:var(--text-color);border:1px solid var(--border-color);border-radius:10px;padding:4px 8px;font-weight:900;font-size:12px;`;
 
 const PileWrap = styled.div`position:absolute;bottom:${DOCK_H}px;${p=>p.$side==="L"?"left":"right"}:${p=>p.$offset}px;width:120px;height:120px;pointer-events:none;z-index:1;`;
 const PileFish = styled.div`position:absolute;transform:${p=>`translate(${p.$x}px, ${p.$y}px) rotate(${p.$r}deg) scale(.74)`};transform-origin:center;opacity:.98;`;
@@ -717,16 +730,16 @@ export default function FishingArena({ onResult }) {
             <div style={{fontSize:18, fontWeight:800, marginBottom:6}}>
               {resultModal.didWin ? 'You win! 🎉' : 'You lose'}
             </div>
-            <div style={{fontSize:13, color:'#6b7280'}}>{resultModal.resultText}</div>
+            <div style={{fontSize:13, color:'rgba(230,233,255,0.65)'}}>{resultModal.resultText}</div>
 
             <div style={{display:'flex', gap:10, alignItems:'center', marginTop:10, padding:'8px 10px',
-                        border:'1px solid #e5e7eb', borderRadius:10}}>
+                        border:'1px solid var(--border-color)', borderRadius:10}}>
               <span style={{fontWeight:800}}>🏆 {resultModal.trophies}</span>
-              <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'#111', color:'#fff'}}>
+              <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'var(--primary-orange)', color:'#000'}}>
                 {resultModal.rank || ' '}
               </span>
             </div>
-            <div style={{marginTop:6, fontSize:12, color:'#6b7280'}}>
+            <div style={{marginTop:6, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
               Overall leaderboard place: <b>#{resultModal.place ?? '—'}</b>
             </div>
 

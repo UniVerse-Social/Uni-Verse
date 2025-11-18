@@ -18,14 +18,31 @@ const Wrap = styled.div`
     gap: 12px;
   }
 `;
-const Panel = styled.div`border:1px solid var(--border-color); background:var(--container-white); border-radius:12px; padding:12px;`;
+const Panel = styled.div`
+  border:1px solid var(--border-color);
+  background:var(--container-white);
+  color: var(--text-color);
+  border-radius:12px;
+  padding:12px;
+  box-shadow: 0 14px 32px rgba(0,0,0,.35);
+`;
 const Button = styled.button`
-  padding: 8px 12px; border-radius: 10px; border: 1px solid #111; cursor: pointer;
-  background: ${p=>p.$primary ? '#111' : '#fff'}; color: ${p=>p.$primary ? '#fff' : '#111'};
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid ${p=>p.$primary ? 'transparent' : 'var(--border-color)'};
+  background: ${p=>p.$primary ? 'var(--primary-orange)' : 'rgba(255,255,255,0.06)'};
+  color: ${p=>p.$primary ? '#000' : 'var(--text-color)'};
+  font-weight: 800;
+  transition: background .15s ease, box-shadow .15s ease, color .15s ease, transform .08s ease;
+  &:hover{ background: ${p=>p.$primary ? 'linear-gradient(90deg,var(--primary-orange),#59D0FF)' : 'rgba(255,255,255,0.10)'}; transform: translateY(-1px); }
+  &:active{ transform: translateY(0); }
 `;
 const Alert = styled.div`
-  margin-top: 10px; padding: 8px 10px; border-radius: 10px;
-  border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; font-size: 13px;
+  margin-top: 10px; padding: 8px 10px; border-radius: 10px; font-size: 13px;
+  border: 1px solid rgba(239,68,68,.35);
+  background: rgba(239,68,68,.12);
+  color: #fca5a5;
 `;
 const Overlay = styled.div`
   position: fixed; inset:0; background: rgba(0,0,0,.28);
@@ -33,8 +50,9 @@ const Overlay = styled.div`
 `;
 const Modal = styled.div`
   width: 540px; max-width: 94vw;
-  background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.18);
-  border:1px solid #e5e7eb; padding:16px;
+  background: var(--container-white); color: var(--text-color);
+  border-radius: 14px; box-shadow: 0 24px 64px rgba(0,0,0,.45);
+  border:1px solid var(--border-color); padding:16px;
 `;
 const ModalGrid = styled.div`display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px;`;
 // show only on phones
@@ -49,7 +67,7 @@ const MobileDropdown = styled.details`
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 8px 10px;
-  box-shadow: 0 8px 18px rgba(0,0,0,.05);
+  box-shadow: 0 12px 28px rgba(0,0,0,.18);
 
   summary {
     list-style: none;
@@ -77,7 +95,7 @@ const MobileDropdown = styled.details`
       left: 8px; right: 8px;
       margin: 0;
       padding: 12px 14px;
-      background: #fff;
+      background: var(--container-white);
       border-radius: 10px;
       border: 1px solid var(--border-color);
       z-index: 1001;
@@ -103,7 +121,7 @@ const MobileDropdown = styled.details`
       z-index: 1002;                  /* above summary/content */
       width: 36px; height: 36px;
       border: 1px solid var(--border-color);
-      background: #fff;
+      background: var(--container-white);
       border-radius: 999px;
       box-shadow: 0 8px 18px rgba(0,0,0,.12);
       display: flex; align-items: center; justify-content: center;
@@ -117,7 +135,7 @@ const MobileDropdown = styled.details`
       bottom: calc(12px + env(safe-area-inset-bottom, 0px));
       z-index: 1002;
       border: 1px solid var(--border-color);
-      background: #fff;
+      background: var(--container-white);
       border-radius: 999px;
       padding: 10px 14px;
       box-shadow: 0 8px 18px rgba(0,0,0,.12);
@@ -1405,31 +1423,31 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
             )}
             <Button onClick={resign}>Resign</Button>
           </div>
-          <div style={{marginTop:10, color:'#555'}}>{status}</div>
+          <div style={{marginTop:10, color:'rgba(230,233,255,0.75)'}}>{status}</div>
           {!!notice && <Alert>{notice}</Alert>}
 
           {(!botProfile || botProfile.useSF) && (
-            <div style={{marginTop:8, fontSize:12, color:'#6b7280'}}>
+            <div style={{marginTop:8, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
               Engine: <b>{sfStatus}</b>
             </div>
           )}
 
           {premove && (
-            <div style={{marginTop:8, fontSize:12, color:'#1f2937', display:'flex', alignItems:'center', gap:8}}>
+            <div style={{marginTop:8, fontSize:12, color:'var(--text-color)', display:'flex', alignItems:'center', gap:8}}>
               <span>⏭️ Premove queued: <b>{fmt(premove)}</b></span>
               <Button onClick={()=> setPremove(null)} style={{padding:'4px 8px', borderRadius:8, fontSize:12}}>Clear</Button>
             </div>
           )}
 
           {botProfile?.explain && tips.length > 0 && (
-            <div style={{marginTop:10, padding:'8px 10px', border:'1px solid #e5e7eb', borderRadius:10, background:'#fafafa'}}>
+            <div style={{marginTop:10, padding:'8px 10px', border:'1px solid var(--border-color)', borderRadius:10, background:'rgba(255,255,255,0.06)'}}>
               <div style={{fontWeight:600, marginBottom:6}}>Tutorial</div>
               <ul style={{margin:0, paddingLeft:18}}>
-                {tips.map((t,i)=> <li key={i} style={{fontSize:13, color:'#374151', margin:'4px 0'}}>{t}</li>)}
+                {tips.map((t,i)=> <li key={i} style={{fontSize:13, color:'rgba(230,233,255,0.80)', margin:'4px 0'}}>{t}</li>)}
               </ul>
             </div>
           )}
-          <div style={{marginTop:12, fontSize:12, color:'#6b7280'}}>
+          <div style={{marginTop:12, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
             Wins vs real players grant <b>+8 trophies</b>. Bot games are unranked.
           </div>
         </Panel>
@@ -1443,10 +1461,10 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
           bottom: isNarrow ? 12 : 24,
           zIndex: 20,
           border: '1px solid var(--border-color)',
-          background: '#fff',
+          background: 'var(--container-white)', color: 'var(--text-color)',
           borderRadius: 12,
           padding: isNarrow ? '6px 10px' : '8px 12px',
-          boxShadow: '0 8px 24px rgba(0,0,0,.06)',
+          boxShadow: '0 12px 28px rgba(0,0,0,.18)',
         }}
         title="Basic Chess Rules"
       >
@@ -1481,13 +1499,13 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
               {resultModal.didWin ? 'You win! 🎉' : /draw/i.test(resultModal.resultText) ? 'Draw' : 'You lose'}
             </div>
             <div style={{fontSize:13, color:'#6b7280'}}>{resultModal.resultText}</div>
-            <div style={{display:'flex', gap:10, alignItems:'center', marginTop:10, padding:'8px 10px', border:'1px solid #e5e7eb', borderRadius:10}}>
+            <div style={{display:'flex', gap:10, alignItems:'center', marginTop:10, padding:'8px 10px', border:'1px solid var(--border-color)', borderRadius:10}}>
               <span style={{fontWeight:800}}>🏆 {resultModal.trophies}</span>
-              <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'#111', color:'#fff'}}>
+              <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'var(--primary-orange)', color:'#000'}}>
                 {resultModal.rank}
               </span>
             </div>
-            <div style={{marginTop:6, fontSize:12, color:'#6b7280'}}>
+            <div style={{marginTop:6, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
               Overall leaderboard place: <b>#{resultModal.place ?? '—'}</b>
             </div>
             <ModalGrid style={{marginTop:12}}>

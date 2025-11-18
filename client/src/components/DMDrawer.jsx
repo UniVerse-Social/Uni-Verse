@@ -56,7 +56,7 @@ const s = {
     borderRadius: 10,
     padding: "0 12px",
     outline: "none",
-    background: "#fff",
+    background: "rgba(255,255,255,0.03)",
     color: "var(--text-color)",
   },
   iconBtn: {
@@ -64,7 +64,7 @@ const s = {
     height: 40,
     borderRadius: 12,
     border: "1px solid var(--border-color)",
-    background: "#fff",
+    background: "rgba(255,255,255,0.06)",
     cursor: "pointer",
     display: "grid",
     placeItems: "center",
@@ -76,44 +76,47 @@ const s = {
   grid: { display: "grid", gridTemplateColumns: "300px 1fr", minHeight: 0, flex: 1 },
   list: { overflowY: "auto", padding: 8, minHeight: 0, borderRight: "1px solid var(--border-color)" },
   item: { display: "grid", gridTemplateColumns: "42px 1fr auto", alignItems: "center", gap: 10, padding: "10px 8px", borderRadius: 10, cursor: "pointer" },
-  itemHover: { background: "#f3f4f6" },
-  itemActive: { background: "#eef2f7", border: "1px solid var(--border-color)" },
-  avatar: { width: 42, height: 42, borderRadius: "50%", overflow: "hidden", background: "#fff", display: "grid", placeItems: "center" },
+  itemHover: { background: "var(--accent-gradient, linear-gradient(90deg, var(--primary-orange), #59D0FF))" },
+  itemActive: { background: "var(--accent-gradient, linear-gradient(90deg, var(--primary-orange), #59D0FF))", border: "1px solid transparent" },
+  avatar: { width: 42, height: 42, borderRadius: "50%", overflow: "hidden", background: "rgba(255,255,255,0.08)", border: "1px solid var(--border-color)", display: "grid", placeItems: "center" },
   avatarImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
   name: { fontWeight: 800, lineHeight: 1.2 },
-  sub: { color: "#555", fontSize: 12, marginTop: 2, lineHeight: 1.3 },
-  empty: { padding: 24, color: "#666" },
+  sub: { color: "#9ca3af", fontSize: 12, marginTop: 2, lineHeight: 1.3 },
+  empty: { padding: 24, color: "rgba(229,231,235,0.7)" },
 
   thread: { display: "grid", gridTemplateRows: "auto 1fr auto", minHeight: 0 },
   thTitle: { fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   thHead: { padding: "10px 12px", borderBottom: "1px solid var(--border-color)", display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 8 },
   messages: { padding: 12, overflowY: "auto" },
   compose: { display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: 10, borderTop: "1px solid var(--border-color)" },
-  input: { padding: "10px 12px", border: "1px solid var(--border-color)", borderRadius: 10, outline: "none" },
-  sendBtn: { padding: "10px 12px", borderRadius: 10, border: "1px solid #111", background: "#111", color: "#fff", cursor: "pointer" },
+  input: { padding: "10px 12px", border: "1px solid var(--border-color)", borderRadius: 10, outline: "none", background: "rgba(255,255,255,0.03)", color: "var(--text-color)" },
+  sendBtn: { padding: "10px 12px", borderRadius: 999, border: "none", background: "var(--accent-gradient, linear-gradient(90deg, var(--primary-orange), #59D0FF))", color: "#fff", cursor: "pointer", fontWeight: 800 },
   msgRow: { display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 10 },
   msgMine: { justifyContent: "flex-end" },
-  msgAvatar: { width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "#eef2f7", flex: "0 0 auto" },
+  msgAvatar: { width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "rgba(255,255,255,0.08)", border: "1px solid var(--border-color)", flex: "0 0 auto" },
   msgAvatarImg: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
   msgContent: { maxWidth: "70%" },
   msgHeader: { fontSize: 12, marginBottom: 4, color: "#6b7280", display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" },
   bubble: (mine) => ({
-    background: mine ? "#111" : "#f1f3f5",
-    color: mine ? "#fff" : "#111",
+    background: mine
+      ? "var(--accent-gradient, linear-gradient(90deg, var(--primary-orange), #59D0FF))"
+      : "rgba(255,255,255,0.08)",
+    color: mine ? "#fff" : "var(--text-color)",
     padding: "10px 12px",
-    borderRadius: 12,
+    borderRadius: 14,
+    border: mine ? "1px solid transparent" : "1px solid var(--border-color)",
     wordBreak: "break-word",
   }),
 
   newWrap: { padding: "8px 12px", borderBottom: "1px solid var(--border-color)" },
   chips: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 },
-  chip: { border: "1px solid var(--border-color)", background: "#f3f4f6", color: "#111", padding: "4px 10px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" },
-  dropdown: { position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid var(--border-color)", borderRadius: 10, marginTop: 6, maxHeight: 240, overflowY: "auto", boxShadow: "0 6px 16px rgba(0,0,0,0.08)", zIndex: 10 },
+  chip: { border: "1px solid var(--border-color)", background: "rgba(255,255,255,0.06)", color: "var(--text-color)", padding: "4px 10px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" },
+  dropdown: { position: "absolute", top: "100%", left: 0, right: 0, background: "var(--container-white)", border: "1px solid var(--border-color)", borderRadius: 10, marginTop: 6, maxHeight: 240, overflowY: "auto", boxShadow: "0 6px 16px rgba(0,0,0,0.28)", zIndex: 10 },
   ddItem: { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", cursor: "pointer" },
 };
 
 /* --------------------------- helpers --------------------------- */
-const IconBtn = ({ label, onClick, children }) => {
+const IconBtn = ({ label, onClick, children, filled = false }) => {
   const [h, setH] = useState(false);
   return (
     <button
@@ -122,7 +125,15 @@ const IconBtn = ({ label, onClick, children }) => {
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
-      style={{ ...s.iconBtn, background: h ? "#f1f5f9" : "#fff" }}
+      style={{
+        ...s.iconBtn,
+        background: filled
+          ? 'var(--accent-gradient, linear-gradient(90deg, var(--primary-orange), #59D0FF))'
+          : (h ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'),
+        color: filled ? '#fff' : 'var(--text-color)',
+        border: filled ? 'none' : '1px solid var(--border-color)',
+        fontWeight: 800,
+      }}
       type="button"
     >
       {children}
@@ -132,6 +143,7 @@ const IconBtn = ({ label, onClick, children }) => {
 
 function DMListRow({ id, name, sub, avatar, unread, active, onSelect }) {
   const [hover, setHover] = useState(false);
+  const onAccent = active || hover;
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -143,12 +155,12 @@ function DMListRow({ id, name, sub, avatar, unread, active, onSelect }) {
         <img src={avatar || "/tuffy-default.jpg"} alt="" style={s.avatarImg} />
       </div>
       <div>
-        <div style={s.name}>{name}</div>
-        <div style={s.sub}>{sub}</div>
+        <div style={{ ...s.name, color: onAccent ? "#fff" : "var(--text-color)" }}>{name}</div>
+        <div style={{ ...s.sub, color: onAccent ? "rgba(255,255,255,0.85)" : s.sub.color }}>{sub}</div>
       </div>
       <div>
         {unread > 0 ? (
-          <span style={{ background: "#e02424", color: "#fff", borderRadius: 999, padding: "2px 8px", fontSize: 12, fontWeight: 700 }}>
+          <span style={{ background: "var(--accent-gradient, linear-gradient(90deg, var(--primary-orange), #59D0FF))", color: "#fff", borderRadius: 999, padding: "2px 8px", fontSize: 12, fontWeight: 800 }}>
             {unread}
           </span>
         ) : null}
@@ -252,7 +264,7 @@ export default function DMDrawer() {
     }
   }, [user?._id, loadConversations]);
 
-  const openConversation = async (conv) => {
+  const openConversation = useCallback(async (conv) => {
     if (!conv) return;
     setActive(conv);
     try { localStorage.setItem("lastConv", conv._id); } catch {}
@@ -261,7 +273,7 @@ export default function DMDrawer() {
     }
     await loadMessages(conv._id);
     if (mobile) setShowThreadMobile(true);
-  };
+  }, [ensureUsers, loadMessages, mobile]);
 
   // scroll messages down as they load
   useEffect(() => {
@@ -389,7 +401,7 @@ export default function DMDrawer() {
       return ids.includes(O) && ids.includes(String(user._id));
     });
     if (conv) openConversation(conv);
-  }, [convos]);
+  }, [convos, openConversation, user?._id]);
 
   const toggleSelectUser = (u) => {
     // if selecting exactly one and a direct exists, open it instead of creating a duplicate
@@ -469,29 +481,29 @@ export default function DMDrawer() {
   const HeaderDesktop = (
     <div style={s.header}>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search DMs…" style={s.search} />
-      <IconBtn label={selecting ? "Close new chat" : "New chat"} onClick={() => setSelecting((v) => !v)}>
+      <IconBtn filled label={selecting ? "Close new chat" : "New chat"} onClick={() => setSelecting((v) => !v)}>
         {selecting ? "–" : "+"}
       </IconBtn>
-      <IconBtn label="Close" onClick={close}>×</IconBtn>
+      <IconBtn filled label="Close" onClick={close}>×</IconBtn>
     </div>
   );
 
   const HeaderMobileList = (
     <div style={s.header}>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search DMs…" style={s.search} />
-      <IconBtn label={selecting ? "Close new chat" : "New chat"} onClick={() => setSelecting((v) => !v)}>
+      <IconBtn filled label={selecting ? "Close new chat" : "New chat"} onClick={() => setSelecting((v) => !v)}>
         {selecting ? "–" : "+"}
       </IconBtn>
-      <IconBtn label="Close" onClick={close}>×</IconBtn>
+      <IconBtn filled label="Close" onClick={close}>×</IconBtn>
     </div>
   );
 
   const HeaderMobileThread = (
     <div style={s.headerMobileThread}>
-      <button aria-label="Back" title="Back" onClick={backFromThread} style={{ ...s.iconBtn, width: 36, height: 36 }}>←</button>
+      <IconBtn filled label="Back" onClick={backFromThread}>←</IconBtn>
       <div style={s.thTitle}>{titleOf(active)}</div>
-      <IconBtn label="Delete chat" onClick={deleteConversation}>🗑</IconBtn>
-      <IconBtn label="Close" onClick={close}>×</IconBtn>
+      <IconBtn filled label="Delete chat" onClick={deleteConversation}>🗑</IconBtn>
+      <IconBtn filled label="Close" onClick={close}>×</IconBtn>
     </div>
   );
 
@@ -599,7 +611,7 @@ export default function DMDrawer() {
                 <>
                   <div style={s.thHead}>
                     <div style={s.thTitle}>{titleOf(active)}</div>
-                    <IconBtn label="Delete chat" onClick={deleteConversation}>🗑</IconBtn>
+                    <IconBtn filled label="Delete chat" onClick={deleteConversation}>🗑</IconBtn>
                   </div>
 
                   <div ref={messagesRef} style={s.messages}>
@@ -717,6 +729,9 @@ export default function DMDrawer() {
       <style>{`
         @media (max-width: 900px) {
           aside[role="dialog"] { width: 100vw !important; min-width: 0 !important; }
+        }
+        aside[role="dialog"] input::placeholder {
+          color: rgba(230,233,255,0.55);
         }
       `}</style>
     </>

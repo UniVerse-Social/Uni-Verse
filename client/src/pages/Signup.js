@@ -3,6 +3,8 @@ import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import axios from 'axios';
+import { api } from '../api';
+
 import { debounce } from 'lodash';
 import { AuthContext } from '../App';
 import TermsModal from '../components/TermsModal';
@@ -12,11 +14,50 @@ import {
   Hint,
   LimitNote,
   HobbyGrid,
-  HobbyOption,
+  HobbyOption as BaseHobbyOption,
   HobbyEmoji,
   HobbyText,
 } from '../components/HobbyTiles';
 
+// Small helper for reading JSON from localStorage safely
+const safeParse = (s) => {
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return null; }
+};
+// Strictly require school email (accept exact match or subdomain-of-school)
+const ensureSchoolEmail = (email, school) => {
+  if (!email || !school || !Array.isArray(school.domains)) return false;
+  const at = String(email).toLowerCase().split('@')[1];
+  if (!at) return false;
+  return school.domains.some((d) => {
+    const need = String(d).toLowerCase();
+    return at === need || at.endsWith(`.${need}`);
+  });
+};
+// Password rules: >=8 chars and at least 1 number
+const passwordIssues = (pw) => {
+  const s = String(pw || '');
+  const issues = [];
+  if (s.length < 8) issues.push('at least 8 characters');
+  if (!/\d/.test(s)) issues.push('at least one number');
+  return issues;
+};
+const isStrongPassword = (pw) => passwordIssues(pw).length === 0;
+// Robust availability check (supports multiple API shapes)
+const fieldAvailable = async (field, value) => {
+  try {
+    const res = await axios.post('/api/auth/check-availability', { [field]: value });
+    const d = res?.data || {};
+    if (typeof d.available === 'boolean') return d.available;
+    if (typeof d[`${field}Available`] === 'boolean') return d[`${field}Available`];
+    if (typeof d.taken === 'boolean') return !d.taken;
+    if (typeof d[`${field}Taken`] === 'boolean') return !d[`${field}Taken`];
+    if (typeof d.exists === 'boolean') return !d.exists;
+    return true; // default optimistic, but we'll re-check at submit boundary too
+  } catch {
+    return false; // on error, treat as not available
+  }
+};
 
 // ===== Styled components (existing + a few new ones) =====
 const SignupContainer = styled.div`
@@ -78,7 +119,32 @@ const ClearAllButton = styled.button`
   padding: 0;
   &:hover { text-decoration: underline; }
 `;
+const HobbyOption = styled(BaseHobbyOption)`
+  /* default (unselected) can keep the base styles; tweak hover a bit */
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 
+  /* selected state */
+  ${({ $selected }) =>
+    $selected &&
+    `
+      background: linear-gradient(135deg, var(--primary-orange) 0%, #6B63FF 100%) !important;
+      color: #fff !important;
+      border-color: transparent !important;
+      box-shadow: 0 0 0 1px rgba(139, 123, 255, 0.45) inset;
+
+      &:hover {
+        background: linear-gradient(135deg, #9B8CFF 0%, #7A72FF 100%) !important;
+      }
+    `}
+
+  /* keyboard focus ring */
+  &:focus-visible {
+    outline: 2px solid var(--primary-orange);
+    outline-offset: 2px;
+  }
+`;
 const ValidationMessage = styled.p` color: red; font-size: 14px; margin: -10px 0 0 5px; `;
 
 const LoginLink = styled(Link)`
@@ -104,17 +170,23 @@ const InlineLink = styled.button`
 
 
 const Signup = () => {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(1); // 1: account, 2: verify, 3: dept, 4: hobbies
   const [formData, setFormData] = useState({
-    email: '', username: '', password: '', department: '', hobbies: []
+    email: '', username: '', password: '', password2: '', department: '', hobbies: []
   });
   const [signupData, setSignupData] = useState({ departments: [], hobbies: [] });
   const [validation, setValidation] = useState({ email: '', username: '' });
   const [isChecking, setIsChecking] = useState(false);
   const [errMsg, setErrMsg] = useState('');
   const [hobbyLimitNote, setHobbyLimitNote] = useState('');
+  // email verification step
+  const [verifyCode, setVerifyCode] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
+  const [sendCooldown, setSendCooldown] = useState(0);
+  const [confirming, setConfirming] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
 
-  // NEW: terms state
+  // terms state
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [modalDoc, setModalDoc] = useState('/terms.html');
@@ -155,6 +227,11 @@ const Signup = () => {
     })();
   }, []);
 
+  useEffect(() => {
+    if (sendCooldown <= 0) return;
+    const t = setInterval(() => setSendCooldown(c => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [sendCooldown]);
   // Debounced availability check
   const checkAvailability = useMemo(
     () => debounce(async (field, valueRaw) => {
@@ -162,15 +239,40 @@ const Signup = () => {
         field === 'email'
           ? String(valueRaw || '').trim().toLowerCase()
           : String(valueRaw || '').trim();
-      if (!value) return;
+      if (!value) {
+        // clear message when field is empty
+        setValidation((prev) => ({ ...prev, [field]: '' }));
+        return;
+      }
       setIsChecking(true);
       try {
         const res = await axios.post('/api/auth/check-availability', { [field]: value });
-        const { isEmailTaken, isUsernameTaken } = res.data || {};
+        // tolerate different server response shapes
+        const availDirect = res?.data?.available;
+        const altEmail = res?.data?.emailAvailable ?? res?.data?.availableEmail;
+        const altUser  = res?.data?.usernameAvailable ?? res?.data?.availableUsername;
+        const available =
+          typeof availDirect === 'boolean'
+            ? availDirect
+            : field === 'email'
+              ? (typeof altEmail === 'boolean' ? altEmail : true)
+              : (typeof altUser  === 'boolean' ? altUser  : true);
         setValidation(prev => ({
           ...prev,
-          [field]: (field === 'email' ? isEmailTaken : isUsernameTaken) ? `${field} is already taken.` : ''
+          [field]: available ? '' : `${field === 'email' ? 'Email' : 'Username'} is already taken`
         }));
+
+        // Extra: school email domain enforcement
+        if (field === 'email') {
+          const school = safeParse(localStorage.getItem('educonnect_school'));
+          const ok = ensureSchoolEmail(value, school);
+          if (!ok) {
+            const hint = school?.domains?.length
+              ? `Use your ${school.name} email (${school.domains.map(d => '@' + d).join(', ')})`
+              : 'Select your university first';
+            setValidation(prev => ({ ...prev, email: hint }));
+          }
+        }
       } catch (err) {
         console.error('Error checking availability', err);
       } finally {
@@ -179,12 +281,89 @@ const Signup = () => {
     }, 400),
     []
   );
+async function startEmailVerification() {
+  setErrMsg('');
+  const school = safeParse(localStorage.getItem('educonnect_school'));
+  const email = String(formData.email || '').trim().toLowerCase();
+  const username = String(formData.username || '').trim();
+  if (emailVerified) { setStep(3); return; } // already verified -> jump ahead
+  if (!school) { setErrMsg('Please select your university.'); return; }
+  if (!ensureSchoolEmail(email, school)) {
+    setErrMsg(`Use your ${school.name} email (${(school.domains||[]).map(d=>'@'+d).join(', ')})`);
+    return;
+  }
+  if (!isStrongPassword(formData.password)) {
+    setErrMsg(`Password must have ${passwordIssues(formData.password).join(' and ')}.`);
+    return;
+  }
+  // Hard check with server before sending code
+  const [emailOK, userOK] = await Promise.all([
+    fieldAvailable('email', email),
+    fieldAvailable('username', username),
+  ]);
+  if (!emailOK) {
+    setValidation((prev) => ({ ...prev, email: 'Email is already taken' }));
+    setErrMsg('Please use a different email.');
+    return;
+  }
+  if (!userOK) {
+    setValidation((prev) => ({ ...prev, username: 'Username is already taken' }));
+    setErrMsg('Please choose a different username.');
+    return;
+  }
+  if (formData.password !== formData.password2) { setErrMsg('Passwords do not match.'); return; }
+  if (validation.email || validation.username || isChecking) {
+    setErrMsg('Please resolve the availability checks before continuing.');
+    return;
+  }
+  try {
+    setSendingCode(true);
+    await api.post('/verification/send', { email, schoolSlug: school.slug });
+    setSendCooldown(60);
+    setStep(2); // to the code entry screen
+  } catch (err) {
+    const msg = err?.response?.data?.message || 'Failed to send verification email.';
+    setErrMsg(msg);
+  } finally {
+    setSendingCode(false);
+  }
+}
+
+async function confirmEmailCode() {
+  setErrMsg('');
+  const school = safeParse(localStorage.getItem('educonnect_school'));
+  const email = String(formData.email || '').trim().toLowerCase();
+  try {
+    setConfirming(true);
+    const { data } = await api.post('/verification/confirm', {
+      email, schoolSlug: school?.slug, code: String(verifyCode || '').trim(),
+    });
+    if (data?.ok || data?.verifiedUntil) {
+      // also store locally so returning users skip in future
+      localStorage.setItem('educonnect_verified', '1');
+      if (data?.verifiedUntil) localStorage.setItem('educonnect_verified_until', String(data.verifiedUntil));
+      localStorage.setItem('educonnect_verified_email', email);
+      setEmailVerified(true);
+      setStep(3);
+    } else {
+      setErrMsg('Invalid or expired code.');
+    }
+  } catch (err) {
+    const msg = err?.response?.data?.message || 'Invalid or expired code.';
+    setErrMsg(msg);
+  } finally {
+    setConfirming(false);
+  }
+}
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (name === 'email' || name === 'username') {
       checkAvailability(name, value);
+      if (!value.trim()) {
+        setValidation((prev) => ({ ...prev, [name]: '' }));
+      }
     }
     setErrMsg('');
   };
@@ -221,8 +400,9 @@ const Signup = () => {
       setErrMsg('Please complete all required fields.');
       return;
     }
-    if (password.length < 6) {
-      setErrMsg('Password must be at least 6 characters.');
+    const pwIssues = passwordIssues(password);
+    if (pwIssues.length > 0) {
+      setErrMsg(`Password must have ${pwIssues.join(' and ')}.`);
       return;
     }
     if (!termsAccepted) {
@@ -235,6 +415,11 @@ const Signup = () => {
     }
 
     try {
+      if (!emailVerified) {
+        setErrMsg('Please verify your email to continue.');
+        setStep(2);
+        return;
+      }
       const payload = {
       username,
       email,
@@ -267,15 +452,24 @@ const Signup = () => {
     }
   };
 
+  const selectedSchool = safeParse(localStorage.getItem('educonnect_school'));
+  const emailOkForSchool = ensureSchoolEmail(
+    String(formData.email||'').trim().toLowerCase(),
+    selectedSchool
+  );
+  const pwMatch = formData.password && formData.password2 && formData.password === formData.password2;
+  const pwStrong = isStrongPassword(formData.password);
   const isStep1Valid =
     formData.email.trim() &&
     formData.username.trim() &&
-    String(formData.password || '').length >= 6 &&
+    pwStrong &&
+    pwMatch &&
+    emailOkForSchool &&
     !validation.email && !validation.username && !isChecking;
 
   return (
     <SignupContainer>
-      <SignupForm onSubmit={handleSubmit}>
+      <SignupForm onSubmit={handleSubmit} autoComplete="off">
         {errMsg && <ErrorBanner>{errMsg}</ErrorBanner>}
 
         {step === 1 && (
@@ -299,27 +493,80 @@ const Signup = () => {
               value={formData.username}
               onChange={handleChange}
               required
-              autoComplete="username"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="text"
+              data-1p-ignore="true"     // 1Password hint to ignore
+              data-lpignore="true"      // LastPass hint to ignore
             />
             {validation.username && <ValidationMessage>{validation.username}</ValidationMessage>}
 
             <Input
               type="password"
               name="password"
-              placeholder="Password (min 6 chars)"
+              placeholder="Password (min 8 chars, 1 number)"
               value={formData.password}
               onChange={handleChange}
               required
               autoComplete="new-password"
             />
-
-            <Button type="button" onClick={() => setStep(2)} disabled={!isStep1Valid}>
-              Next
+            {formData.password && !isStrongPassword(formData.password) && (
+              <ValidationMessage>
+                Password must have {passwordIssues(formData.password).join(' and ')}.
+              </ValidationMessage>
+            )}
+            <Input
+              type="password"
+              name="password2"
+              placeholder="Retype password"
+              value={formData.password2}
+              onChange={handleChange}
+              required
+              autoComplete="new-password"
+            />
+            {formData.password2 && formData.password !== formData.password2 && (
+              <ValidationMessage>Passwords do not match</ValidationMessage>
+            )}
+            <Button type="button" onClick={startEmailVerification} disabled={!isStep1Valid || sendingCode}>
+              {sendingCode ? 'Sending…' : 'Next'}
             </Button>
           </>
         )}
-
         {step === 2 && (
+          <>
+            <h2>Verify your email</h2>
+            <p>We sent a 6-digit code to <b>{String(formData.email).trim().toLowerCase()}</b>.</p>
+            <Input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              name="verify"
+              placeholder="Enter code"
+              value={verifyCode}
+              onChange={(e) => setVerifyCode(e.target.value)}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Button type="button" onClick={confirmEmailCode} disabled={!verifyCode || confirming}>
+                {confirming ? 'Verifying…' : 'Verify & Continue'}
+              </Button>
+              <Button type="button" style={{ backgroundColor: '#888' }} onClick={() => setStep(1)}>
+                Back
+              </Button>
+              <Button
+                type="button"
+                style={{ backgroundColor: '#4b5563' }}
+                disabled={sendCooldown > 0 || sendingCode}
+                onClick={startEmailVerification}
+              >
+                {sendCooldown > 0 ? `Resend in ${sendCooldown}s` : (sendingCode ? 'Sending…' : 'Resend code')}
+              </Button>
+            </div>
+          </>
+        )}
+        {step === 3 && (
           <>
             <h2>Select Department</h2>
             <Select name="department" onChange={handleChange} value={formData.department}>
@@ -328,13 +575,13 @@ const Signup = () => {
               ))}
             </Select>
             <div style={{ display: 'flex', gap: 10 }}>
-              <Button type="button" onClick={() => setStep(3)}>Next</Button>
+              <Button type="button" onClick={() => setStep(4)}>Next</Button>
               <Button type="button" style={{ backgroundColor: '#888' }} onClick={() => setStep(1)}>Back</Button>
             </div>
           </>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <>
             <h2>Hobbies ({formData.hobbies.length}/{HOBBY_LIMIT})</h2>
             <HobbyPanel>
@@ -433,7 +680,7 @@ const Signup = () => {
               <Button
                 type="button"
                 style={{ backgroundColor: '#888' }}
-                onClick={() => { setStep(2); setErrMsg(''); }}
+                onClick={() => { setStep(3); setErrMsg(''); }}
               >
                 Back
               </Button>

@@ -100,6 +100,19 @@ const BannerEditButton = styled.label`
   }
 `;
 
+const BannerScrim = styled.div`
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(15,23,42,.30) 0%,
+      rgba(15,23,42,.50) 60%,
+      rgba(15,23,42,.72) 100%
+    );
+`;
+
 const HiddenFileInput = styled.input` display: none; `;
 
 const Header = styled.div`
@@ -376,20 +389,41 @@ const SlotLabel = styled.span`
 `;
 
 const BadgeSlot = styled.button`
-  width: clamp(28px, 8.5vw, 48px);            /* scale down instead of wrap */
+  width: clamp(28px, 8.5vw, 48px);
   height: clamp(28px, 8.5vw, 48px);
   border-radius: 50%;
-  border: ${p => p.$filled ? '2px solid transparent' : '2px dashed var(--border-color)'};
-  background: ${p => p.$filled ? 'var(--container-white)' : 'transparent'};
-  color: ${p => p.theme?.text || 'var(--text-color)'};
+  position: relative;
   display: grid;
   place-items: center;
-  position: relative;
   cursor: ${p => p.$clickable ? 'pointer' : 'default'};
-  box-shadow: ${p => p.$filled ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'};
-  transition: transform .1s ease;
-
+  transition: transform .1s ease, box-shadow .18s ease;
+  /* glassy chip look to match Clubs chips */
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  color: var(--text-color);
   &:hover { transform: ${p => p.$clickable ? 'translateY(-1px)' : 'none'}; }
+
+  /* when filled, give a subtle gradient ring */
+  ${p => p.$filled && `
+    background: var(--container-white);
+    border: 2px solid transparent;
+    box-shadow:
+      0 2px 10px rgba(0,0,0,0.22),
+      0 0 0 2px rgba(255,255,255,0.06);
+    &::after{
+      content:'';
+      position:absolute; inset:-2px;
+      border-radius:50%;
+      padding:2px; pointer-events:none;
+      background: linear-gradient(90deg, var(--primary-orange), #59D0FF);
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+    }
+  `}
 `;
 
 const PlusDot = styled.span`
@@ -400,7 +434,7 @@ const PlusDot = styled.span`
   width: clamp(9px, 2.4vw, 14px);
   height: clamp(9px, 2.4vw, 14px);
   border-radius: 50%;
-  background: #1877f2;
+  background: linear-gradient(90deg, var(--primary-orange), #59D0FF);
   color: #fff;
   display: ${p => (p.$show ? 'grid' : 'none')};
   place-items: center;
@@ -431,15 +465,13 @@ const ModalCard = styled.div`
   background: var(--container-white);
   color: var(--text-color);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-  width: min(720px, 96vw);
-  max-height: calc(
-    100vh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
-  );
+  border-radius: 14px;
+  box-shadow: 0 28px 60px rgba(0,0,0,0.35);
+  width: min(640px, 96vw);
+  max-height: calc(100vh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 16px;
+  padding: 18px;
 `;
 
 const ModalHeader = styled.div`
@@ -451,7 +483,7 @@ const ModalHeader = styled.div`
 
 const MenuDivider = styled.div` height: 1px; background: #eee; margin: 10px 0; `;
 
-const ModalBody = styled.div` font-size: 14px; color: #333; `;
+const ModalBody = styled.div` font-size: 14px; color: var(--text-color); `;
 
 const SlotsBar = styled.div`
   display: flex;
@@ -465,7 +497,8 @@ const SlotsBar = styled.div`
 const SlotMini = styled(BadgeSlot)`
   width: 40px;
   height: 40px;
-  border: ${p => p.$active ? '2px solid #1877f2' : p.$filled ? '2px solid transparent' : '2px dashed var(--border-color)'};
+  border: 1px solid var(--border-color);
+  ${p => p.$active && `box-shadow: 0 0 0 2px var(--container-white), 0 0 0 4px rgba(89,208,255,.45);`}
 `;
 
 const BadgeGrid = styled.div`
@@ -506,18 +539,32 @@ const BadgeMeta = styled.div` font-size: 12px; color: #6b7280; `;
 
 const PrimaryButton = styled.button`
   padding: clamp(6px, 1.6vw, 10px) clamp(10px, 3vw, 20px);
-  border-radius: 6px;
-  font-weight: 600;
+  border-radius: 999px;
+  font-weight: 800;
   font-size: clamp(12px, 3.3vw, 16px);
   cursor: pointer;
-  background-color: ${props => (props.$primary ? '#1877f2' : '#e4e6eb')};
-  color: ${props => (props.$primary ? 'white' : '#333')};
-  border: none;
-  transition: filter 0.2s;
-  white-space: nowrap;   /* never break “Unfollow” to two lines */
+  border: 1px solid var(--border-color);
   max-width: 100%;
+  white-space: nowrap;
   flex-shrink: 0;
-  &:hover { filter: brightness(0.95); }
+  color: ${p => (p.$primary ? '#fff' : 'var(--text-color)')};
+  background: ${p =>
+    p.$primary
+      ? 'linear-gradient(90deg, var(--primary-orange), #59D0FF)'
+      : 'rgba(255,255,255,0.08)'};
+  &:hover { filter: brightness(0.98); }
+`;
+
+/* Themed input for delete-confirm field */
+const ModalInput = styled.input`
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-color);
+  &::placeholder { color: rgba(230,233,255,0.55); }
 `;
 
 /* Admin “Delete account” button that shrinks like Follow */
@@ -575,12 +622,13 @@ const SettingsButton = styled.button`
   justify-content: center;
   width: clamp(36px, 9vw, 40px);
   height: clamp(36px, 9vw, 40px);
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: var(--container-white);
+  background: rgba(255,255,255,0.08);
+  color: #d1d5db;
   cursor: pointer;
-  color: var(--text-color);
-  &:hover { background: #b9b9b9; }
+  transition: background .18s ease, transform .08s ease;
+  &:hover { background: rgba(255,255,255,0.16); transform: translateY(-1px); }
 `;
 
 /* The menu already has max-width; keep it hugging the right edge */
@@ -590,11 +638,12 @@ const SettingsMenu = styled.div`
   right: 0;
   z-index: 20;
   background: var(--container-white);
+  color: var(--text-color);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  border-radius: 12px;
+  box-shadow: 0 18px 36px rgba(0,0,0,0.28);
   min-width: 240px;
-  max-width: 92vw;                 /* prevents right overflow */
+  max-width: 92vw;
   overflow: hidden;
   padding: 6px 0;
 `;
@@ -607,11 +656,11 @@ const SettingsItem = styled.button`
   gap: 10px;
   align-items: center;
   border: none;
-  background: var(--container-white);
+  background: transparent;
   cursor: pointer;
-  font-weight: 600;
-  color: ${p => (p.className?.includes('danger') ? '#b00020' : 'var(--text-color)')};
-  &:hover { background: rgba(0,0,0,0.04); }
+  font-weight: 700;
+  color: ${p => (p.className?.includes('danger') ? '#ff5861' : 'var(--text-color)')};
+  &:hover { background: rgba(255,255,255,0.06); }
 `;
 
 /* --------------------------- Constants --------------------------- */
@@ -1117,7 +1166,7 @@ const Profile = () => {
             <ModalBody>
               <p>This will permanently delete your account and all of your posts. This action cannot be undone.</p>
               <p>To confirm, type <b>DELETE</b> below:</p>
-              <input
+              <ModalInput
                 autoFocus
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
@@ -1212,6 +1261,7 @@ const Profile = () => {
       <Page>
         <BannerWrap>
           <BannerImage src={userOnPage.bannerPicture || DEFAULT_BANNER_DATA} alt="Banner" />
+          <BannerScrim /> {/* ← keeps white text readable on any banner */}
           {isOwnProfile && (
             <>
               <HiddenFileInput type="file" id="bannerUpload" accept="image/*" onChange={(e) => handleFileChange(e, setBannerToCrop)} />

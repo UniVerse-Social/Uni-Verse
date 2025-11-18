@@ -13,27 +13,27 @@ const Backdrop = styled.div`
 `;
 
 const Dialog = styled.div`
-  background: #fff;
+  background: var(--container-white);
+  color: var(--text-color);
   width: min(560px, 92vw);
   max-height: 88vh;
-  border-radius: 12px;
-  box-shadow: 0 20px 44px rgba(0,0,0,0.18);
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 28px 60px rgba(0,0,0,0.35);
   overflow: hidden;
-
-  /* 3 rows: header / scrolling body / footer */
   display: grid;
   grid-template-rows: auto 1fr auto;
 `;
 
 const Header = styled.div`
-  padding: 14px 16px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--border-color);
   display: flex; align-items: center; justify-content: space-between;
   h3 { margin: 0; font-size: 18px; }
-  button {
-    border: 0; background: transparent; cursor: pointer; font-size: 20px; color: #666;
-    padding: 4px 6px; border-radius: 8px;
-    &:hover { background:#f3f4f6; color:#111; }
+  button{
+    border: 0; background: transparent; cursor: pointer; font-size: 20px;
+    color: var(--text-color); opacity:.75; padding: 4px 6px; border-radius: 10px;
+    &:hover { background: rgba(255,255,255,0.08); opacity:1; }
   }
 `;
 
@@ -66,7 +66,9 @@ const Input = styled.input`
   border: 1px solid var(--border-color);
   border-radius: 10px;
   font-size: 14px;
-  background: #fff;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-color);
+  &::placeholder{ color: rgba(230,233,255,0.55); }
 `;
 
 const TextArea = styled.textarea`
@@ -78,20 +80,35 @@ const TextArea = styled.textarea`
   border-radius: 10px;
   font-size: 14px;
   resize: vertical;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-color);
+  &::placeholder{ color: rgba(230,233,255,0.55); }
 `;
 
 const Footer = styled.div`
   padding: 12px 16px;
   display: flex; justify-content: flex-end; gap: 10px;
   border-top: 1px solid var(--border-color);
-  background: #fff;
+  background: var(--container-white);
 `;
 
 const Button = styled.button`
-  padding: 10px 14px; border-radius: 10px; font-weight: 700; border: 0; cursor: pointer;
-  background: #e5e7eb;
-  color: #111;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 800;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  background: rgba(255,255,255,0.06);
+  cursor: pointer;
+  &:hover { background: rgba(255,255,255,0.12); }
   &:disabled { opacity: .6; cursor: not-allowed; }
+`;
+
+const Primary = styled(Button)`
+  border: none;
+  color: #fff;
+  background: linear-gradient(90deg, var(--primary-orange), #59D0FF);
+  &:hover { filter: brightness(0.98); }
 `;
 
 export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
@@ -242,14 +259,9 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
 
         <Footer>
           <Button type="button" onClick={onClose}>Cancel</Button>
-          {/* Submit the form even though the button is outside the <form> */}
-          <Button
-            type="button"
-            onClick={() => formRef.current?.requestSubmit()}
-            disabled={saving}
-          >
+          <Primary type="button" onClick={() => formRef.current?.requestSubmit()} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
-          </Button>
+          </Primary>
         </Footer>
       </Dialog>
     </Backdrop>

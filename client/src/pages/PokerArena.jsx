@@ -14,19 +14,42 @@ const pulseGlow = keyframes`0%{box-shadow:0 0 0 rgba(255,255,255,0)}50%{box-shad
 const Container = styled.div`display:block;`;
 const Card = styled.div`
   background: var(--container-white);
+  color: var(--text-color);
   border: 1px solid var(--border-color);
-  border-radius: 16px; padding: 14px;
-  box-shadow: 0 10px 24px rgba(0,0,0,.06);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 14px 32px rgba(0,0,0,.35);
 `;
 
 /* ---------- Lobby ---------- */
 const Top = styled.div`display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;`;
 const Pill = styled.button`
-  border:1px solid var(--border-color); background:#f9fafb; border-radius:999px; padding:8px 12px;
-  cursor:pointer; font-weight:700; ${(p)=>p.$on && 'background:#111827;color:#fff;'}
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-color);
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: background .15s ease, box-shadow .15s ease, transform .08s ease, color .15s ease;
+  &:hover { background: rgba(255,255,255,0.10); transform: translateY(-1px); }
+  &:active { transform: translateY(0); }
+  ${(p)=>p.$on && `
+    background: var(--primary-orange);
+    color: #000;
+    border-color: transparent;
+    box-shadow: 0 8px 22px rgba(0,0,0,.35);
+  `}
 `;
 const Grid = styled.div`display:grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap:8px;`;
-const TableCard = styled.div`border:1px solid var(--border-color); border-radius:12px; padding:10px;`;
+const TableCard = styled.div`
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--container-white);
+  color: var(--text-color);
+  box-shadow: 0 10px 24px rgba(0,0,0,.25);
+`;
 const TableHeader = styled.div`display:flex; justify-content:space-between; font-weight:800; margin-bottom:6px;`;
 
 /* ---------- Table ---------- */
@@ -45,9 +68,12 @@ const Comm = styled.div`
   animation:${fadeIn} .25s ease;
 `;
 const PlayingCard = styled.div`
-  width:36px; height:52px; background:#fff; border-radius:6px; border:1px solid #111827;
-  color:#111827; display:flex; align-items:center; justify-content:center; font-weight:800;
+  width:36px; height:52px;
+  background:#fff; color:#111827;
+  border-radius:6px; border:1px solid #111827;
+  display:flex; align-items:center; justify-content:center; font-weight:800;
   animation:${flipIn} .22s ease;
+  box-shadow: 0 4px 10px rgba(0,0,0,.25);
 `;
 
 /* Seat layout with fixed regions so names never move when cards show */
@@ -80,7 +106,7 @@ const TurnHalo = styled.div`
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   width:128px; height:128px; border-radius:999px;
   pointer-events:none;
-  background: radial-gradient(closest-side, rgba(255,255,255,.25), rgba(255,255,255,0));
+  background: radial-gradient(closest-side, rgba(139,123,255,.25), rgba(89,208,255,0));
   animation:${fadeIn} .18s ease;
 `;
 
@@ -95,22 +121,45 @@ const WinPill = styled.div`
 
 /* Action bar */
 const ActionBar = styled.div`position:absolute; bottom:10px; left:10px; right:10px; display:flex; gap:8px; justify-content:center;`;
-const Btn = styled.button`background:#111827;color:#fff;border:0;border-radius:12px;padding:10px 12px;font-weight:800;cursor:pointer; &:disabled{opacity:.5;cursor:not-allowed;}`;
+const Btn = styled.button`
+  background: var(--primary-orange);
+  color: #000;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(0,0,0,.35);
+  transition: background .15s ease, transform .08s ease, box-shadow .15s ease;
+  &:hover { background: linear-gradient(90deg, var(--primary-orange), #59D0FF); transform: translateY(-1px); }
+  &:active { transform: translateY(0); }
+  &:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }
+`;
 
 /* Chat */
 const Chat = styled(Card)`display:flex; flex-direction:column; height:240px; margin-top:16px;`;
 const ChatList = styled.div`flex:1; overflow:auto; font-size:13px;`;
-const ChatInput = styled.input`border:1px solid var(--border-color); border-radius:8px; padding:8px;`;
+const ChatInput = styled.input`
+  border:1px solid var(--border-color);
+  border-radius:8px;
+  padding:8px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-color);
+`;
 
 /* Ready-up overlay */
 const ReadyOverlay = styled.div`
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,.15), rgba(0,0,0,0));
+  background: radial-gradient(ellipse at center, rgba(0,0,0,.22), rgba(0,0,0,0));
   pointer-events:auto;
 `;
 const ReadyBox = styled.div`
-  background:#043d31; border:1px solid rgba(255,255,255,.08); color:#fff;
-  padding:16px; border-radius:12px; min-width:260px; text-align:center; animation:${fadeIn} .2s ease;
+  background: var(--container-white);
+  color: var(--text-color);
+  border:1px solid var(--border-color);
+  padding:16px; border-radius:12px; min-width:260px; text-align:center;
+  animation:${fadeIn} .2s ease;
+  box-shadow: 0 14px 32px rgba(0,0,0,.35);
 `;
 
 const STAKES = ['100','1000','5000','10000','VIP'];

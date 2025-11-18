@@ -11,25 +11,33 @@ const Box = styled.div`
   background: var(--container-white);
 `;
 const TA = styled.textarea`
-  width:96%; min-height:80px; border:1px solid var(--border-color);
-  border-radius:10px; padding:10px; resize:none; background:#fff; color:#111;
+  width:96%;
+  min-height:80px;
+  border:1px solid var(--border-color);
+  border-radius:10px;
+  padding:10px;
+  resize:none;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-color);
+  &::placeholder{ color: rgba(230,233,255,0.55); }
 `;
 const Row = styled.div`display:flex; justify-content:space-between; gap:8px; align-items:center; margin-top:8px;`;
 const Btn = styled.button`
-  padding:10px 14px; border-radius:10px; border:1px solid var(--border-color);
-  background: #111; color:#fff; font-weight:700; cursor:pointer;
+  padding:10px 14px; border-radius:10px; border:none;
+  background: var(--primary-orange); color:#000; font-weight:800; cursor:pointer;
   &:disabled { opacity:.6; cursor:not-allowed; }
+  &:hover { background: linear-gradient(90deg, var(--primary-orange), #59D0FF); }
 `;
 const Attach = styled.label`
   padding:8px 12px; border-radius:10px; border:1px solid var(--border-color);
-  background:#fff; color:#111; cursor:pointer; font-weight:600;
-  &:hover { background:#f8fafc; }
+  background: rgba(255,255,255,0.06); color: var(--text-color); cursor:pointer; font-weight:600;
+  &:hover { background: rgba(255,255,255,0.1); }
 `;
 const Hidden = styled.input` display:none; `;
 const Grid = styled.div`
   display:grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap:10px; margin:10px 0 0;
-  div{ position:relative; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; background:#f8f9fb; aspect-ratio:1/1; }
+  div{ position:relative; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; background: rgba(255,255,255,0.03); aspect-ratio:1/1; }
   img{ width:100%; height:100%; object-fit:cover; display:block; }
   button{ position:absolute; top:6px; right:6px; border:none; background:rgba(0,0,0,.6); color:#fff; border-radius:999px; padding:4px 8px; cursor:pointer; font-size:12px; }
 `;

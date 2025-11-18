@@ -24,7 +24,6 @@ import { CustomStickerProvider } from './context/CustomStickerContext';
 import { StickerInteractionsProvider } from './context/StickerInteractionsContext';
 // --- EduConnect entry pages ---
 import UniversitySelect from './pages/EduConnect/UniversitySelect';
-import VerifyStudent from './pages/EduConnect/VerifyStudent';
 
 // 🆕 DM drawer provider + component
 import { DMDrawerProvider } from './context/DMDrawerContext';
@@ -83,12 +82,9 @@ export const AuthContext = createContext(null);
 
 function PublicEntryRouter() {
   const w = (typeof window !== 'undefined') ? window : undefined;
-  const verifiedFlag = !!w && w.localStorage.getItem('educonnect_verified') === '1';
-  const verifiedUntil = !!w ? Number(w.localStorage.getItem('educonnect_verified_until') || 0) : 0;
-  const verified = verifiedFlag || (verifiedUntil > Date.now());
   const hasSchool = !!w && !!w.localStorage.getItem('educonnect_school');
   if (!hasSchool) return <Navigate to="/edu/select" replace />;
-  return <Navigate to={verified ? "/login" : "/edu/verify"} replace />;
+  return <Navigate to="/login" replace />;
 }
 
 function App() {
@@ -158,7 +154,6 @@ function App() {
                 <>
                   <Routes>
                     <Route path="/edu/select" element={<UniversitySelect />} />
-                    <Route path="/edu/verify" element={<VerifyStudent />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
 

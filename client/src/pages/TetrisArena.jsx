@@ -30,8 +30,15 @@ const COLORS = {
   Z: ["#E53935", "#EF5350", "#B71C1C"],
 };
 
-const BG_GRID = "#e5e7eb";
-const BG_NEXT = "#cbd5e1";
+const BG_GRID = "rgba(255,255,255,0.08)";
+const BG_NEXT = "rgba(255,255,255,0.14)";
+// Light HUD text colors (pull from CSS vars if present)
+const cssVar = (name, fallback) => {
+  try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; }
+  catch { return fallback; }
+};
+const HUD_TEXT  = cssVar('--hud-text',  'rgba(230,233,255,0.90)');
+const HUD_MUTED = cssVar('--hud-muted', 'rgba(230,233,255,0.65)');
 
 // deterministic PRNG + 7-bag
 const seeded = (a) => () => { let t=(a+=0x6d2b79f5); t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; };
@@ -165,16 +172,29 @@ function createTetris(ctx, baseX, seed, hooks={}){
             drawTile(ctx, baseX+(G.px+x)*SIZE, (G.py+y)*SIZE, c, cl, cd);
     }
     // HUD
-    ctx.fillStyle="#111"; ctx.font="12px system-ui"; ctx.textAlign="left";
-    ctx.fillText(`Score: ${G.score}`, baseX+4, 14);
-    ctx.textAlign="right";
-    ctx.fillText("Next", baseX+COLS*SIZE-4, 14);
+    // Score (label + value)
+    ctx.textAlign = "left";
+    ctx.font = "bold 11px system-ui";
+    ctx.fillStyle = HUD_MUTED;
+    ctx.fillText("Score", baseX + 4, 12);
+    ctx.font = "12px system-ui";
+    ctx.fillStyle = HUD_TEXT;
+    ctx.fillText(String(G.score), baseX + 4, 24);
+
+    // Next (label)
+    ctx.textAlign = "right";
+    ctx.font = "bold 11px system-ui";
+    ctx.fillStyle = HUD_MUTED;
+    ctx.fillText("Next", baseX + COLS * SIZE - 6, 12);
     const nextT = nextQ[0];
     const pv = SHAPES[nextT];
     const bw = pv[0].length, bh = pv.length;
-    const boxW = 4*SIZE, boxH = 4*SIZE;
-    const bx = baseX + COLS*SIZE - boxW - 6, by = 20;
-    ctx.strokeStyle=BG_NEXT; ctx.strokeRect(bx,by,boxW,boxH);
+    const boxW = 4 * SIZE, boxH = 4 * SIZE;
+    const bx = baseX + COLS * SIZE - boxW - 6, by = 16; // sit under the "Next" label
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillRect(bx, by, boxW, boxH);
+    ctx.strokeStyle = BG_NEXT;
+    ctx.strokeRect(bx, by, boxW, boxH);
     const ox = bx + Math.floor((boxW - bw*SIZE)/2);
     const oy = by + Math.floor((boxH - bh*SIZE)/2);
     const [c,cl,cd] = COLORS[nextT];
@@ -236,13 +256,12 @@ export default function TetrisArena(){
     // attract screen
     const c = canvasRef.current; const ctx = c.getContext("2d");
     ctx.clearRect(0,0,c.width,c.height);
-    ctx.fillStyle="#f8fafc"; ctx.fillRect(0,0,c.width,c.height);
-    ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,c.width,c.height);
-    ctx.fillStyle="#fff"; ctx.font="bold 18px system-ui"; ctx.textAlign="center";
+    ctx.fillStyle="#0E1427"; ctx.fillRect(0,0,c.width,c.height);
+    ctx.fillStyle="rgba(230,233,255,.95)"; ctx.font="bold 18px system-ui"; ctx.textAlign="center";
     ctx.fillText("Tetris VS", c.width/2, c.height/2 - 20);
-    ctx.font="13px system-ui";
+    ctx.font="13px system-ui"; ctx.fillStyle="rgba(230,233,255,.75)";
     ctx.fillText("Pick a mode to start — Practice or Play Online", c.width/2, c.height/2 + 4);
-    ctx.font="12px system-ui";
+    ctx.font="12px system-ui"; ctx.fillStyle="rgba(230,233,255,.65)";
     ctx.fillText("Controls: ←/→ move · ↑ rotate · ↓ soft drop · space hard drop", c.width/2, c.height/2 + 22);
     return ()=>{ clearSim(); cancelAnimationFrame(rafRef.current); };
   },[clearSim]);
@@ -368,10 +387,10 @@ export default function TetrisArena(){
   const btnStyle = (w=48,h=48)=>({
     width:w, height:h,
     borderRadius:"9999px",
-    border:"1px solid rgba(255,255,255,.35)",
-    background:"rgba(17,17,17,.24)",
+    border:"1px solid var(--border-color)",
+    background:"rgba(255,255,255,0.06)",
     backdropFilter:"blur(6px)",
-    color:"#fff",
+    color:"var(--text-color)",
     display:"flex", alignItems:"center", justifyContent:"center",
     boxShadow:"0 2px 10px rgba(0,0,0,.28)",
     opacity:.85,
@@ -553,14 +572,16 @@ export default function TetrisArena(){
             position:"relative",
             width:"100%", maxWidth:W,
             border:"1px solid var(--border-color)", borderRadius:12,
-            background:"#f8fafc", overflow:"hidden"
+            background:"var(--container-white)", overflow:"hidden",
+            boxShadow:"0 14px 32px rgba(0,0,0,.35)"
           }}
         >
           <canvas
             ref={canvasRef}
             width={W}
             height={H}
-            style={{ display:"block", width:"100%", height:"auto", background:"linear-gradient(#f8fafc,#eef2f7)" }}
+            style={{ display:"block", width:"100%", height:"auto",
+                     background:"linear-gradient(180deg,#0F162C,#0B1120)" }}
           />
 
           {/* In-card mobile controls row (fits the white strip you marked) */}
@@ -569,7 +590,7 @@ export default function TetrisArena(){
               style={{
                 height:62, padding:"8px 10px",
                 display:"flex", alignItems:"center", justifyContent:"space-between",
-                borderTop:"1px solid #e5e7eb", background:"#fff"
+                borderTop:"1px solid var(--border-color)", background:"var(--container-white)"
               }}
             >
               {/* Left: small vertical cluster (Rotate, Quick Drop) */}
@@ -650,14 +671,14 @@ export default function TetrisArena(){
       </div>
 
       {/* RIGHT COLUMN: Sidebar */}
-      <div style={{ border:"1px solid var(--border-color)", background:"var(--container-white)", borderRadius:12, padding:12 }}>
+      <div style={{ border:"1px solid var(--border-color)", background:"var(--container-white)", borderRadius:12, padding:12, boxShadow:"0 14px 32px rgba(0,0,0,.35)" }}>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           <button onClick={startPractice} style={btn()}>Practice vs Bot</button>
           <button onClick={online}         style={btn(true)}>Play Online</button>
           <button onClick={resign}         style={btn()}>Resign</button>
         </div>
-        <div style={{ marginTop:10, color:"#555" }}>{status}</div>
-        <div style={{ marginTop:10, fontSize:12, color:"#6b7280" }}>
+        <div style={{ marginTop:10, color:"rgba(230,233,255,0.75)" }}>{status}</div>
+        <div style={{ marginTop:10, fontSize:12, color:"rgba(230,233,255,0.65)" }}>
           Controls: <b>←/→</b> move · <b>↑</b> rotate · <b>↓</b> soft drop · <b>space</b> hard drop.
         </div>
       </div>
@@ -672,6 +693,15 @@ export default function TetrisArena(){
 }
 
 function btn(primary=false){
-  return { padding:"8px 12px", borderRadius:10, border:"1px solid #111", cursor:"pointer",
-           background: primary ? "#111" : "#fff", color: primary ? "#fff" : "#111" };
+  return {
+    padding:"8px 12px",
+    borderRadius:10,
+    cursor:"pointer",
+    fontWeight:800,
+    border: `1px solid ${primary ? "transparent" : "var(--border-color)"}`,
+    background: primary ? "var(--primary-orange)" : "rgba(255,255,255,0.06)",
+    color: primary ? "#000" : "var(--text-color)",
+    boxShadow: primary ? "0 8px 22px rgba(0,0,0,.35)" : "none",
+    transition: "background .15s ease, transform .08s ease, box-shadow .15s ease",
+  };
 }

@@ -57,15 +57,16 @@ const Subbar = styled.div`
     gap: 8px;
     padding: 8px 12px;
     border-radius: 999px;
-    border: 1px solid #e5e5e5;
-    background: #fff;
+    border: 1px solid var(--border-color);
+    background: rgba(255,255,255,0.06);
     cursor: pointer;
     font-weight: 700;
+    color: var(--text-color);
   }
   & > button.active {
-    border-color: #111;
-    background: #111;
-    color: #fff;
+    border-color: transparent;
+    background: linear-gradient(90deg, var(--primary-orange), #59D0FF);
+    color: #000;
   }
 
   /* center the 3 buttons on smaller screens */
@@ -92,25 +93,28 @@ const Page = styled.div`
 `;
 
 const Col = styled.div`
-  background: #fff;
+  background: var(--container-white);
+  color: var(--text-color);
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.35);
   display: flex;
   flex-direction: column;
   min-height: 0;
   /* allow the column to shrink inside the grid and avoid overflow */
   min-width: 0;
-  max-height: 75%;
+  max-height: 72%;
   overflow: hidden;
 `;
 
 const Head = styled.div`
   padding: 12px 14px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 8px;
   font-weight: 700;
+  color: var(--text-color);
 `;
 
 const Body = styled.div`
@@ -128,34 +132,36 @@ const Row = styled.div`
   border-radius: 8px;
   cursor: pointer;
   &:hover {
-    background: #f7f7f7;
+    background: rgba(255,255,255,0.06);
   }
 `;
 const Title = styled.div`font-weight:700;`;
-const Sub = styled.div`font-size:12px; color:#666;`;
+const Sub = styled.div`font-size:12px; color: rgba(230,233,255,0.65);`;
 const Btn = styled.button`
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1px solid #111;
-  background: #111;
-  color: #fff;
+  border: none;
+  background: var(--primary-orange);
+  color: #000;
   cursor: pointer;
+  font-weight: 800;
+  &:hover { background: linear-gradient(90deg, var(--primary-orange), #59D0FF); }
 `;
-const Ghost = styled(Btn)`background:#fff; color:#111;`;
+const Ghost = styled(Btn)`background: rgba(255,255,255,0.06); color: var(--text-color); border: 1px solid var(--border-color);`;
 const Chips = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   padding: 10px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
 `;
 const Chip = styled.button`
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid ${(p) => (p.$active ? '#111' : '#e5e5e5')};
-  background: ${(p) => (p.$active ? '#111' : '#fff')};
-  color: ${(p) => (p.$active ? '#fff' : '#111')};
+  border: 1px solid ${(p) => (p.$active ? 'transparent' : 'var(--border-color)')};
+  background: ${(p) => (p.$active ? 'var(--primary-orange)' : 'rgba(255,255,255,0.06)')};
+  color: ${(p) => (p.$active ? '#000' : 'var(--text-color)')};
   cursor: pointer;
 `;
 
@@ -203,7 +209,8 @@ const LeftDrawer = styled.aside`
   left: 0;
   height: 100vh;
   width: min(92vw, 360px);
-  background: #fff;
+  background: var(--container-white);
+  color: var(--text-color);
   box-shadow: 2px 0 14px rgba(0, 0, 0, 0.25);
   z-index: 1601;
   transform: translateX(${(p) => (p.$open ? '0' : '-100%')});
@@ -217,7 +224,8 @@ const RightDrawer = styled.aside`
   right: 0;
   height: 100vh;
   width: min(92vw, 420px);
-  background: #fff;
+  background: var(--container-white);
+  color: var(--text-color);
   box-shadow: -2px 0 14px rgba(0, 0, 0, 0.25);
   z-index: 1601;
   transform: translateX(${(p) => (p.$open ? '0' : '100%')});
@@ -227,7 +235,7 @@ const RightDrawer = styled.aside`
 `;
 const DrawerHead = styled.div`
   padding: 12px 14px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -242,10 +250,10 @@ const DrawerBody = styled.div`
 
 /* ---------- Events tab components (unchanged) ---------- */
 const ComposerBox = styled.div`
-  border: 1px solid #eee;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 10px;
-  background: #fafafa;
+  background: var(--container-white);
   margin-bottom: 12px;
 `;
 const TA = styled.textarea`
@@ -259,9 +267,12 @@ const TA = styled.textarea`
 const Input = styled.input`
   width: 100%;
   padding: 8px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 8px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-color);
+  &::placeholder{ color: rgba(230,233,255,0.55); }
 `;
 
 function EventsPanel() {
@@ -337,8 +348,8 @@ function EventsPanel() {
           <div
             key={ev._id}
             style={{
-              background: '#fff',
-              border: '1px solid #eee',
+              background: 'var(--container-white)',
+              border: '1px solid var(--border-color)',
               borderRadius: 12,
               padding: 12,
               marginBottom: 12,
@@ -557,7 +568,7 @@ export default function Clubs() {
                         width: 28,
                         height: 28,
                         borderRadius: 8,
-                        background: '#f3f3f3',
+                        background: 'rgba(255,255,255,0.06)',
                         display: 'grid',
                         placeItems: 'center',
                         overflow: 'hidden',
@@ -612,7 +623,7 @@ export default function Clubs() {
                           width: 28,
                           height: 28,
                           borderRadius: 8,
-                          background: '#f3f3f3',
+                          background: 'rgba(255,255,255,0.06)',
                           display: 'grid',
                           placeItems: 'center',
                           overflow: 'hidden',
@@ -833,7 +844,7 @@ export default function Clubs() {
                   width: 28,
                   height: 28,
                   borderRadius: 8,
-                  background: '#f3f3f3',
+                  background: 'rgba(255,255,255,0.06)',
                   display: 'grid',
                   placeItems: 'center',
                   overflow: 'hidden',
@@ -887,7 +898,7 @@ export default function Clubs() {
                     width: 28,
                     height: 28,
                     borderRadius: 8,
-                    background: '#f3f3f3',
+                    background: 'rgba(255,255,255,0.06)',
                     display: 'grid',
                     placeItems: 'center',
                     overflow: 'hidden',

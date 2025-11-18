@@ -28,10 +28,11 @@ const Wrap = styled.main`
 const Card = styled.section`
   height: 100%;
   width: min(1200px, 100%);
-  background: var(--container-white, #fff);
-  border: 1px solid var(--border-color, #e6e6e6);
+  background: var(--container-white);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 20px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+  box-shadow: 0 28px 64px rgba(0,0,0,0.55);
   padding: clamp(16px, 2.4vw, 28px);
   display: grid;
   grid-template-rows: auto 1fr;
@@ -39,6 +40,19 @@ const Card = styled.section`
   text-align: center;
   box-sizing: border-box;
   overflow: hidden;
+  position: relative;                 /* for accent overlay */
+}
+&:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  border-radius: 20px;
+  /* faint spacey accent inside the card */
+  background:
+    radial-gradient(600px 200px at 15% 0%, rgba(139,123,255,0.10), transparent 60%),
+    radial-gradient(600px 220px at 85% 100%, rgba(89,208,255,0.10), transparent 60%);
+}
 `;
 
 /* Bigger, 3D-looking title */
@@ -48,11 +62,11 @@ const Title = styled.h1`
   font-weight: 900;
   font-size: clamp(30px, 4.5vw, 48px);
   letter-spacing: 0.3px;
-  color: #111;
-  text-shadow:
-    0 2px 0 rgba(0,0,0,0.18),
-    0 8px 18px rgba(0,0,0,0.18),
-    0 -1px 0 rgba(255,255,255,0.65);
+  background: linear-gradient(90deg, var(--primary-orange), #59D0FF);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 8px 22px rgba(0,0,0,0.45);
 `;
 
 const Grid = styled.div`
@@ -72,37 +86,44 @@ const Tile = styled(Link)`
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  color: #111;
+  color: var(--text-color);
   border-radius: 16px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--container-white);
+  border: 1px solid var(--border-color);
   padding: clamp(12px, 1.8vw, 20px);
-  box-shadow:
-    0 14px 28px rgba(0,0,0,0.10),
-    0 2px 0 rgba(255,255,255,0.85) inset,
-    0 0 0 1px rgba(255,255,255,0.6) inset;
-  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.35);
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, opacity .12s ease;
   will-change: transform;
   overflow: hidden;
+  isolation: isolate; /* ensure overlay sits beneath content */
 
+  /* subtle accent wash so tiles don't look flat */
+  &:before{
+    content:"";
+    position:absolute;
+    inset:0;
+    border-radius: 16px;
+    pointer-events:none;
+    z-index:-1;
+    background:
+      radial-gradient(500px 160px at 0% 0%, rgba(139,123,255,0.10), transparent 60%),
+      radial-gradient(480px 160px at 100% 100%, rgba(89,208,255,0.10), transparent 60%);
+    opacity:.85;
+  }
+ 
   &:hover {
     transform: translateY(-2px);
-    box-shadow:
-      0 18px 32px rgba(0,0,0,0.12),
-      0 2px 0 rgba(255,255,255,0.9) inset,
-      0 0 0 1px rgba(255,255,255,0.65) inset;
+    box-shadow: 0 22px 48px rgba(0,0,0,0.55);
+    border-color: rgba(139,123,255,0.45); 
   }
 
   &:active {
     transform: translateY(0);
-    box-shadow:
-      0 10px 20px rgba(0,0,0,0.10),
-      0 1px 0 rgba(255,255,255,0.8) inset,
-      0 0 0 1px rgba(255,255,255,0.55) inset;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.35);
   }
 
   &:focus-visible {
-    outline: 3px solid #0d2d7d;
+    outline: 3px solid var(--primary-orange);
     outline-offset: 2px;
   }
 `;
@@ -112,15 +133,14 @@ const TileTitle = styled.div`
   font-weight: 900;
   font-size: clamp(16px, 2.1vw, 22px);
   margin-bottom: 6px;
-  text-shadow:
-    0 2px 0 rgba(0,0,0,0.15),
-    0 8px 16px rgba(0,0,0,0.12);
+  color: var(--text-color);
+  text-shadow: 0 10px 24px rgba(0,0,0,0.35);
 `;
 
 const TileSubtitle = styled.div`
   text-align: center;
   font-size: clamp(12px, 1.6vw, 16px);
-  opacity: 0.9;
+  color: rgba(230,233,255,0.75);
 `;
 
 export default function AI() {

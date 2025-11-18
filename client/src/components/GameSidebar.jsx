@@ -9,10 +9,11 @@ import { AuthContext } from '../App';
 
 const Card = styled.div`
   background: var(--container-white);
+  color: var(--text-color);
   border: 1px solid var(--border-color);
   border-radius: 14px;
   padding: 12px;
-  box-shadow: 0 10px 24px rgba(0,0,0,.06);
+  box-shadow: 0 14px 32px rgba(0,0,0,.35);
 
   /* Keep the sidebar visually "cut" to the viewport height.
      The internal lists scroll; the card itself doesn't overflow. */
@@ -28,10 +29,7 @@ const Title = styled.div`
   margin-bottom: 10px;
 `;
 
-const Meta = styled.div`
-  font-size: 12px;
-  color: #6b7280;
-`;
+const Meta = styled.div` font-size: 12px; color: rgba(230,233,255,0.65); `;
 
 const Row = styled.div`
   display: grid;
@@ -41,7 +39,7 @@ const Row = styled.div`
   padding: 6px 8px;
   border-radius: 8px;
   font-size: 12px;
-  background: #fff;
+  background: rgba(255,255,255,0.06);
   border: 1px solid var(--border-color);
 `;
 
@@ -60,7 +58,7 @@ const Pill = styled.span`
   padding: 3px 8px;
   font-size: 11px;
   font-weight: 700;
-  background: #f3f4f6;
+  background: rgba(255,255,255,0.08);
   border: 1px solid var(--border-color);
 `;
 
@@ -76,7 +74,7 @@ const Podium = styled.div`
 `;
 
 const Ped = styled.div`
-  background: linear-gradient(180deg, #f3f4f6, #e5e7eb);
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
   border: 1px solid var(--border-color);
   border-radius: 10px;
   height: ${p => p.$h || 80}px;
@@ -91,10 +89,7 @@ const PedName = styled.div`
   font-size: 12px;
 `;
 
-const PedScore = styled.div`
-  font-size: 11px;
-  color: #6b7280;
-`;
+const PedScore = styled.div` font-size: 11px; color: rgba(230,233,255,0.65); `;
 
 const List = styled.div`
   display: grid;
@@ -114,7 +109,7 @@ const Item = styled.div`
   padding: 4px 8px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  background: #fff;
+  background: rgba(255,255,255,0.06);
 `;
 
 const HistoryList = styled.div`
@@ -133,14 +128,11 @@ const Result = styled.div`
   color: ${p => (p.$win ? '#16a34a' : '#dc2626')};
 `;
 
-const Small = styled.span`
-  font-size: 11px;
-  color: #6b7280;
-`;
+const Small = styled.span` font-size: 11px; color: rgba(230,233,255,0.65); `;
 
 const ScrollbarStyles = styled.div`
   & *::-webkit-scrollbar { width: 8px; height: 8px; }
-  & *::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 8px; }
+  & *::-webkit-scrollbar-thumb { background: rgba(139,123,255,0.35); border-radius: 8px; }
   & *::-webkit-scrollbar-track { background: transparent; }
 `;
 

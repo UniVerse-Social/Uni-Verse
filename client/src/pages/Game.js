@@ -43,7 +43,7 @@ const TopBar = styled.nav`
   background: var(--container-white);
   border: 1px solid var(--border-color);
   border-radius: 14px;
-  box-shadow: 0 8px 18px rgba(0,0,0,.06);
+  box-shadow: 0 18px 48px rgba(0,0,0,.45);
   min-width: 0;          /* NEW: let children shrink */
   flex-wrap: nowrap;     /* NEW: keep coins visible */
 `;
@@ -52,7 +52,7 @@ const TitleButton = styled.button`
   appearance: none;
   border: 0;
   position: relative; /* anchor chevron */
-  background: linear-gradient(92deg, #ff8718 0%, #ffb95e 25%, #3b5cff 85%);
+  background: linear-gradient(92deg, var(--primary-orange) 0%, #59D0FF 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -75,8 +75,8 @@ const TitleButton = styled.button`
   @media (max-width: 900px) {
     font-size: clamp(22px, 7vw, 34px);   /* NEW: responsive text */
     padding-right: 36px;                 /* room for chevron */
-    border: 2px solid #3b5cff;           /* outline */
-    box-shadow: 0 0 0 3px rgba(59,92,255,.18), 0 8px 18px rgba(0,0,0,.08);
+    border: 2px solid var(--primary-orange); /* outline tint */
+    box-shadow: 0 0 0 3px rgba(139,123,255,.24), 0 8px 18px rgba(0,0,0,.18);
     flex: 0 1 auto;                      /* NEW: allow shrink */
     max-width: min(54vw, 240px);         /* NEW: never hog space */
     min-width: 0;                        /* NEW: cooperate with flexbox */
@@ -90,7 +90,7 @@ const TitleButton = styled.button`
       transition: transform .18s ease;
       font-weight: 900;
       font-size: 18px;
-      color: #111;
+      color: var(--text-color);
       text-shadow: 0 1px 0 rgba(255,255,255,.4);
       pointer-events: none;
     }
@@ -104,9 +104,9 @@ const TabsRow = styled.div`
 
 const TabButton = styled.button`
   appearance: none;
-  border: 1px solid ${p => (p.$active ? '#111' : 'var(--border-color)')};
-  background: ${p => (p.$active ? '#111' : '#fff')};
-  color: ${p => (p.$active ? '#fff' : '#111')};
+  border: 1px solid ${p => (p.$active ? 'transparent' : 'var(--border-color)')};
+  background: ${p => (p.$active ? 'var(--primary-orange)' : 'rgba(255,255,255,0.06)')};
+  color: ${p => (p.$active ? '#000' : 'var(--text-color)')};
   font-weight: 800;
   font-size: 14px;
   padding: 8px 12px;
@@ -114,8 +114,8 @@ const TabButton = styled.button`
   cursor: pointer;
   transition: background .15s ease, color .15s ease, transform .08s ease;
   white-space: nowrap;
-  box-shadow: ${p => (p.$active ? '0 3px 10px rgba(0,0,0,.12)' : 'none')};
-  &:hover { background: ${p => (p.$active ? '#111' : '#f6f7f9')}; transform: translateY(-1px); }
+  box-shadow: ${p => (p.$active ? '0 8px 22px rgba(0,0,0,.35)' : 'none')};
+  &:hover { background: ${p => (p.$active ? 'linear-gradient(90deg, var(--primary-orange), #59D0FF)' : 'rgba(255,255,255,0.10)')}; transform: translateY(-1px); }
   &:active { transform: translateY(0); }
 `;
 
@@ -130,10 +130,11 @@ const MenuPanel = styled.div`
     right: 10px;
     top: calc(100% + 8px);
     padding: 10px;
-    background: #fff;
+    background: var(--container-white);
+    color: var(--text-color);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    box-shadow: 0 12px 28px rgba(0,0,0,.14);
+    box-shadow: 0 24px 64px rgba(0,0,0,.45);
     z-index: 2000; /* ensure above everything */
   }
 `;
@@ -142,7 +143,7 @@ const FlexGrow = styled.div` flex: 1; `;
 const CoinStat = styled.div`
   display:flex; align-items:center; gap:8px;
   margin-left:auto; padding:6px 10px;
-  border:1px solid var(--border-color); background:#fff; border-radius:999px;
+  border:1px solid var(--border-color); background: var(--container-white); color: var(--text-color); border-radius:999px;
   font-weight:900; font-size:13px;
   flex: 0 0 auto;        /* NEW: don't shrink */
   white-space: nowrap;   /* NEW: keep on one line */
@@ -167,11 +168,11 @@ const Card = styled.div`
   border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 14px;
-  box-shadow: 0 10px 24px rgba(0,0,0,.06);
+  box-shadow: 0 14px 32px rgba(0,0,0,.35);
 `;
 
 const SectionTitle = styled.div` font-weight:900; margin-bottom:8px; `;
-const Subtle = styled.div` font-size:12px; color:#6b7280; `;
+const Subtle = styled.div` font-size:12px; color: rgba(230,233,255,0.65); `;
 
 const Pill = styled.span`
   padding: 3px 10px; border-radius: 999px; font-weight: 900; font-size: 11px; color:#fff;
@@ -226,7 +227,7 @@ const PodiumWrap = styled.div`
 
 const Pedestal = styled.div`
   position: relative;
-  background: linear-gradient(180deg,#ffffff,#eef1f5);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
   border: 1px solid var(--border-color);
   border-radius: 16px 16px 8px 8px;
   height: ${p => p.$h}px;
@@ -234,7 +235,7 @@ const Pedestal = styled.div`
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 8px;
-  box-shadow: inset 0 8px 16px rgba(0,0,0,.04);
+  box-shadow: inset 0 8px 16px rgba(0,0,0,.10);
 `;
 
 const RankBadge = styled.div`
@@ -243,12 +244,12 @@ const RankBadge = styled.div`
   left: 50%;
   transform: translateX(-50%);
   padding: 2px 8px;
-  background: #111;
-  color: #fff;
+  background: var(--primary-orange);
+  color: #000;
   font-weight: 900;
   font-size: 11px;
   border-radius: 999px;
-  box-shadow: 0 6px 16px rgba(0,0,0,.15);
+  box-shadow: 0 6px 16px rgba(0,0,0,.25);
 `;
 
 const AvatarRing = styled.div`
@@ -264,11 +265,58 @@ const AvatarRing = styled.div`
   box-shadow: 0 6px 18px rgba(0,0,0,.18);
   background: #fff;
 `;
+// Force purple style for a badge coming from <UserLink> and hide the username.
+// Use ONLY for the podium line (we show the username above it).
+const TitleFromUserLink = styled.div`
+  && { display:inline-flex; justify-content:center; }
+  && .gl-title {
+    display:inline-flex; align-items:center; gap:6px;
+    text-decoration:none; font-size:0; line-height:0; /* hide raw text nodes */
+  }
+  /* Hide the first child (username) if <UserLink> renders it first */
+  && .gl-title > :first-child { display:none !important; }
+  /* Purple chip for any badge-like element the link emits */
+  && .gl-title [data-badge],
+  && .gl-title [data-role],
+  && .gl-title [class*="badge"],
+  && .gl-title [class*="Pill"],
+  && .gl-title [class*="Tag"] {
+    font-size: ${p => (p.$compact ? '10px' : '11px')} !important;
+    line-height: 1.2 !important;
+    color: #fff !important;
+    padding: 2px 8px !important;
+    border-radius: 999px !important;
+    background: linear-gradient(180deg, #4c3db7, #3a2e8f) !important;
+    border: 1px solid rgba(139,123,255,.55) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 6px 14px rgba(0,0,0,.20) !important;
+  }
+`;
+
+// Same purple style, BUT keep the username visible.
+// Use this around <UserLink> in the scrolling list rows.
+const BadgeFixRow = styled.span`
+  && .gl-title [data-badge],
+  && .gl-title [data-role],
+  && .gl-title [class*="badge"],
+  && .gl-title [class*="Pill"],
+  && .gl-title [class*="Tag"] {
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+    color: #fff !important;
+    padding: 2px 8px !important;
+    border-radius: 999px !important;
+    background: linear-gradient(180deg, #4c3db7, #3a2e8f) !important;
+    border: 1px solid rgba(139,123,255,.55) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 6px 14px rgba(0,0,0,.20) !important;
+  }
+`;
 
 const PodiumName = styled.div`
-  font-weight: 800;
-  font-size: 12px;
+  font-weight: 900;
+  font-size: ${p => (p.$compact ? '13px' : '15px')}; /* larger usernames */
+  line-height: 1;
   margin-top: 6px;
+  margin-bottom: 0px;                 /* tighter with title */
   text-align: center;
   max-width: 100%;
   min-width: 0;
@@ -276,7 +324,7 @@ const PodiumName = styled.div`
   text-overflow: ellipsis;
   white-space: nowrap;
   & > a {
-    display: block;
+    display: block;                    /* force own line */
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -284,28 +332,28 @@ const PodiumName = styled.div`
   }
 `;
 
-const PodiumScore = styled.div`
-  font-size: 11px;
-  color: #6b7280;
-  text-align: center;
+const PodiumTitle = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 900;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #4c3db7, #3a2e8f);
+  border: 1px solid rgba(139,123,255,.55);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 6px 14px rgba(0,0,0,.20);
+  font-size: ${p => (p.$compact ? '10px' : '11px')};
+  line-height: 1.2;
 `;
 
-const PodiumTitle = styled.div`
-  font-size: 11px;
-  color: #6b7280;
-  margin-top: 2px;
-  text-align: center;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
+const PodiumScore = styled.div` font-size: 11px; color: rgba(230,233,255,0.65); text-align: center; `;
 
 const RowItem = styled.div`
   display:flex; align-items:center; justify-content:space-between;
   padding: 6px 8px;
   border:1px solid var(--border-color);
-  border-radius:10px; background:#fff;
+  border-radius:10px; background: var(--container-white); color: var(--text-color);
   font-size:13px;
   margin-bottom: 6px;
 `;
@@ -335,13 +383,14 @@ const ActionsBar = styled.div`
 
 const ActionBtn = styled.button`
   appearance: none;
-  border: 1px solid #111;
-  background: #fff;
-  color: #111;
+  border: none;
+  background: var(--primary-orange);
+  color: #000;
   font-weight: 900;
   border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
+  &:hover { background: linear-gradient(90deg, var(--primary-orange), #59D0FF); }
 `;
 
 /* Centered modal for mobile */
@@ -363,15 +412,16 @@ const CenterModal = styled.div`
   z-index: 1601;
   width: min(680px, calc(100vw - 24px));
   max-height: min(80vh, 720px);
-  background: #fff;
+  background: var(--container-white);
+  color: var(--text-color);
   border: 1px solid var(--border-color);
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0,0,0,.25);
   display: flex; flex-direction: column;
 `;
 const ModalHead = styled.div`
-  padding: 12px 14px; border-bottom: 1px solid #eee;
-  display:flex; align-items:center; gap:8px; font-weight:900;
+  padding: 12px 14px; border-bottom: 1px solid var(--border-color);
+  display:flex; align-items:center; gap:8px; font-weight:900; color: var(--text-color);
 `;
 const ModalBody = styled.div`
   padding: 12px; overflow:auto; min-height:0; flex:1;
@@ -524,6 +574,7 @@ function OverallLeaderboard({ myTotal, compact = false }) {
   const [me, setMe] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [avatarCache, setAvatarCache] = React.useState({});
+  const [titleCache, setTitleCache] = React.useState({});
 
   const podPad = React.useMemo(() => {
     const centerSize = compact ? 50 : 64;     // Sizes used in S[]
@@ -596,9 +647,14 @@ function OverallLeaderboard({ myTotal, compact = false }) {
   React.useEffect(() => {
     let alive = true;
     (async () => {
-      const need = leaders
-        .filter(l => l.username && l.username !== '—' && (!isMeaningfulAvatar(l.avatarUrl)) && !avatarCache[l.username])
-        .slice(0, 100);
+     const need = leaders
+       .filter(l => {
+         if (!l.username || l.username === '—') return false;
+         const missingAvatar = !isMeaningfulAvatar(l.avatarUrl) && !avatarCache[l.username];
+         const missingTitle  = (!l.title || !l.title.trim()) && !titleCache[l.username];
+         return missingAvatar || missingTitle;
+       })
+       .slice(0, 100);
 
       if (need.length === 0) return;
 
@@ -607,26 +663,34 @@ function OverallLeaderboard({ myTotal, compact = false }) {
           need.map(l => axios.get(`${API_BASE_URL}/api/users/profile/${encodeURIComponent(l.username)}`))
         );
 
-        const patch = {};
+        const patchAvatar = {};
+        const patchTitle  = {};
         results.forEach((r, i) => {
           const uname = need[i].username;
           if (r.status === 'fulfilled' && r.value?.data) {
-            patch[uname] = r.value.data.profilePicture || r.value.data.avatarUrl || '';
-          } else {
-            patch[uname] = '';
-          }
+            const d = r.value.data || {};
+            patchAvatar[uname] = d.profilePicture || d.avatarUrl || '';
+            const t = (d.title || d.role || d.badge || '').trim();
+            if (t) patchTitle[uname] = t;  // don't cache empty strings
+          } else { patchAvatar[uname] = ''; patchTitle[uname] = ''; }
         });
 
         if (!alive) return;
-        setAvatarCache(prev => ({ ...prev, ...patch }));
+        setAvatarCache(prev => ({ ...prev, ...patchAvatar }));
+        setTitleCache(prev  => ({ ...prev,  ...patchTitle  }));
 
-        setLeaders(prev =>
-          prev.map(x => (isMeaningfulAvatar(x.avatarUrl) || !patch[x.username]) ? x : { ...x, avatarUrl: patch[x.username] })
-        );
+        setLeaders(prev => prev.map(x => {
+          const a = (!isMeaningfulAvatar(x.avatarUrl) && patchAvatar[x.username]) ? patchAvatar[x.username] : null;
+          const tNew = patchTitle[x.username];
+          const hasNewTitle = tNew && tNew.trim();
+          return (a || hasNewTitle)
+            ? { ...x, ...(a ? { avatarUrl: a } : {}), ...(hasNewTitle ? { title: tNew } : {}) }
+            : x;
+        }));
       } catch {/* ignore */}
     })();
     return () => { alive = false; };
-  }, [leaders, avatarCache]);
+  }, [leaders, avatarCache, titleCache]);
 
   const tier = perGameRank(myTotal ?? 0);
 
@@ -639,6 +703,10 @@ function OverallLeaderboard({ myTotal, compact = false }) {
 
   const P = (i) => positions[i];
   const resolvedAvatar = (p) => avatarCache[p.username] ?? p.avatarUrl;
+  const resolvedTitle = (p) => {
+    const t = titleCache[p.username];
+    return (t && t.trim()) ? t : (p.title || '').trim();
+  };
 
   // Podium sizes
   const S = compact
@@ -672,11 +740,20 @@ function OverallLeaderboard({ myTotal, compact = false }) {
                     <AvatarRing $size={s} $compact={compact} data-rank={label}>
                       <Avatar size={s} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
                     </AvatarRing>
-                    <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
-                      <PodiumName>
-                        {p.placeholder ? '—' : <UserLink username={p.username}>{p.username}</UserLink>}
+                    <div style={{display:'grid', justifyItems:'center', rowGap: 2, textAlign:'center'}}>
+                      <PodiumName $compact={compact}>
+                        {p.placeholder ? '—' : p.username}
                       </PodiumName>
-                      {!p.placeholder && p.title ? <PodiumTitle>{p.title}</PodiumTitle> : null}
+                        {/* under <PodiumName> */}
+                        {!p.placeholder && (
+                          resolvedTitle(p)
+                            ? <PodiumTitle $compact={compact}>{resolvedTitle(p)}</PodiumTitle>
+                            : (
+                                <TitleFromUserLink $compact={compact}>
+                                  <UserLink className="gl-title" username={p.username}>{'\u200B'}</UserLink>
+                                </TitleFromUserLink>
+                              )
+                        )}
                       <PodiumScore>{p.score} 🏆</PodiumScore>
                     </div>
                   </Pedestal>
@@ -694,7 +771,9 @@ function OverallLeaderboard({ myTotal, compact = false }) {
                   <Avatar size={28} src={resolvedAvatar(p)} name={p.placeholder ? '' : p.username} />
                   {p.placeholder ? '—' : (
                     <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                      <UserLink username={p.username}>{p.username}</UserLink>
+                      <BadgeFixRow>
+                        <UserLink className="gl-title" username={p.username}>{p.username}</UserLink>
+                      </BadgeFixRow>
                     </span>
                   )}
                 </div>

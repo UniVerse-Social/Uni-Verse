@@ -13,25 +13,28 @@ const CreatePostContainer = styled.div`
   background-color: var(--container-white);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.45);
+  overflow: hidden;
   margin-bottom: 20px;
 `;
 
 const TextArea = styled.textarea`
-  width: 98%;
+  width: 100%;
+  max-width: 100%;                    /* never exceed parent */
+  box-sizing: border-box;             /* include padding + border in width */
+  display: block;
   min-height: 88px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding-top: 0px;
-  padding-bottom: 0px;
-  padding-left: 5px;
+  padding: 12px;
   font-size: 16px;
   resize: none;
   overflow: hidden;
   margin-bottom: 4px;
-  background: #fff;
-  color: #111;
-  line-height: 2;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-color);
+  line-height: 1.6;
+  &::placeholder { color: rgba(230,233,255,0.55); }
 `;
 
 const ControlsRight = styled.div`
@@ -46,14 +49,15 @@ const AttachBtn = styled.label`
   justify-content: center;
   height: 40px;
   padding: 0 14px;
+  gap: 8px;
   border-radius: 999px;
   border: 1px solid var(--border-color);
-  background: #fff;
-  color: #111;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-color);
   cursor: pointer;
   font-weight: 600;
   line-height: 0; /* kill baseline extra space from inline SVG */
-  &:hover { background: #f8fafc; }
+  &:hover { background: rgba(255,255,255,0.10); }
 `;
 
 const PostButton = styled.button`
@@ -64,11 +68,12 @@ const PostButton = styled.button`
   padding: 0 20px;
   border-radius: 999px;
   background-color: var(--primary-orange);
-  color: #fff;
+  color: #000;
   border: none;
   font-weight: 700;
   cursor: pointer;
   line-height: 1;
+  &:hover { background: linear-gradient(90deg, var(--primary-orange), #59D0FF); }
   &:disabled { opacity: .6; cursor: not-allowed; }
 `;
 
@@ -86,7 +91,7 @@ const Thumb = styled.div`
   overflow: hidden;
   border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: #f8f9fb;
+  background: rgba(255,255,255,0.03);
   aspect-ratio: 1/1;
   img, video {
     width: 100%;
@@ -112,8 +117,9 @@ const CharPopup = styled.div`
   position: absolute;
   right: 200px;
   bottom: -35px;
-  background: #333;
-  color: white;
+  background: var(--container-white);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   padding: 6px 10px;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -344,6 +350,7 @@ const CreatePost = ({ onPostCreated }) => {
           <ControlsRight>
             <AttachBtn htmlFor="feed-attach" aria-label="Add media">
               <FaPlus size={14} />
+              <span style={{ lineHeight: 1 }}>Add photos</span>
             </AttachBtn>
             <PostButton type="submit" disabled={busy}>
             {busy ? 'Posting…' : 'Post'}

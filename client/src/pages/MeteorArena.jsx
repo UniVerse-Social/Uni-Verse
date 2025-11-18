@@ -734,7 +734,8 @@ export default function MeteorArena(){
           position:"relative",
           width:"100%", maxWidth:W,
           border:"1px solid var(--border-color)", borderRadius:12,
-          background:"#000", overflow:"hidden", justifySelf:"center"
+          background:"#000", overflow:"hidden", justifySelf:"center",
+          boxShadow:"0 14px 32px rgba(0,0,0,.35)"
         }}
       >
         <canvas
@@ -848,14 +849,14 @@ export default function MeteorArena(){
         )}
       </div>
 
-      <div style={{ border:"1px solid var(--border-color)", background:"var(--container-white)", borderRadius:12, padding:12 }}>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+      <div style={{ border:"1px solid var(--border-color)", background:"var(--container-white)", borderRadius:12, padding:12, boxShadow:"0 14px 32px rgba(0,0,0,.35)" }}>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap"}}>
           <button onClick={practice} style={btn()}>Practice vs Bot</button>
           <button onClick={online}   style={btn(true)}>Play Online</button>
           <button onClick={resign}   style={btn()}>Resign</button>
         </div>
-        <div style={{ marginTop:10, color:"#555" }}>{status}</div>
-        <div style={{ marginTop:10, fontSize:12, color:"#6b7280" }}>
+        <div style={{ marginTop:10, color:"rgba(230,233,255,0.75)" }}>{status}</div>
+        <div style={{ marginTop:10, fontSize:12, color:"rgba(230,233,255,0.65)" }}>
           Controls: <b>←/→</b> rotate · <b>↑</b> thrust · <b>space</b> shoot.
           {mode && <span style={{ marginLeft:8 }}>Time: <b>{fmtTime(timeLeftMs)}</b></span>}
         </div>
@@ -871,6 +872,15 @@ export default function MeteorArena(){
 }
 
 function btn(primary=false){
-  return { padding:"8px 12px", borderRadius:10, border:"1px solid #111", cursor:"pointer",
-           background: primary ? "#111" : "#fff", color: primary ? "#fff" : "#111" };
+  return {
+    padding:"8px 12px",
+    borderRadius:10,
+    cursor:"pointer",
+    fontWeight:800,
+    border: `1px solid ${primary ? "transparent" : "var(--border-color)"}`,
+    background: primary ? "var(--primary-orange)" : "rgba(255,255,255,0.06)",
+    color: primary ? "#000" : "var(--text-color)",
+    boxShadow: primary ? "0 8px 22px rgba(0,0,0,.35)" : "none",
+    transition: "background .15s ease, transform .08s ease, box-shadow .15s ease",
+  };
 }

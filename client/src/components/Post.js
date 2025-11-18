@@ -133,7 +133,7 @@ const PostContainer = styled.div`
   border: 1px solid ${(p) => (p.$dragOver ? 'rgba(59,130,246,0.75)' : 'var(--border-color)')};
   border-radius: 12px;
   box-shadow: ${(p) =>
-    p.$dragOver ? '0 0 0 3px rgba(59,130,246,0.18)' : '0 4px 16px rgba(0,0,0,0.06)'};
+    p.$dragOver ? '0 0 0 3px rgba(59,130,246,0.18)' : '0 10px 28px rgba(0,0,0,0.35)'};
   padding: 16px;
   margin: 0 0 20px 0;
   width: 100%;
@@ -151,7 +151,7 @@ const PostHeader = styled.div`
    position: relative;
    z-index: 10;       /* stays above sticker layer */
  `;
-const ProfilePic = styled(SmartImg)` width: 42px; height: 42px; border-radius: 50%; background-color: #eee; margin-right: 12px; object-fit: cover; `;
+const ProfilePic = styled(SmartImg)` width: 42px; height: 42px; border-radius: 50%; background-color: #1a2147; margin-right: 12px; object-fit: cover; `;
 const UserInfo = styled.div` display: flex; flex-direction: column; flex-grow: 1; `;
 
 const UsernameRow = styled.div`
@@ -161,16 +161,16 @@ const UsernameRow = styled.div`
   flex-wrap: wrap;
 `;
 
-const Username = styled(Link)` font-weight: 800; color: #111; text-decoration: none; `;
+const Username = styled(Link)` font-weight: 800; color: var(--text-color); text-decoration: none; `;
 
 const TitleBadge = styled.span`
   font-size: 12px;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f3f4f6;
-  color: #111;
-  border: 1px solid var(--border-color);
+  background: rgba(139, 123, 255, 0.16);
+  color: var(--text-color);
+  border: 1px solid rgba(139, 123, 255, 0.35);
 `;
 
 const Timestamp = styled.div`
@@ -178,24 +178,18 @@ const Timestamp = styled.div`
   align-items: baseline;
   gap: 6px;
   font-size: 12px;
-  color: #6b7280;
+  color: rgba(230,233,255,0.65);
   flex-wrap: wrap;
 `;
-const DateLabel = styled.span`
-  font-weight: 600;
-  color: #374151;
-`;
-const EditedStamp = styled.span`
-  font-size: 11px;
-  color: #9ca3af;
-`;
+const DateLabel = styled.span` font-weight: 600; color: rgba(230,233,255,0.82); `;
+const EditedStamp = styled.span` font-size: 11px; color: rgba(230,233,255,0.55); `;
 const PostContent = styled.p`
    font-size: 16px;
    line-height: 1.5;
    margin: 0 0 12px 0;
    white-space: pre-wrap;
    word-break: break-word;
-   color: #111;
+   color: var(--text-color);
    position: relative;
    z-index: 2; /* allow stickers to layer above while keeping text selectable */
  `;
@@ -203,22 +197,22 @@ const PostActions = styled.div`
    display: flex;
    align-items: center;
    gap: 20px;
-   color: #374151;
+   color: rgba(230,233,255,0.82);
    position: relative;
    z-index: 10;       /* keep action buttons above guides */
  `;
 const Action = styled.div` display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; `;
-const OptionsButton = styled.div` cursor: pointer; padding: 6px; border-radius: 8px; &:hover { background-color: #f3f4f6; } `;
+const OptionsButton = styled.div` cursor: pointer; padding: 6px; border-radius: 8px; &:hover { background-color: rgba(255,255,255,0.06); } `;
 const DropdownMenu = styled.div`
-  position: absolute; background: #fff; border-radius: 12px;
-  border: 1px solid var(--border-color); box-shadow: 0 12px 28px rgba(0,0,0,0.12); z-index: 360; overflow: hidden;
+  position: absolute; background: #0f1329; color: var(--text-color); border-radius: 12px;
+  border: 1px solid var(--border-color); box-shadow: 0 18px 48px rgba(0,0,0,0.45); z-index: 360; overflow: hidden;
   top: 44px; right: 16px;
 `;
 
-const DropdownItem = styled.div` padding: 12px 16px; cursor: pointer; &:hover { background-color: #f3f4f6; } `;
+const DropdownItem = styled.div` padding: 12px 16px; cursor: pointer; &:hover { background-color: rgba(255,255,255,0.06); } `;
 
 const CommentPreviewInline = styled.span`
-  color: #64748b;
+  color: rgba(230,233,255,0.62);
   font-size: 12px;
   margin-left: 8px;
   flex: 1;
@@ -814,7 +808,7 @@ const MediaGrid = styled.div`
    img {
     width: 100%; height: 100%; object-fit: cover; display: block;
     border-radius: 10px; border: 1px solid var(--border-color);
-    background: #f8f9fb;
+    background: rgba(255,255,255,0.03);
   }
 `;
 

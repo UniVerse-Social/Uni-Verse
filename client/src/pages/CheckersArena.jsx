@@ -25,10 +25,11 @@ const MobileOnly = styled.div`
 // compact dropdown shell for the sidebar on mobile
 const MobileDropdown = styled.details`
   background: var(--container-white);
+  color: var(--text-color);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 8px 10px;
-  box-shadow: 0 8px 18px rgba(0,0,0,.05);
+  box-shadow: 0 14px 32px rgba(0,0,0,.35);
 
   summary {
     list-style: none;
@@ -57,7 +58,8 @@ const MobileDropdown = styled.details`
     left: 8px; right: 8px;
     margin: 0;
     padding: 12px 14px;
-    background: #fff;
+    background: var(--container-white);
+    color: var(--text-color);
     border-radius: 10px;
     border: 1px solid var(--border-color);
     z-index: 1001;
@@ -69,6 +71,7 @@ const MobileDropdown = styled.details`
     top: calc(env(safe-area-inset-top, 0px) + 56px); /* below summary bar */
     left: 0; right: 0; bottom: 0;
     background: var(--container-white);
+    color: var(--text-color);
     border-radius: 12px 12px 0 0;
     padding: 10px;
     overflow: auto;
@@ -83,9 +86,10 @@ const MobileDropdown = styled.details`
     z-index: 1002;
     width: 36px; height: 36px;
     border: 1px solid var(--border-color);
-    background: #fff;
+    background: var(--container-white);
+    color: var(--text-color);
     border-radius: 999px;
-    box-shadow: 0 8px 18px rgba(0,0,0,.12);
+    box-shadow: 0 14px 32px rgba(0,0,0,.35);
     display: flex; align-items: center; justify-content: center;
     font-size: 20px; font-weight: 900; line-height: 1;
   }
@@ -97,22 +101,40 @@ const MobileDropdown = styled.details`
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     z-index: 1002;
     border: 1px solid var(--border-color);
-    background: #fff;
+    background: var(--container-white);
+    color: var(--text-color);
     border-radius: 999px;
     padding: 10px 14px;
-    box-shadow: 0 8px 18px rgba(0,0,0,.12);
+    box-shadow: 0 14px 32px rgba(0,0,0,.35);
     font-weight: 800;
     }
   }
 `;
-const Panel = styled.div`border:1px solid var(--border-color); background:var(--container-white); border-radius:12px; padding:12px;`;
+const Panel = styled.div`
+  border:1px solid var(--border-color);
+  background:var(--container-white);
+  color: var(--text-color);
+  border-radius:12px;
+  padding:12px;
+  box-shadow: 0 14px 32px rgba(0,0,0,.35);
+`;
 const Button = styled.button`
-  padding: 8px 12px; border-radius: 10px; border: 1px solid #111; cursor: pointer;
-  background: ${p=>p.$primary ? '#111' : '#fff'}; color: ${p=>p.$primary ? '#fff' : '#111'};
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid ${p=>p.$primary ? 'transparent' : 'var(--border-color)'};
+  background: ${p=>p.$primary ? 'var(--primary-orange)' : 'rgba(255,255,255,0.06)'};
+  color: ${p=>p.$primary ? '#000' : 'var(--text-color)'};
+  font-weight: 800;
+  transition: background .15s ease, box-shadow .15s ease, transform .08s ease;
+  &:hover { background: ${p=>p.$primary ? 'linear-gradient(90deg,var(--primary-orange),#59D0FF)' : 'rgba(255,255,255,0.10)'}; transform: translateY(-1px); }
+  &:active { transform: translateY(0); }
 `;
 const Alert = styled.div`
   margin-top: 10px; padding: 8px 10px; border-radius: 10px;
-  border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; font-size: 13px;
+  border: 1px solid rgba(239,68,68,.35);
+  background: rgba(239,68,68,.12);
+  color: #fca5a5; font-size: 13px;
 `;
 
 const Overlay = styled.div`
@@ -121,8 +143,9 @@ const Overlay = styled.div`
 `;
 const Modal = styled.div`
   width: 520px; max-width: 94vw;
-  background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.18);
-  border:1px solid #e5e7eb; padding:16px;
+  background: var(--container-white); color: var(--text-color);
+  border-radius: 14px; box-shadow: 0 24px 64px rgba(0,0,0,.45);
+  border:1px solid var(--border-color); padding:16px;
 `;
 const ModalGrid = styled.div`display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px;`;
 
@@ -339,7 +362,7 @@ function CheckersBoardInner({ board, onTryMove, orientation='white', onIllegal, 
         ref={boardRef}
         style={{
           width: size, height: size, borderRadius: 12, overflow: 'hidden',
-          boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid var(--border-color)',
+          boxShadow: '0 12px 28px rgba(0,0,0,.18)', border: '1px solid var(--border-color)',
           position: 'relative',
           // KEY lines for mobile touch-drag
           touchAction: 'none', WebkitTouchCallout: 'none',
@@ -1003,11 +1026,11 @@ export default function CheckersArena() {
           )}
         </div>
 
-        <div style={{marginTop:10, color:'#555'}}>
+        <div style={{marginTop:10, color:'rgba(230,233,255,0.75)'}}>
           {isGameOver(board) ? gameOverText(board, turn) : status}
         </div>
         {!!notice && <Alert>{notice}</Alert>}
-        <div style={{marginTop:12, fontSize:12, color:'#6b7280'}}>
+        <div style={{marginTop:12, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
           Wins vs real players grant <b>+6 trophies</b>. Bot games are unranked.
         </div>
       </Panel>
@@ -1018,17 +1041,17 @@ export default function CheckersArena() {
             <div style={{fontSize:18, fontWeight:800, marginBottom:6}}>
               {resultModal.didWin ? 'You win! 🎉' : /draw/i.test(resultModal.resultText) ? 'Draw' : 'You lose'}
             </div>
-            <div style={{fontSize:13, color:'#6b7280'}}>{resultModal.resultText}</div>
+            <div style={{fontSize:13, color:'rgba(230,233,255,0.65)'}}>{resultModal.resultText}</div>
             <div style={{display:'flex', gap:10, alignItems:'center', marginTop:10}}>
               <span style={{fontWeight:800}}>🏆 {resultModal.trophies}</span>
-              <span style={{padding:'3px 10px', borderRadius:9999, fontSize:12, fontWeight:800, background:'#111', color:'#fff'}}>
+              <span style={{padding:'3px 10px', borderRadius:9999, fontSize:12, fontWeight:800, background:'var(--primary-orange)', color:'#000'}}>
                 {resultModal.rank}
               </span>
             </div>
             {resultModal.place && (
-              <div style={{marginTop:6, fontSize:12, color:'#6b7280'}}>Overall leaderboard position: #{resultModal.place}</div>
+              <div style={{marginTop:6, fontSize:12, color:'rgba(230,233,255,0.65)'}}>Overall leaderboard position: #{resultModal.place}</div>
             )}
-            <div style={{marginTop:12, fontSize:12, color:'#6b7280'}}>
+            <div style={{marginTop:12, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
               Tip: Only wins in live online games award trophies. Bot games are unranked.
             </div>
             <ModalGrid>

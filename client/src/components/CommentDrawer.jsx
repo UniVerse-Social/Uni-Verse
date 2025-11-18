@@ -24,9 +24,11 @@ const Backdrop = styled.div`
 `;
 const Drawer = styled.aside`
   width: min(920px, 96vw);
-  background: #fff;
+  background: var(--container-white);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -41,30 +43,48 @@ const Drawer = styled.aside`
     border-radius: 14px;
   }
 `;
-const Header = styled.div`position:relative; padding:14px 16px; border-bottom:1px solid #eee; font-weight:600;`;
+const Header = styled.div`
+  position: relative;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+`;
+
 const CloseButton = styled.button`
-  position:absolute; top:10px; right:10px;
-  width:36px; height:36px;
-  display:flex; align-items:center; justify-content:center;
-  border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer;
-  font-size:18px; line-height:1;
-  &:hover { background:#f9fafb; }
+  position: absolute; top: 10px; right: 10px;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-color);
+  cursor: pointer; font-size: 18px; line-height: 1;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+  &:hover {
+    background: var(--accent-gradient, linear-gradient(90deg, var(--primary-orange), #59D0FF));
+    color: #fff;
+    border-color: transparent;
+  }
 `;
 
 // --- Original Post block ---
 const OPWrapper = styled.div`
-  position: sticky; top:0; z-index:1; background:#fff; border-bottom:1px solid #eee;
+  position: sticky; top: 0; z-index: 1;
+  background: var(--container-white);
+  border-bottom: 1px solid var(--border-color);
 `;
-const OPInner = styled.div`padding:14px 16px;`;
-const OPTitle = styled.div`font-weight:600; font-size:14px; color:#374151; margin-bottom:6px;`;
-const OPText = styled.div`font-size:14px; color:#111827; white-space:pre-wrap;`;
+const OPInner = styled.div`padding: 14px 16px;`;
+const OPTitle = styled.div`font-weight:700; font-size:14px; color: var(--text-color); margin-bottom:6px;`;
+const OPText  = styled.div`font-size:14px; color: var(--text-color); white-space:pre-wrap;`;
 const OPGrid = styled.div`
   margin-top:10px;
-  display:grid; gap:8px;
+  display:grid;
+  gap:8px;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 `;
 const OPImg = styled.img`
-  width:100%; height:160px; object-fit:cover; border-radius:10px; border:1px solid #eee;
+  width:100%; height:160px; object-fit:cover;
+  border-radius:10px; border:1px solid var(--border-color);
 `;
 
 const PortalTarget = typeof document !== 'undefined' ? document.body : null;
@@ -127,60 +147,47 @@ const Row = styled.div`
   min-width: 0;
 `;
 const Meta = styled.div`
-  font-size:12px;
-  color:#6b7280;
-  display:flex;
-  align-items:center;
-  gap:8px;
+  font-size:12px; color:#9ca3af;
+  display:flex; align-items:center; gap:8px;
 `;
+const Actions = styled.div`
+  display:flex; gap:16px; align-items:center; color: var(--text-color);
+`;
+
 const Timestamp = styled.span`color:#9ca3af; font-size:11px;`;
 const Body = styled.div`margin:4px 0 6px; white-space:pre-wrap; word-break:break-word;`;
-const Actions = styled.div`display:flex; gap:16px; align-items:center; color:#555;`;
 const InputBar = styled.form`
-  display:grid;
-  grid-template-columns:1fr auto;
-  gap:8px;
-  padding:10px;
-  border-top:1px solid #eee;
-  background:#fff;
-  align-items:flex-start;
+  display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px;
+  border-top: 1px solid var(--border-color);
+  background: var(--container-white);
+  align-items: flex-start;
 `;
 const Text = styled.textarea`
-  flex:1;
-  resize:none;
-  padding:10px;
-  border-radius:8px;
-  border:1px solid #ddd;
-  min-height:64px;
+  flex: 1; resize: none; padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.03);
+  color: var(--text-color);
+  min-height: 64px;
+  &::placeholder { color: rgba(230,233,255,0.55); }
 `;
+
 const ReplyContext = styled.div`
-  padding:8px 12px;
-  font-size:12px;
-  color:#555;
-  background:#f3f4f6;
-  border-top:1px solid #eee;
-  border-bottom:1px solid #eee;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
+  padding: 8px 12px; font-size: 12px; color: var(--text-color);
+  background: rgba(255,255,255,0.06);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
 `;
 const ReplyCancel = styled.button`
-  border:none;
-  background:transparent;
-  color:#2563eb;
-  font-weight:600;
-  cursor:pointer;
-  padding:0;
+  border:none; background:transparent; color:#59D0FF;
+  font-weight:700; cursor:pointer; padding:0;
 `;
 const ReplyButton = styled.button`
-  border:none;
-  background:transparent;
-  color:#2563eb;
-  font-size:13px;
-  cursor:pointer;
-  padding:0;
+  border:none; background:transparent; color:#59D0FF;
+  font-size:13px; cursor:pointer; padding:0;
 `;
+
 const ButtonColumn = styled.div`
   display:flex;
   flex-direction:column;
@@ -188,33 +195,33 @@ const ButtonColumn = styled.div`
   align-items:stretch;
 `;
 const SendButton = styled.button`
-  padding:12px 16px;
-  border-radius:8px;
-  border:1px solid #2563eb;
-  background:#2563eb;
-  color:#fff;
-  font-size:13px;
-  font-weight:600;
-  cursor:pointer;
-  min-width:66px;
-  min-height:54px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent-gradient, linear-gradient(90deg, var(--primary-orange), #59D0FF));
+  color: #fff;
+  font-size: 13px; font-weight: 800; cursor: pointer;
+  min-width: 66px; min-height: 54px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
 `;
+
 const PlusButton = styled.label`
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:6px 0;
-  border-radius:8px;
-  border:1px solid #d1d5db;
-  background:#f9fafb;
-  color:#1f2937;
-  font-size:16px;
-  font-weight:700;
-  cursor:pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 6px 0;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-color);
+  font-size: 16px; font-weight: 800; cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+  &:hover{
+    background: var(--accent-gradient, linear-gradient(90deg, var(--primary-orange), #59D0FF));
+    color: #fff;
+    border-color: transparent;
+  }
 `;
+
 const HiddenInput = styled.input`display:none;`;
 const AttachmentTray = styled.div`
   display:flex;
@@ -223,58 +230,33 @@ const AttachmentTray = styled.div`
   padding:0 10px 10px;
 `;
 const AttachmentThumb = styled.div`
-  position:relative;
-  width:72px;
-  height:72px;
-  border-radius:10px;
-  overflow:hidden;
-  border:1px solid #e5e7eb;
-  background:#f8fafc;
+  position: relative; width: 72px; height: 72px;
+  border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.03);
   img { width:100%; height:100%; object-fit:cover; display:block; }
   button {
-    position:absolute;
-    top:4px;
-    right:4px;
-    background:rgba(0,0,0,0.6);
-    color:#fff;
-    border:none;
-    border-radius:999px;
-    font-size:11px;
-    padding:2px 6px;
-    cursor:pointer;
+    position:absolute; top:4px; right:4px;
+    background:rgba(0,0,0,0.6); color:#fff; border:none; border-radius:999px;
+    font-size:11px; padding:2px 6px; cursor:pointer;
   }
 `;
+
 const CommentAttachments = styled.div`
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  margin-top:6px;
-  img {
-    width:100px;
-    height:100px;
-    border-radius:10px;
-    border:1px solid #e5e7eb;
-    object-fit:cover;
-    display:block;
-  }
+  display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;
+  img { width:100px; height:100px; border-radius:10px; border:1px solid var(--border-color); object-fit:cover; display:block; }
 `;
+
 const CommentTop = styled.div`
-  margin-top:4px;
-  font-size:12px;
-  color:#4b5563;
-  background:#f9fafb;
-  border:1px solid #e5e7eb;
-  border-radius:8px;
-  padding:6px 10px;
-  display:flex;
-  flex-wrap:wrap;
-  gap:6px;
-  align-items:center;
+  margin-top: 6px; font-size: 12px; color: var(--text-color);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border-color);
+  border-radius: 10px; padding: 6px 10px;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
 `;
-const TopLabel = styled.span`
-  font-weight:600;
-  color:#1f2937;
-`;
+
+const TopLabel = styled.span`font-weight:800; color: var(--text-color);`;
+
 const DeleteButton = styled.button`
   border:none;
   background:transparent;
