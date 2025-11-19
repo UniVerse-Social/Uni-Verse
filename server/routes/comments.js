@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Comment = require('../models/Comment');
 const User = require('../models/User');
 const Post = require('../models/Post');
+const { enforceTextLimits, COMMENT_CHAR_LIMIT } = require('../utils/textLimits');
 
 function normalizeAttachments(arr) {
   if (!Array.isArray(arr)) return [];
@@ -107,7 +108,7 @@ router.get('/post/:postId/count', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { postId, userId, body, parentId, attachments } = req.body || {};
-    const trimmed = String(body || '').trim();
+    const trimmed = enforceTextLimits(body || '', COMMENT_CHAR_LIMIT).trim();
     const safeAttachments = normalizeAttachments(attachments);
 
     if (!postId || !userId || (!trimmed && safeAttachments.length === 0)) {

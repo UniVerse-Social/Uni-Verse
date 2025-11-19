@@ -1,9 +1,15 @@
-// client/src/components/ClubComposer.jsx
+﻿// client/src/components/ClubComposer.jsx
 import React, { useContext, useState, useMemo } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { AuthContext } from '../App';
+import {
+  CLUB_POST_CHAR_LIMIT,
+  MAX_TEXTAREA_NEWLINES,
+} from '../constants/profileLimits';
+import { applyTextLimits } from '../utils/textLimits';
+import CharCount from './CharCount';
 
 const Box = styled.div`
   border:1px solid var(--border-color);
@@ -11,33 +17,34 @@ const Box = styled.div`
   background: var(--container-white);
 `;
 const TA = styled.textarea`
-  width:96%;
+  width:100%;
   min-height:80px;
   border:1px solid var(--border-color);
   border-radius:10px;
-  padding:10px;
+  padding:10px 12px 32px;
   resize:none;
-  background: rgba(255,255,255,0.03);
-  color: var(--text-color);
-  &::placeholder{ color: rgba(230,233,255,0.55); }
+  background:#fff;
+  color:#111;
+`;
+const TAWrapper = styled.div`
+  position: relative;
 `;
 const Row = styled.div`display:flex; justify-content:space-between; gap:8px; align-items:center; margin-top:8px;`;
 const Btn = styled.button`
-  padding:10px 14px; border-radius:10px; border:none;
-  background: var(--primary-orange); color:#000; font-weight:800; cursor:pointer;
+  padding:10px 14px; border-radius:10px; border:1px solid var(--border-color);
+  background: #111; color:#fff; font-weight:700; cursor:pointer;
   &:disabled { opacity:.6; cursor:not-allowed; }
-  &:hover { background: linear-gradient(90deg, var(--primary-orange), #59D0FF); }
 `;
 const Attach = styled.label`
   padding:8px 12px; border-radius:10px; border:1px solid var(--border-color);
-  background: rgba(255,255,255,0.06); color: var(--text-color); cursor:pointer; font-weight:600;
-  &:hover { background: rgba(255,255,255,0.1); }
+  background:#fff; color:#111; cursor:pointer; font-weight:600;
+  &:hover { background:#f8fafc; }
 `;
 const Hidden = styled.input` display:none; `;
 const Grid = styled.div`
   display:grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap:10px; margin:10px 0 0;
-  div{ position:relative; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; background: rgba(255,255,255,0.03); aspect-ratio:1/1; }
+  div{ position:relative; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; background:#f8f9fb; aspect-ratio:1/1; }
   img{ width:100%; height:100%; object-fit:cover; display:block; }
   button{ position:absolute; top:6px; right:6px; border:none; background:rgba(0,0,0,.6); color:#fff; border-radius:999px; padding:4px 8px; cursor:pointer; font-size:12px; }
 `;
@@ -90,7 +97,25 @@ export default function ClubComposer({ club, channel, sideChannelId, onPosted })
 
   return (
     <Box className="surface">
-      <TA value={text} onChange={e=>setText(e.target.value)} placeholder={`Post to ${channel==='main'?'Main': 'Side'}…`} />
+      <TAWrapper>
+        <TA
+          value={text}
+          onChange={e=>{
+            const nextValue = applyTextLimits(
+              e.target.value,
+              CLUB_POST_CHAR_LIMIT,
+              MAX_TEXTAREA_NEWLINES
+            );
+            if (nextValue !== e.target.value) {
+              e.target.value = nextValue;
+            }
+            setText(nextValue);
+          }}
+          placeholder={`Post to ${channel==='main'?'Main': 'Side'}…`}
+          maxLength={CLUB_POST_CHAR_LIMIT}
+        />
+        <CharCount>{text.length}/{CLUB_POST_CHAR_LIMIT}</CharCount>
+      </TAWrapper>
       {previews.length > 0 && (
         <Grid>
           {previews.map((src, i) => (

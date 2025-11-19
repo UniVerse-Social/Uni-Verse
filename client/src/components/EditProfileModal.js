@@ -4,6 +4,12 @@ import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';
 import { API_BASE_URL } from '../config';
+import {
+  BIO_CHAR_LIMIT,
+  MAX_TEXTAREA_NEWLINES,
+} from '../constants/profileLimits';
+import { applyTextLimits } from '../utils/textLimits';
+import CharCount from './CharCount';
 
 const Backdrop = styled.div`
   position: fixed; inset: 0;
@@ -74,7 +80,7 @@ const Input = styled.input`
 const TextArea = styled.textarea`
   width: 100%;
   box-sizing: border-box;
-  padding: 10px 12px;
+  padding: 10px 12px 32px;
   min-height: 120px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
@@ -83,6 +89,9 @@ const TextArea = styled.textarea`
   background: rgba(255,255,255,0.03);
   color: var(--text-color);
   &::placeholder{ color: rgba(230,233,255,0.55); }
+`;
+const TextAreaWrap = styled.div`
+  position: relative;
 `;
 
 const Footer = styled.div`
@@ -136,11 +145,20 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
       ...f,
       username: user.username || '',
       email: user.email || '',
-      bio: user.bio || ''
+      bio: applyTextLimits(user.bio || '', BIO_CHAR_LIMIT, MAX_TEXTAREA_NEWLINES)
     }));
   }, [user]);
 
-  const change = (k, v) => setForm(s => ({ ...s, [k]: v }));
+  const change = (k, v) => {
+    if (k === 'bio') {
+      setForm((s) => ({
+        ...s,
+        bio: applyTextLimits(v, BIO_CHAR_LIMIT, MAX_TEXTAREA_NEWLINES),
+      }));
+      return;
+    }
+    setForm((s) => ({ ...s, [k]: v }));
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -216,11 +234,15 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
 
           <Field>
             <Label>Bio</Label>
-            <TextArea
-              value={form.bio}
-              onChange={e=>change('bio', e.target.value)}
-              placeholder="Tell people a bit about you…"
-            />
+            <TextAreaWrap>
+              <TextArea
+                value={form.bio}
+                onChange={e=>change('bio', e.target.value)}
+                placeholder="Tell people a bit about you…"
+                maxLength={BIO_CHAR_LIMIT}
+              />
+              <CharCount>{form.bio.length}/{BIO_CHAR_LIMIT}</CharCount>
+            </TextAreaWrap>
           </Field>
 
           <SectionTitle>Change password (optional)</SectionTitle>

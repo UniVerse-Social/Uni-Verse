@@ -45,3 +45,4 @@ server/data/**
 
 # --- Windows ADS sidecar files that can appear when copying from Windows ---
 *:[Zz]one.Identifier
+.history/

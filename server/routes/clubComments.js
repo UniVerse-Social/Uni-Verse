@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const ClubComment = require('../models/ClubComment');
 const User = require('../models/User');
 const ClubPost = require('../models/ClubPost');
+const { enforceTextLimits, COMMENT_CHAR_LIMIT } = require('../utils/textLimits');
 
 function normalizeAttachments(arr) {
   if (!Array.isArray(arr)) return [];
@@ -92,7 +93,7 @@ router.get('/post/:postId/count', async (req,res)=>{
 // create / reply
 router.post('/', async (req,res)=>{
   const { postId, userId, body, parentId, attachments } = req.body || {};
-  const trimmed = String(body || '').trim();
+  const trimmed = enforceTextLimits(body || '', COMMENT_CHAR_LIMIT).trim();
   const safeAttachments = normalizeAttachments(attachments);
   if (!postId || !userId || (!trimmed && safeAttachments.length === 0)) return res.status(400).json({ message: 'Missing comment content' });
   if (parentId) {

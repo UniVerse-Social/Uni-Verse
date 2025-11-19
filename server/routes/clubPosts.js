@@ -5,6 +5,7 @@ const ClubPost = require('../models/ClubPost');
 const ClubComment = require('../models/ClubComment');
 const User = require('../models/User');
 const { maskText, enforceNotBanned } = require('../middleware/moderation');
+const { enforceTextLimits, CLUB_POST_CHAR_LIMIT } = require('../utils/textLimits');
 
 // List (unchanged core)
 router.get('/:clubId', async (req, res) => {
@@ -172,12 +173,13 @@ router.post('/', enforceNotBanned, async (req, res) => {
     sideId = sc._id;
   }
 
+  const sanitizedText = enforceTextLimits(String(text || ''), CLUB_POST_CHAR_LIMIT).trim();
   const created = await ClubPost.create({
     clubId,
     authorId,
     channel: channel === 'main' ? 'main' : 'side',
     sideChannelId: sideId,
-    text: maskText(String(text).trim().slice(0, 2000)),
+    text: maskText(sanitizedText),
     images: Array.isArray(images) ? images.slice(0, 10) : [],
     attachments: Array.isArray(attachments) ? attachments.slice(0, 10) : []
   });

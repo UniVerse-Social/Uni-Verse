@@ -1,10 +1,16 @@
-import React, { useState, useContext, useRef, useCallback, useEffect } from 'react';
+﻿import React, { useState, useContext, useRef, useCallback, useEffect } from 'react';
 import { FaPlus } from 'react-icons/fa';
 import styled from 'styled-components';
 import axios from 'axios';
 import { AuthContext } from '../App';
 import { API_BASE_URL } from '../config';
 import CustomStickerContext from '../context/CustomStickerContext';
+import {
+  POST_CHAR_LIMIT,
+  MAX_TEXTAREA_NEWLINES,
+} from '../constants/profileLimits';
+import { applyTextLimits } from '../utils/textLimits';
+import CharCount from './CharCount';
 
 const CreatePostContainer = styled.div`
   width: 100%;
@@ -13,28 +19,24 @@ const CreatePostContainer = styled.div`
   background-color: var(--container-white);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  box-shadow: 0 18px 48px rgba(0,0,0,0.45);
-  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
   margin-bottom: 20px;
 `;
 
 const TextArea = styled.textarea`
   width: 100%;
-  max-width: 100%;                    /* never exceed parent */
-  box-sizing: border-box;             /* include padding + border in width */
-  display: block;
   min-height: 88px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 12px;
+  padding: 10px 14px 32px;
+  box-sizing: border-box;
   font-size: 16px;
   resize: none;
   overflow: hidden;
   margin-bottom: 4px;
-  background: rgba(255,255,255,0.03);
-  color: var(--text-color);
+  background: #fff;
+  color: #111;
   line-height: 1.6;
-  &::placeholder { color: rgba(230,233,255,0.55); }
 `;
 
 const ControlsRight = styled.div`
@@ -49,15 +51,14 @@ const AttachBtn = styled.label`
   justify-content: center;
   height: 40px;
   padding: 0 14px;
-  gap: 8px;
   border-radius: 999px;
   border: 1px solid var(--border-color);
-  background: rgba(255,255,255,0.06);
-  color: var(--text-color);
+  background: #fff;
+  color: #111;
   cursor: pointer;
   font-weight: 600;
   line-height: 0; /* kill baseline extra space from inline SVG */
-  &:hover { background: rgba(255,255,255,0.10); }
+  &:hover { background: #f8fafc; }
 `;
 
 const PostButton = styled.button`
@@ -68,12 +69,11 @@ const PostButton = styled.button`
   padding: 0 20px;
   border-radius: 999px;
   background-color: var(--primary-orange);
-  color: #000;
+  color: #fff;
   border: none;
   font-weight: 700;
   cursor: pointer;
   line-height: 1;
-  &:hover { background: linear-gradient(90deg, var(--primary-orange), #59D0FF); }
   &:disabled { opacity: .6; cursor: not-allowed; }
 `;
 
@@ -91,7 +91,7 @@ const Thumb = styled.div`
   overflow: hidden;
   border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: rgba(255,255,255,0.03);
+  background: #f8f9fb;
   aspect-ratio: 1/1;
   img, video {
     width: 100%;
@@ -113,22 +113,6 @@ const Actions = styled.div`
   gap: 8px;
 `;
 
-const CharPopup = styled.div`
-  position: absolute;
-  right: 200px;
-  bottom: -35px;
-  background: var(--container-white);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease-in-out;
-  &.show { opacity: 1; }
-`;
-
 const TextAreaWrapper = styled.div`
   position: relative;
   display: inline-block;
@@ -144,8 +128,6 @@ const CreatePost = ({ onPostCreated }) => {
   const [textContent, setTextContent] = useState('');
   const [attachments, setAttachments] = useState([]); // { id, file, kind, duration?, preview }
   const [busy, setBusy] = useState(false);
-  const MAX_LEN = 560;                  // single source of truth
-  const [remaining, setRemaining] = useState(MAX_LEN);
 
 
   const textAreaRef = useRef(null);
@@ -284,7 +266,6 @@ const CreatePost = ({ onPostCreated }) => {
       setTextContent('');
       attachments.forEach(revokePreview);
       setAttachments([]);
-      setRemaining(MAX_LEN);
     } catch (err) {
       console.error(err);
       alert(err?.response?.data?.message || 'Failed to create post');
@@ -322,10 +303,15 @@ const CreatePost = ({ onPostCreated }) => {
           placeholder={`What's on your mind, ${user.username}?`}
           value={textContent}
           onChange={(e) => {
-            const val = e.target.value;
-            setTextContent(val);
-            setRemaining(MAX_LEN - val.length);
-
+            const nextValue = applyTextLimits(
+              e.target.value,
+              POST_CHAR_LIMIT,
+              MAX_TEXTAREA_NEWLINES
+            );
+            if (nextValue !== e.target.value) {
+              e.target.value = nextValue;
+            }
+            setTextContent(nextValue);
 
             const el = textAreaRef.current;
             if (el) {
@@ -333,11 +319,9 @@ const CreatePost = ({ onPostCreated }) => {
               el.style.height = `${el.scrollHeight}px`;
             }
           }}
-          maxLength={MAX_LEN}
+          maxLength={POST_CHAR_LIMIT}
         />
-        <CharPopup className={remaining <= 30 ? 'show' : ''}>
-          {remaining} characters remaining
-        </CharPopup>
+        <CharCount>{textContent.length}/{POST_CHAR_LIMIT}</CharCount>
        </TextAreaWrapper>
         <Actions>
           <HiddenInput
@@ -350,7 +334,6 @@ const CreatePost = ({ onPostCreated }) => {
           <ControlsRight>
             <AttachBtn htmlFor="feed-attach" aria-label="Add media">
               <FaPlus size={14} />
-              <span style={{ lineHeight: 1 }}>Add photos</span>
             </AttachBtn>
             <PostButton type="submit" disabled={busy}>
             {busy ? 'Posting…' : 'Post'}

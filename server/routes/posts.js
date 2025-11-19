@@ -6,6 +6,7 @@ const User = require('../models/User');
 const Comment = require('../models/Comment');
 const { maskText, enforceNotBanned } = require('../middleware/moderation');
 const { checkAndUnlock } = require('../services/badges');
+const { enforceTextLimits, POST_CHAR_LIMIT } = require('../utils/textLimits');
 
 const ALLOW_MODES = new Set(['everyone', 'followers', 'none', 'owner']); // 'owner' = myself only
 const uniqueStrings = (arr = []) => {
@@ -74,7 +75,8 @@ router.post('/', enforceNotBanned, async (req, res) => {
 
     // sanitize text
     if (typeof body.textContent === 'string') {
-      body.textContent = maskText(body.textContent);
+      const limited = enforceTextLimits(body.textContent, POST_CHAR_LIMIT).trim();
+      body.textContent = limited ? maskText(limited) : '';
     }
 
     // normalize attachments to an array (limit to 10 to be safe)
@@ -124,7 +126,8 @@ router.put('/:id', enforceNotBanned, async (req, res) => {
 
     const updates = {};
     if (typeof req.body.textContent === 'string') {
-      updates.textContent = maskText(req.body.textContent);
+      const limited = enforceTextLimits(req.body.textContent, POST_CHAR_LIMIT).trim();
+      updates.textContent = limited ? maskText(limited) : '';
     }
     if (Array.isArray(req.body.attachments)) {
       updates.attachments = req.body.attachments.slice(0, 10);

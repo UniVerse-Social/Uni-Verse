@@ -33,8 +33,9 @@ const UserSchema = new mongoose.Schema(
 
     profilePicture: { type: String, default: '' },
     bannerPicture: { type: String, default: '' },
-    bio: { type: String, default: '' },
+    bio: { type: String, default: '', maxlength: 300 },
     department: { type: String, default: '' },
+    favoriteAccentColor: { type: String, default: '#fbbf24' },
 
     hobbies: [{ type: String }],
     clubs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Club' }],

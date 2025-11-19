@@ -12,6 +12,8 @@ const {
 } = require('../services/badges'); // badge engine + catalog + retroactive
 
 const BADGE_NAMES = new Set(BADGE_CATALOG.map(b => b.name));
+const HEX_COLOR_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+const DEFAULT_ACCENT = '#fbbf24';
 
 function normalizeEquipped(equipped) {
   const arr = Array.isArray(equipped) ? equipped.slice(0, 5) : [];
@@ -49,6 +51,18 @@ router.put('/:id', async (req, res) => {
     // Normalize email if present
     if (typeof body.email === 'string') {
       body.email = body.email.trim().toLowerCase();
+    }
+
+    if (typeof body.bio === 'string') {
+      body.bio = enforceTextLimits(body.bio, BIO_CHAR_LIMIT);
+    }
+
+    if (typeof body.favoriteAccentColor === 'string') {
+      if (!HEX_COLOR_RE.test(body.favoriteAccentColor)) {
+        delete body.favoriteAccentColor;
+      } else {
+        body.favoriteAccentColor = body.favoriteAccentColor.toLowerCase();
+      }
     }
 
     // Optional: reject too-short password if someone uses this generic route
@@ -206,7 +220,7 @@ router.put('/:id/account', async (req, res) => {
 
     // Bio
     if (typeof bio === 'string') {
-      user.bio = bio;
+      user.bio = enforceTextLimits(bio, BIO_CHAR_LIMIT);
     }
 
     // Password change (optional)
@@ -848,6 +862,27 @@ router.put('/:id/feed-preferences', async (req, res) => {
     { new: true }
   ).select('feedPreferences').lean();
   res.json(sanitizeFeedPreferences(user?.feedPreferences || {}));
+});
+
+router.patch('/:id/preferences', async (req, res) => {
+  if (String(req.body.userId) !== String(req.params.id)) {
+    return res.status(403).json({ message: 'Not authorized' });
+  }
+  const update = {};
+  if (typeof req.body.favoriteAccentColor === 'string' && HEX_COLOR_RE.test(req.body.favoriteAccentColor)) {
+    update.favoriteAccentColor = req.body.favoriteAccentColor.toLowerCase();
+  }
+  if (!Object.keys(update).length) {
+    return res.status(400).json({ message: 'No valid preference fields provided' });
+  }
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { $set: update },
+    { new: true }
+  ).select('favoriteAccentColor');
+  res.json({
+    favoriteAccentColor: user?.favoriteAccentColor || DEFAULT_ACCENT,
+  });
 });
 
 module.exports = router;

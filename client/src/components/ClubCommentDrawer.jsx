@@ -1,10 +1,16 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 import { FaHeart, FaRegHeart, FaTrash, FaPlus } from 'react-icons/fa';
 import { AuthContext } from '../App';
 import { API_BASE_URL, toMediaUrl } from '../config';
 import UserLink from './UserLink';
+import {
+  COMMENT_CHAR_LIMIT,
+  MAX_TEXTAREA_NEWLINES,
+} from '../constants/profileLimits';
+import { applyTextLimits } from '../utils/textLimits';
+import CharCount from './CharCount';
 
 const Backdrop = styled.div`position: fixed; inset:0; background: rgba(0,0,0,0.40); z-index:1500;`;
 const Drawer = styled.aside`
@@ -13,36 +19,35 @@ const Drawer = styled.aside`
   transform: translate(-50%, -50%);
   width: min(900px, 94vw);
   height: min(90vh, 900px);
-  background: var(--container-white);
-  color: var(--text-color);
+  background:#fff;
   border-radius:14px;
-  box-shadow: 0 32px 72px rgba(0,0,0,0.55);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.30);
   z-index:1501;
   display:flex; flex-direction:column;
   overflow:hidden;
 `;
-const Header = styled.div`position:relative; padding:14px 16px; border-bottom:1px solid var(--border-color); font-weight:600; color: var(--text-color);`;
+const Header = styled.div`position:relative; padding:14px 16px; border-bottom:1px solid #eee; font-weight:600;`;
 
 const CloseButton = styled.button`
   position:absolute; top:10px; right:10px;
   width:36px; height:36px;
   display:flex; align-items:center; justify-content:center;
-  border-radius:10px; border:1px solid var(--border-color); background: rgba(255,255,255,0.06); color: var(--text-color); cursor:pointer;
+  border-radius:10px; border:1px solid #e5e7eb; background:#fff; cursor:pointer;
   font-size:18px; line-height:1;
-  &:hover { background: rgba(255,255,255,0.1); }
+  &:hover { background:#f9fafb; }
 `;
 
 // --- Original Post block (same as main) ---
-const OPWrapper = styled.div`position: sticky; top:0; z-index:1; background: var(--container-white); border-bottom:1px solid var(--border-color);`;
+const OPWrapper = styled.div`position: sticky; top:0; z-index:1; background:#fff; border-bottom:1px solid #eee;`;
 const OPInner = styled.div`padding:14px 16px;`;
-const OPTitle = styled.div`font-weight:600; font-size:14px; color: var(--text-color); margin-bottom:6px;`;
-const OPText = styled.div`font-size:14px; color: var(--text-color); white-space:pre-wrap;`;
+const OPTitle = styled.div`font-weight:600; font-size:14px; color:#374151; margin-bottom:6px;`;
+const OPText = styled.div`font-size:14px; color:#111827; white-space:pre-wrap;`;
 const OPGrid = styled.div`
   margin-top:10px;
   display:grid; gap:8px;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 `;
-const OPImg = styled.img`width:100%; height:160px; object-fit:cover; border-radius:10px; border:1px solid var(--border-color); background: rgba(255,255,255,0.03);`;
+const OPImg = styled.img`width:100%; height:160px; object-fit:cover; border-radius:10px; border:1px solid #eee;`;
 
 // Util: detect image-ish url
 const isImageUrl = (u) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(u || '');
@@ -104,18 +109,18 @@ const Row = styled.div`
 `;
 const Meta = styled.div`
   font-size:12px;
-  color: rgba(230,233,255,0.65);
+  color:#6b7280;
   display:flex;
   align-items:center;
   gap:8px;
 `;
-const Timestamp = styled.span`color: rgba(230,233,255,0.55); font-size:11px;`;
-const Body = styled.div`margin:4px 0 6px; white-space:pre-wrap; word-break:break-word; color: var(--text-color);`;
-const Actions = styled.div`display:flex; gap:16px; align-items:center; color: rgba(230,233,255,0.82);`;
+const Timestamp = styled.span`color:#9ca3af; font-size:11px;`;
+const Body = styled.div`margin:4px 0 6px; white-space:pre-wrap; word-break:break-word;`;
+const Actions = styled.div`display:flex; gap:16px; align-items:center; color:#555;`;
 const ReplyButton = styled.button`
   border:none;
   background:transparent;
-  color: var(--primary-orange);
+  color:#2563eb;
   font-size:13px;
   cursor:pointer;
   padding:0;
@@ -123,10 +128,10 @@ const ReplyButton = styled.button`
 const ReplyContext = styled.div`
   padding:8px 12px;
   font-size:12px;
-  color: rgba(230,233,255,0.82);
-  background: rgba(255,255,255,0.06);
-  border-top:1px solid var(--border-color);
-  border-bottom:1px solid var(--border-color);
+  color:#555;
+  background:#f3f4f6;
+  border-top:1px solid #eee;
+  border-bottom:1px solid #eee;
   display:flex;
   align-items:center;
   justify-content:space-between;
@@ -135,7 +140,7 @@ const ReplyContext = styled.div`
 const ReplyCancel = styled.button`
   border:none;
   background:transparent;
-  color: var(--primary-orange);
+  color:#2563eb;
   font-weight:600;
   cursor:pointer;
   padding:0;
@@ -145,19 +150,20 @@ const InputBar = styled.form`
   grid-template-columns:1fr auto;
   gap:8px;
   padding:10px;
-  border-top:1px solid var(--border-color);
-  background: var(--container-white);
+  border-top:1px solid #eee;
+  background:#fff;
   align-items:flex-start;
 `;
 const Text = styled.textarea`
-  padding:10px;
-  border:1px solid var(--border-color);
+  padding:10px 12px 32px;
+  border:1px solid #ddd;
   border-radius:8px;
   resize:none;
   min-height:64px;
-  background: rgba(255,255,255,0.03);
-  color: var(--text-color);
-  &::placeholder{ color: rgba(230,233,255,0.55); }
+  width:100%;
+`;
+const TextWrap = styled.div`
+  position: relative;
 `;
 const ButtonColumn = styled.div`
   display:flex;
@@ -168,9 +174,9 @@ const ButtonColumn = styled.div`
 const SendButton = styled.button`
   padding:12px 16px;
   border-radius:8px;
-  border:none;
-  background: var(--primary-orange);
-  color:#000;
+  border:1px solid #2563eb;
+  background:#2563eb;
+  color:#fff;
   font-size:13px;
   font-weight:600;
   cursor:pointer;
@@ -179,7 +185,6 @@ const SendButton = styled.button`
   display:flex;
   align-items:center;
   justify-content:center;
-  &:hover { background: linear-gradient(90deg, var(--primary-orange), #59D0FF); }
 `;
 const PlusButton = styled.label`
   display:flex;
@@ -187,9 +192,9 @@ const PlusButton = styled.label`
   justify-content:center;
   padding:6px 0;
   border-radius:8px;
-  border:1px solid var(--border-color);
-  background: rgba(255,255,255,0.06);
-  color: var(--text-color);
+  border:1px solid #d1d5db;
+  background:#f9fafb;
+  color:#1f2937;
   font-size:16px;
   font-weight:700;
   cursor:pointer;
@@ -207,8 +212,8 @@ const AttachmentThumb = styled.div`
   height:72px;
   border-radius:10px;
   overflow:hidden;
-  border:1px solid var(--border-color);
-  background: rgba(255,255,255,0.03);
+  border:1px solid #e5e7eb;
+  background:#f8fafc;
   img { width:100%; height:100%; object-fit:cover; display:block; }
   button {
     position:absolute;
@@ -239,9 +244,9 @@ const CommentAttachments = styled.div`
 const CommentTop = styled.div`
   margin-top:4px;
   font-size:12px;
-  color: rgba(230,233,255,0.82);
-  background: rgba(255,255,255,0.06);
-  border:1px solid var(--border-color);
+  color:#4b5563;
+  background:#f9fafb;
+  border:1px solid #e5e7eb;
   border-radius:8px;
   padding:6px 10px;
   display:flex;
@@ -249,11 +254,14 @@ const CommentTop = styled.div`
   gap:6px;
   align-items:center;
 `;
-const TopLabel = styled.span` font-weight:600; color: var(--text-color); `;
+const TopLabel = styled.span`
+  font-weight:600;
+  color:#1f2937;
+`;
 const DeleteButton = styled.button`
   border:none;
   background:transparent;
-  color: rgba(230,233,255,0.55);
+  color:#9ca3af;
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -414,7 +422,10 @@ export default function ClubCommentDrawer({ post, onClose, onCountChange, onPrev
     if (!comment) return;
     const mention = `@${comment.username || 'user'} `;
     setReplyTo(comment);
-    setText((prev) => (prev && prev.startsWith(mention) ? prev : mention));
+    setText((prev) => {
+      const nextDraft = prev && prev.startsWith(mention) ? prev : mention;
+      return applyTextLimits(nextDraft, COMMENT_CHAR_LIMIT, MAX_TEXTAREA_NEWLINES);
+    });
     setTimeout(() => {
       if (inputRef.current) {
         inputRef.current.focus();
@@ -518,13 +529,27 @@ export default function ClubCommentDrawer({ post, onClose, onCountChange, onPrev
         )}
 
         <InputBar onSubmit={send}>
-          <Text
-            rows={2}
-            value={text}
-            ref={inputRef}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={replyTo ? `Reply to @${replyTo.username || 'user'}...` : 'Write a comment...'}
-          />
+          <TextWrap>
+            <Text
+              rows={2}
+              value={text}
+              ref={inputRef}
+              onChange={(e) => {
+                const nextValue = applyTextLimits(
+                  e.target.value,
+                  COMMENT_CHAR_LIMIT,
+                  MAX_TEXTAREA_NEWLINES
+                );
+                if (nextValue !== e.target.value) {
+                  e.target.value = nextValue;
+                }
+                setText(nextValue);
+              }}
+              placeholder={replyTo ? `Reply to @${replyTo.username || 'user'}...` : 'Write a comment...'}
+              maxLength={COMMENT_CHAR_LIMIT}
+            />
+            <CharCount>{text.length}/{COMMENT_CHAR_LIMIT}</CharCount>
+          </TextWrap>
           <ButtonColumn>
             <SendButton type="submit">Send</SendButton>
             <PlusButton htmlFor="club-comment-attach">

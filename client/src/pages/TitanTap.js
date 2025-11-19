@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useLayoutEffect,
 } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -17,16 +18,31 @@ import {
   alignModulesWithLayout,
   createBioFallbackPreset,
   getLayoutColumns,
+  getDefaultLayout,
   PROFILE_MODULE_TYPES,
+  MAX_CANVAS_MODULES,
+  createBlankModule,
+  ensureLayoutDefaults,
+  moduleHasVisibleContentPublic,
+  applyDefaultSlotOrdering,
 } from '../utils/titantap-utils';
 import { SwipeableCard } from '../components/TitanTapCard';
 import UserLink from '../components/UserLink';
 import { getHobbyEmoji } from '../utils/hobbies';
 import { DEFAULT_BANNER_URL } from '../config';
+import {
+  TEXT_MODULE_CHAR_LIMIT,
+  MAX_TEXTAREA_NEWLINES,
+} from '../constants/profileLimits';
+import { applyTextLimits } from '../utils/textLimits';
 
 // ---------- Minimal styles (same as your original, kept inline) ----------
 const styles = `
-:root { --nav-mobile: 58px; --topbar-mobile: 56px; }
+:root {
+  --nav-mobile: 58px;
+  --topbar-mobile: 56px;
+  --profile-card-height: clamp(520px, calc(100vh - 220px), 580px);
+}
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { width: 100%; min-width: 0; overflow-x: hidden; }
@@ -175,7 +191,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .card {
   width: 100%;
   max-width: 520px;
-  height: clamp(520px, calc(100vh - 220px), 580px);
+  height: var(--profile-card-height, clamp(520px, calc(100vh - 220px), 580px));
   border-radius: 22px;
   position: relative;
   display: flex;
@@ -208,7 +224,12 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   right: 0;
   bottom: 0;
   height: 68%;
-  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.65) 60%, rgba(255,255,255,0.92) 100%);
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in srgb, var(--card-body-fill, #ffffff) 65%, transparent) 60%,
+    var(--card-body-fill, #ffffff) 100%
+  );
   pointer-events: none;
   z-index: 1;
 }
@@ -216,11 +237,14 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 18px 20px 16px;
-  gap: 14px;
+  padding: 16px 18px 10px;
+  gap: 10px;
   position: relative;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.98) 45%, rgba(255,255,255,1) 100%);
+  background: var(
+    --card-body-fill,
+    linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.98) 45%, rgba(255,255,255,1) 100%)
+  );
   --card-title-badge-font: 11px;
   --card-title-badge-padding-x: 10px;
   --card-title-badge-letter-spacing: 0.02em;
@@ -254,7 +278,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
     height: 138px;
   }
   .card-body {
-    padding: 16px 16px 14px;
+    padding: 14px 14px 8px;
     gap: 8px;
     --card-title-badge-font: 8.8px;
     --card-title-badge-padding-x: 8px;
@@ -435,12 +459,12 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   font-size: 15px;
 }
 .meta-chip.match {
-  border: 2px solid #2563eb;
+  border: 2px solid var(--mutual-accent, #fbbf24);
   background:
     linear-gradient(#f8fafc, #f8fafc) padding-box,
-    linear-gradient(135deg, rgba(37,99,235,0.65), rgba(37,99,235,0.15)) border-box;
-  box-shadow: 0 10px 24px rgba(37,99,235,0.22);
-  color: #1d4ed8;
+    linear-gradient(135deg, color-mix(in srgb, var(--mutual-accent, #fbbf24) 45%, transparent), rgba(37,99,235,0.1)) border-box;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--mutual-accent, #fbbf24) 28%, transparent);
+  color: #111827;
 }
 .meta-chip:focus-visible {
   outline: 2px solid #2563eb;
@@ -523,22 +547,101 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   box-shadow: 0 10px 20px rgba(15,23,42,0.15);
 }
 .interest-dot.common {
-  border: 2px solid #2563eb;
-  background: linear-gradient(135deg, rgba(219,234,254,0.9), rgba(255,255,255,0.98));
-  box-shadow: 0 10px 20px rgba(37,99,235,0.24);
+  border: 2px solid var(--mutual-accent, #fbbf24);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--mutual-accent, #fbbf24) 20%, #fff), rgba(255,255,255,0.98));
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--mutual-accent, #fbbf24) 25%, transparent);
 }
+
+.module-resize-elbow {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+  z-index: 3;
+}
+.module-resize-elbow span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+  position: relative;
+  cursor: se-resize;
+  pointer-events: none;
+}
+.module-resize-elbow span::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-bottom: 2px solid rgba(71,85,105,0.8);
+  border-right: 2px solid rgba(71,85,105,0.8);
+  border-radius: 0 0 6px 0;
+  pointer-events: none;
+}
+.card-canvas-item.editable:hover .module-resize-elbow,
+.card-canvas-item.editable.active .module-resize-elbow,
+.card-canvas-item.editable:focus-within .module-resize-elbow {
+  opacity: 1;
+  pointer-events: auto;
+}
+.card-canvas-item.editable:hover .module-resize-elbow span::after,
+.card-canvas-item.editable.active .module-resize-elbow span::after,
+.card-canvas-item.editable:focus-within .module-resize-elbow span::after {
+  border-color: rgba(59,73,103,0.95);
+}
+
+.canvas-resize-elbow {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 28px;
+  height: 28px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+  z-index: 4;
+}
+.canvas-resize-elbow span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 1px solid rgba(148,163,184,0.45);
+  background: rgba(15,23,42,0.08);
+  position: relative;
+  cursor: se-resize;
+  pointer-events: auto;
+}
+.canvas-resize-elbow span::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-bottom: 2px solid rgba(37,41,63,0.9);
+  border-right: 2px solid rgba(37,41,63,0.9);
+  border-radius: 0 0 8px 0;
+}
+.card-canvas-shell.editable:hover .canvas-resize-elbow,
+.card-canvas-shell.editable:focus-within .canvas-resize-elbow,
+.card-canvas-shell.editable.layout-open .canvas-resize-elbow {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .interest-cloud-shell {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 8px;
   width: 100%;
 }
 .interest-cloud {
   flex: 1 1 auto;
   min-width: 0;
-  justify-content: flex-start;
-  padding-right: 12px;
+  justify-content: center;
+  padding-right: 0;
   overflow: visible;
 }
 .interest-cloud.carousel {
@@ -595,9 +698,19 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   border-radius: 22px;
   transition: transform 0.18s ease;
 }
+.card-canvas-shell {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 0 auto;
+  max-width: var(--canvas-outer-width, var(--canvas-width, 100%));
+  overflow: visible;
+}
 .card-canvas-shell .card-canvas {
   position: relative;
   z-index: 2;
+  margin: 0 auto;
 }
 .card-canvas-shell.editable {
   cursor: pointer;
@@ -612,7 +725,10 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   position: absolute;
   inset: -6px;
   border-radius: 26px;
-  background: transparent;
+  background: var(
+    --canvas-bg,
+    linear-gradient(160deg, rgba(248,250,255,0.95), rgba(226,232,240,0.85))
+  );
   border: 1px solid transparent;
   opacity: 0;
   transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, opacity 0.22s ease;
@@ -626,10 +742,18 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .card-canvas-shell.editable:hover::before,
 .card-canvas-shell.editable:focus-visible::before,
 .card-canvas-shell.layout-open::before {
-  background: linear-gradient(160deg, rgba(248,250,255,0.95), rgba(226,232,240,0.85));
-  border-color: rgba(148,163,184,0.35);
+  background: var(
+    --canvas-bg,
+    linear-gradient(160deg, rgba(248,250,255,0.95), rgba(226,232,240,0.85))
+  );
+  border-color: var(--canvas-shell-border-color, rgba(148,163,184,0.35));
   box-shadow: 0 16px 32px rgba(37,99,235,0.12);
   opacity: 1;
+}
+.card-canvas-item {
+  position: relative;
+  min-width: 42px;
+  min-height: 42px;
 }
 
 .canvas-layout-hint {
@@ -719,60 +843,98 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   font-size: 14px;
   color: #2563eb;
 }
-
-.card-canvas-placeholder {
-  margin-top: 14px;
-  padding: 24px;
-  border-radius: 18px;
-  border: 1px dashed rgba(148,163,184,0.5);
-  background: rgba(255,255,255,0.85);
-  color: #475569;
+.canvas-color-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.canvas-color-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 1px solid rgba(148,163,184,0.35);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: rgba(248,250,255,0.9);
   font-size: 13px;
   font-weight: 600;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 140px;
-  position: relative;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
-.card-canvas-placeholder strong {
-  color: #2563eb;
+.canvas-color-trigger.open,
+.canvas-color-trigger:hover,
+.canvas-color-trigger:focus-visible {
+  border-color: rgba(37,99,235,0.6);
+  box-shadow: 0 10px 24px rgba(37,99,235,0.16);
+  outline: none;
 }
-.card-canvas-shell.placeholder .canvas-layout-hint {
-  opacity: 1;
-  top: -30px;
-}
-
-.canvas-resize-handle {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  width: 20px;
+.canvas-color-preview {
+  width: 28px;
   height: 20px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, rgba(37,99,235,0.85), rgba(59,130,246,0.85));
-  border: 1px solid rgba(37,99,235,0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 12px;
-  cursor: se-resize;
-  box-shadow: 0 8px 18px rgba(37,99,235,0.25);
+  border-radius: 8px;
+  border: 1px solid rgba(148,163,184,0.5);
+  margin-left: 10px;
 }
-.canvas-resize-handle:focus-visible {
-  outline: 2px solid #1d4ed8;
+.canvas-color-panel {
+  border: 1px solid rgba(148,163,184,0.25);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(248,250,255,0.95);
+  box-shadow: inset 0 1px 2px rgba(15,23,42,0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.canvas-color-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.canvas-color-swatch {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.canvas-color-swatch.selected {
+  border-color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37,99,235,0.28);
+}
+.canvas-color-swatch:focus-visible {
+  outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
+.canvas-color-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+.canvas-color-slider input[type="range"] {
+  width: 100%;
+}
+
 .card-canvas {
   margin-top: 0;
   padding: 6px;
   border-radius: 18px;
-  border: 1px solid rgba(148,163,184,0.25);
-  background: linear-gradient(160deg, rgba(248,250,255,0.95), rgba(226,232,240,0.85));
+  border: 1px solid var(--canvas-border-color, rgba(148,163,184,0.25));
+  background: var(
+    --canvas-bg,
+    linear-gradient(160deg, rgba(248,250,255,0.95), rgba(226,232,240,0.85))
+  );
   display: grid;
   gap: 6px;
+  height: 100%;
+  width: min(100%, var(--canvas-width, 100%));
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .card-canvas.single {
@@ -806,8 +968,11 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .card-wrap.preview .card-canvas-shell.editable:hover::before,
 .card-wrap.preview .card-canvas-shell.editable:focus-visible::before,
 .card-wrap.preview .card-canvas-shell.layout-open::before {
-  background: linear-gradient(160deg, rgba(248,250,255,0.95), rgba(226,232,240,0.85));
-  border-color: rgba(148,163,184,0.35);
+  background: var(
+    --canvas-bg,
+    linear-gradient(160deg, rgba(248,250,255,0.95), rgba(226,232,240,0.85))
+  );
+  border-color: var(--canvas-shell-border-color, rgba(148,163,184,0.35));
   box-shadow: 0 18px 36px rgba(15,23,42,0.12);
   opacity: 1;
 }
@@ -833,6 +998,9 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   line-height: 1.45;
   word-break: break-word;
 }
+.card-canvas-item p.card-canvas-empty {
+  color: #6b7280;
+}
 .card-canvas-item .image-wrapper {
   position: relative;
   width: 100%;
@@ -854,6 +1022,18 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   min-height: 130px;
   border-radius: 12px;
   background: transparent;
+  overflow: hidden;
+}
+.card-canvas-item .image-wrapper.full img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card-canvas-item.image .module-preview {
+  padding: 0;
+  height: 100%;
 }
 .card-canvas-item .caption {
   font-size: 12px;
@@ -888,16 +1068,19 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   transform: translate(-100%, calc(-100% - 12px));
 }
 .tooltip-bubble.mutual {
-  border-color: #2563eb;
-  background: linear-gradient(135deg, rgba(219,234,254,0.95), rgba(255,255,255,0.94));
-  color: #1d4ed8;
-  box-shadow: 0 16px 28px rgba(37,99,235,0.22);
+  border-color: var(--mutual-accent, #fbbf24);
+  color: #0f172a;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--mutual-accent, #fbbf24) 20%, #ffffff), rgba(255,255,255,0.94));
+  box-shadow: 0 16px 28px color-mix(in srgb, var(--mutual-accent, #fbbf24) 30%, transparent);
 }
 .mutual-count {
-  margin-top: 12px;
-  font-size: 12px;
-  color: #111827;
-  font-weight: 600;
+  margin-top: 0;
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .mutual-count strong {
   color: inherit;
@@ -907,10 +1090,20 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   color: #64748b;
   font-size: 12px;
   display: flex;
-  align-items: center;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  background: var(--card-body-fill, transparent);
+}
+.card-footer-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
 }
-.card-footer strong { color: #c2410c; font-weight: 700; }
+.card-footer strong { color: inherit; font-weight: 700; }
 @media (max-width: 768px) {
   .deck {
     /* viewport minus header/search/buttons and mobile nav */
@@ -923,9 +1116,8 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
       580px
     );
   }
-  .card {
-    /* never exceed viewport; still looks like the desktop card */
-    height: clamp(
+  :root {
+    --profile-card-height: clamp(
       500px,
       calc(
         100vh - var(--topbar-mobile) - 220px - var(--nav-mobile)
@@ -949,44 +1141,9 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .controls button { padding: 10px 16px; border-radius: 999px; border: 1px solid #111; background: #fff; color: #111; cursor: pointer; }
 .controls .ghost { background: #fff; color: #111; }
 
-.controls-compact {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.92);
-  color: #fff;
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.26);
-  z-index: 2100;
-}
-.controls-compact button {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  background: transparent;
-  color: #fff;
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.controls-compact button.primary {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.32);
-}
-
 /* Mobile: ensure controls never sit under the fixed nav */
 @media (max-width: 600px) {
   .controls { padding-bottom: calc(8px + var(--nav-mobile) + env(safe-area-inset-bottom, 0px)); }
-  .controls-compact {
-    bottom: calc(var(--nav-mobile) + env(safe-area-inset-bottom, 0px) + 8px);
-  }
 }
 
 .customize-trigger {
@@ -1032,7 +1189,10 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(880px, calc(100vw - 24px));
-  max-height: min(88vh, 720px);
+  max-height: min(100vh, 900px);
+  height: min(100vh, 900px);
+  max-height: min(100dvh, 900px);
+  height: min(100dvh, 900px);
   background: linear-gradient(160deg, rgba(248,250,255,0.98), rgba(237,242,255,0.94));
   border: 1px solid rgba(148,163,184,0.32);
   box-shadow: 0 30px 60px rgba(15,23,42,0.24);
@@ -1085,9 +1245,10 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   flex-direction: column;
   gap: 14px;
   padding: 0 24px 16px;
-  overflow: hidden;
+  overflow: visible;
   align-items: center;
   width: 100%;
+  min-height: 0;
 }
 .customize-body > .module-hint[role="alert"] {
   align-self: stretch;
@@ -1233,22 +1394,28 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   flex: 1;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  overflow: auto;
-  padding-bottom: 12px;
-  margin-top: 4px;
+  align-items: center;
+  overflow: visible;
+  padding: 0 8px 16px;
+  margin-top: 0;
   position: relative;
   z-index: 10;
 }
 .customize-preview-card {
-  width: min(440px, 100%);
+  width: min(520px, calc(100vw - 32px));
+  max-width: 520px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .card-preview-shell {
-  width: 100%;
+  width: min(520px, 100%);
   display: flex;
   justify-content: center;
-  transform: scale(0.92);
-  transform-origin: top center;
+  align-items: center;
+  transform: none;
+  transform-origin: center;
   position: relative;
   z-index: 10;
 }
@@ -1257,18 +1424,35 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   left: auto;
   top: 0;
   transform: none;
-  width: 100%;
-  max-width: 440px;
+  width: min(520px, calc(100vw - 32px));
+  max-width: 520px;
   touch-action: pan-y;
   margin: 0 auto;
   z-index: 10;
 }
 .card-wrap.preview .card {
-  height: auto;
-  min-height: 420px;
+  height: var(--profile-card-height, clamp(520px, calc(100vh - 220px), 580px));
 }
 .card-wrap.preview .card-canvas {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+}
+
+@media (max-width: 600px) {
+  .profile-card-modal {
+    width: calc(100vw - 8px);
+    max-height: calc(100vh - 8px);
+    border-radius: 18px;
+  }
+  .customize-body {
+    padding: 0 12px 12px;
+  }
+  .customize-preview {
+    padding: 0;
+  }
+  .customize-preview-card {
+    width: min(520px, calc(100vw - 16px));
+  }
 }
 .card-wrap.preview .card-canvas-item:not(.image),
 .card-preview-shell .card-canvas-item:not(.image),
@@ -1278,11 +1462,11 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 12px 26px rgba(15,23,42,0.12);
-  padding: 14px;
+  padding: 5px 7px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 130px;
+  gap: 4px;
+  min-height: 70px;
 }
 .card-wrap.preview .card-canvas-item.editable:not(.image):hover,
 .card-preview-shell .card-canvas-item.editable:not(.image):hover,
@@ -1312,14 +1496,66 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   border-radius: inherit;
   background: transparent;
 }
-.card-wrap.preview button {
+.card-canvas-item.textual .module-preview {
+  position: relative;
+  width: 100%;
+  padding-bottom: 8px;
+  font-size: calc(15px * var(--text-scale, 1));
+  line-height: calc(1.35 * var(--text-scale, 1));
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.card-canvas-item.textual .module-text-body {
+  width: 100%;
+  min-height: calc(100% - 8px);
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.card-canvas-item.textual .module-text-body > * {
+  width: 100%;
+  margin: 0;
+}
+.card-canvas-item.textual .module-inline-editor,
+.card-canvas-item.textual p {
+  font-size: inherit;
+  line-height: inherit;
+  text-align: center;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.card-canvas-item.textual .module-inline-editor {
+  width: 100%;
+  min-height: 32px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  cursor: text;
+  padding: 0;
+}
+.card-canvas-item.textual .module-inline-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+.card-canvas-item.textual .module-char-count {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  font-size: 11px;
+  color: #94a3b8;
   pointer-events: none;
 }
-.card-wrap.preview .canvas-layout-menu button {
-  pointer-events: auto;
-}
+.card-wrap.preview button,
 .card-wrap.preview a {
-  pointer-events: none;
+  pointer-events: auto;
 }
 @media (min-width: 900px) {
   .profile-card-modal {
@@ -1358,6 +1594,8 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   justify-content: flex-end;
   gap: 10px;
   background: rgba(248,250,255,0.96);
+  flex-shrink: 0;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
 }
 .customize-footer button {
   padding: 8px 14px;
@@ -1404,7 +1642,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
     align-items: stretch;
   }
   .card-preview-shell {
-    transform: scale(0.9);
+    transform: none;
   }
 }
 
@@ -1422,7 +1660,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
     top: 16px;
   }
   .card-preview-shell {
-    transform: scale(0.88);
+    transform: none;
   }
 }
 
@@ -1445,7 +1683,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
     right: 18px;
   }
   .card-preview-shell {
-    transform: scale(0.84);
+    transform: none;
   }
 }
 
@@ -1548,8 +1786,430 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .tag-pill:hover { background: #e5edff; border-color: #bfdbfe; }
 .tag-pill.active { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 6px 16px rgba(37,99,235,0.28); }
 
+.canvas-module-controls {
+  position: absolute;
+  top: 4px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(15,23,42,0.12);
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  border: 1px solid rgba(148,163,184,0.38);
+  transform: translateY(-80%);
+  z-index: 60;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.canvas-module-controls button {
+  border: 1px solid rgba(148,163,184,0.45);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 700;
+  background: rgba(248,250,255,0.9);
+  color: #0f172a;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  display: grid;
+  place-items: center;
+}
+.canvas-module-controls button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.canvas-module-controls button:not(:disabled):hover {
+  background: #fff;
+  border-color: rgba(148,163,184,0.65);
+  transform: translateY(-1px);
+}
+.canvas-module-controls span {
+  min-width: 44px;
+  text-align: center;
+  color: #0f172a;
+}
+.card-canvas-shell.editable:hover .canvas-module-controls[data-floating-control="true"],
+.card-canvas-shell.editable:focus-within .canvas-module-controls[data-floating-control="true"],
+.card-canvas-shell.editable.layout-open .canvas-module-controls[data-floating-control="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-60%);
+}
+
+.accent-badge {
+  border: 2px solid #fbbf24;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: rgba(15,23,42,0.75);
+  color: #fff;
+  cursor: pointer;
+}
+.accent-picker {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 18px 42px rgba(15,23,42,0.2);
+  border-radius: 14px;
+  padding: 10px;
+  z-index: 3000;
+  width: 170px;
+}
+.accent-picker span {
+  font-size: 12px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 6px;
+}
+.accent-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.accent-swatch {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.accent-swatch.selected {
+  border-color: #111;
+}
+
+.card-canvas.freeform {
+  position: relative;
+}
+.card-canvas-item.freeform {
+  position: absolute;
+}
+
+.module-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 6px;
+  background: rgba(15,23,42,0.05);
+  border-radius: 10px;
+  margin-top: 6px;
+}
+.module-align-group span {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #475569;
+}
+.align-controls {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+.align-controls button {
+  border: 1px solid #cbd5f5;
+  background: #fff;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.align-controls button.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.module-scale-group label {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+.module-scale-group input[type="range"] {
+  width: 120px;
+}
+
+.accent-picker .accent-grid button {
+  border: none;
+}
+
+.card-color-picker {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 18px 42px rgba(15,23,42,0.2);
+  border-radius: 14px;
+  padding: 12px;
+  width: 210px;
+  z-index: 3100;
+}
+.card-color-picker span {
+  font-size: 12px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 6px;
+  color: #0f172a;
+}
+.card-color-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.card-color-swatch {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.card-color-swatch:hover {
+  transform: translateY(-1px);
+}
+.card-color-swatch.selected {
+  border-color: #111;
+}
+
+.module-menu {
+  z-index: 4100;
+  pointer-events: auto;
+}
+.module-menu.overlay {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 2px;
+}
+.module-menu-surface {
+  background: rgba(255,255,255,0.98);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15,23,42,0.18);
+  border: 1px solid rgba(148,163,184,0.3);
+  padding: 6px 8px;
+  min-width: 130px;
+  max-width: 160px;
+  pointer-events: auto;
+}
+.module-menu-section + .module-menu-section {
+  margin-top: 8px;
+}
+.module-menu-header {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  display: block;
+  margin-bottom: 4px;
+}
+.module-menu-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.module-menu-option {
+  border: 1px solid rgba(148,163,184,0.4);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.module-menu-option:not(.disabled):hover {
+  background: #fff;
+  border-color: rgba(148,163,184,0.6);
+}
+.module-menu-option.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.module-menu-primary {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 7px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  box-shadow: 0 10px 18px rgba(249,115,22,0.3);
+  cursor: pointer;
+}
+.module-menu-option.danger {
+  margin-top: 6px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: none;
+  font-size: 11px;
+  padding: 5px 8px;
+}
+
+.image-dropzone {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  border: 1px dashed rgba(148,163,184,0.45);
+  background: linear-gradient(180deg, rgba(248,250,255,0.98), rgba(226,232,240,0.8));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.image-dropzone.has-image {
+  border-style: solid;
+}
+.image-dropzone img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.image-dropzone-empty p {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+  padding: 0 18px;
+  margin: 0;
+}
+.image-dropzone-panel {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  border-radius: 14px;
+  padding: 8px;
+  background: rgba(15,23,42,0.9);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 10px 24px rgba(15,23,42,0.35);
+  font-size: 11px;
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+}
+.image-url-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.85);
+}
+.image-url-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.image-url-input input {
+  flex: 1;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.35);
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(15,23,42,0.65);
+}
+.image-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.image-panel-actions button {
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font-size: 11px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.image-panel-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.image-panel-error {
+  margin: 0;
+  color: #fecaca;
+  font-size: 10px;
+}
+.image-panel-note {
+  margin: 0;
+  color: rgba(255,255,255,0.65);
+  font-size: 10px;
+}
+.image-dropzone video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #fff; color: #111; padding: 10px 14px; border-radius: 999px; }
 `;
+
+const clampDynamicSlots = (value) => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(MAX_CANVAS_MODULES, Math.max(0, Math.round(value)));
+};
+
+const resolveDynamicSlotCount = (layoutId, modulesLength, storedValue) => {
+  if (layoutId !== 'dynamic') return 0;
+  const safeModules = Math.max(0, modulesLength || 0);
+  const clampedStored = clampDynamicSlots(
+    typeof storedValue === 'number' ? storedValue : NaN
+  );
+  if (!clampedStored && safeModules === 0) return 0;
+  const base = clampedStored || safeModules || 0;
+  return Math.max(base, safeModules);
+};
+
+const findFirstOpenDynamicSlotId = (slotCount, modules) => {
+  if (!slotCount) return null;
+  const normalizedCount = Math.min(
+    MAX_CANVAS_MODULES,
+    Math.max(1, Math.round(slotCount))
+  );
+  const layout = getDefaultLayout(normalizedCount);
+  if (!layout?.slots?.length) return null;
+  const used = new Set(
+    (modules || [])
+      .map((mod) => mod?.slotId || mod?.layoutSettings?.slotId)
+      .filter((slotId) => typeof slotId === 'string' && slotId)
+  );
+  const openSlot = layout.slots.find((slot) => !used.has(slot.id));
+  return openSlot ? openSlot.id : null;
+};
+
+const STYLE_PRESETS = ['classic', 'glass', 'midnight'];
+const DEFAULT_ACCENT = '#fbbf24';
+const MIN_MODULE_DIMENSION = 42;
+const ALIGN_TOKENS = ['start', 'center', 'end'];
+const TEXT_CHAR_LIMIT = TEXT_MODULE_CHAR_LIMIT;
+const MAX_MODULE_NEWLINES = MAX_TEXTAREA_NEWLINES;
+const DEFAULT_CANVAS_COLOR_ID = 'classic';
+const DEFAULT_CANVAS_COLOR_ALPHA = 1;
+
+const clampSlotScale = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 1;
+  return Math.min(1, Math.max(0.2, num));
+};
+
+const clamp01 = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  return Math.min(1, Math.max(0, num));
+};
 
 const TitanTap = () => {
   const [query, setQuery] = useState('');
@@ -1578,12 +2238,15 @@ const TitanTap = () => {
   const [activeModuleId, setActiveModuleId] = useState(null);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
+  const deckRef = useRef(null);
+  const [liveCardHeight, setLiveCardHeight] = useState(null);
   const controlsRef = useRef(null);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isShortViewport, setIsShortViewport] = useState(false);
   const profileCardCacheRef = useRef(new Map());
   const inflightProfileCardsRef = useRef(new Set());
   const [, setProfileCardVersion] = useState(0);
+  const lastVisibleLayoutRef = useRef('single');
 
   const userId = useMemo(() => getCurrentUserId(), []);
   const viewerProfile = useMemo(() => getCurrentUserProfile(), []);
@@ -1859,6 +2522,7 @@ const TitanTap = () => {
       : deck.filter((user) => matchesAllTags(user));
     return sortByLeaderboardRank(base);
   }, [deck, activeTags, matchesAllTags, sortByLeaderboardRank]);
+  const topCardId = filteredDeck.length > 0 ? String(filteredDeck[0]?._id) : null;
 
   // prefetch profiles for first few
   useEffect(() => {
@@ -1914,6 +2578,69 @@ const TitanTap = () => {
     };
   }, [controlsRef, filteredDeck.length]);
 
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return undefined;
+    }
+    const deckElement = deckRef.current;
+    if (!deckElement) {
+      setLiveCardHeight(null);
+      return undefined;
+    }
+
+    let resizeFrame = null;
+
+    const measure = () => {
+      const cardNode = deckElement.querySelector('.card');
+      if (!cardNode) {
+        setLiveCardHeight(null);
+        return;
+      }
+      const nextHeight = cardNode.getBoundingClientRect().height;
+      setLiveCardHeight((prev) => {
+        if (typeof prev === 'number' && Math.abs(prev - nextHeight) < 0.5) {
+          return prev;
+        }
+        return nextHeight;
+      });
+    };
+
+    const requestMeasure = () => {
+      if (
+        resizeFrame != null &&
+        typeof window.cancelAnimationFrame === 'function'
+      ) {
+        window.cancelAnimationFrame(resizeFrame);
+      }
+      if (typeof window.requestAnimationFrame === 'function') {
+        resizeFrame = window.requestAnimationFrame(measure);
+      } else {
+        measure();
+      }
+    };
+
+    measure();
+    window.addEventListener('resize', requestMeasure);
+
+    const observedCard = deckElement.querySelector('.card');
+    let observer;
+    if (observedCard && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => requestMeasure());
+      observer.observe(observedCard);
+    }
+
+    return () => {
+      window.removeEventListener('resize', requestMeasure);
+      if (observer) observer.disconnect();
+      if (
+        resizeFrame != null &&
+        typeof window.cancelAnimationFrame === 'function'
+      ) {
+        window.cancelAnimationFrame(resizeFrame);
+      }
+    };
+  }, [topCardId]);
+
   const activeProfilePreset = useMemo(
     () => pickActivePreset(profileCardConfig),
     [profileCardConfig]
@@ -1922,15 +2649,42 @@ const TitanTap = () => {
   const previewPreset = useMemo(() => {
     if (!draftPreset) return null;
     const layout = findLayout(draftPreset.layout || 'single');
+    const moduleList = Array.isArray(draftPreset.modules) ? draftPreset.modules : [];
+    const dynamicSlotCount =
+      layout.id === 'dynamic'
+        ? resolveDynamicSlotCount(layout.id, moduleList.length, draftPreset.dynamicSlotCount)
+        : 0;
     return {
       ...draftPreset,
       layout: layout.id,
-      modules: alignModulesWithLayout(draftPreset.modules, layout.id),
+      modules: alignModulesWithLayout(moduleList, layout.id, {
+        slotCount: dynamicSlotCount || undefined,
+      }),
       stickers: Array.isArray(draftPreset.stickers)
         ? draftPreset.stickers
         : [],
+      accentColor: draftPreset.accentColor || DEFAULT_ACCENT,
+      stylePreset: draftPreset.stylePreset || STYLE_PRESETS[0],
+      canvasScale:
+        typeof draftPreset.canvasScale === 'number'
+          ? draftPreset.canvasScale
+          : 1,
+      canvasColorId: draftPreset.canvasColorId || DEFAULT_CANVAS_COLOR_ID,
+      canvasColorAlpha: clamp01(
+        typeof draftPreset.canvasColorAlpha === 'number'
+          ? draftPreset.canvasColorAlpha
+          : DEFAULT_CANVAS_COLOR_ALPHA
+      ),
+      dynamicSlotCount: layout.id === 'dynamic' ? dynamicSlotCount : 0,
+      cardBodyColor: draftPreset.cardBodyColor || '#ffffff',
     };
   }, [draftPreset]);
+
+  useEffect(() => {
+    if (draftPreset?.layout && draftPreset.layout !== 'hidden') {
+      lastVisibleLayoutRef.current = draftPreset.layout;
+    }
+  }, [draftPreset?.layout]);
 
   const previewUser = useMemo(() => {
     if (viewerProfile && typeof viewerProfile === 'object') return viewerProfile;
@@ -1960,9 +2714,34 @@ const TitanTap = () => {
     }
     if (!activeProfilePreset) {
       if (bioFallbackPreset) {
-        setDraftPreset(bioFallbackPreset);
+        const ordered = applyDefaultSlotOrdering(bioFallbackPreset.modules || []);
+        setDraftPreset({
+          ...bioFallbackPreset,
+          stylePreset: STYLE_PRESETS[0],
+          accentColor: DEFAULT_ACCENT,
+          canvasScale: 1,
+          canvasColorId: DEFAULT_CANVAS_COLOR_ID,
+          canvasColorAlpha: DEFAULT_CANVAS_COLOR_ALPHA,
+          modules: ordered,
+          dynamicSlotCount: 0,
+          cardBodyColor: bioFallbackPreset.cardBodyColor || '#ffffff',
+        });
       } else {
-        setDraftPreset(null);
+        const viewerId =
+          previewUser?._id || previewUser?.id || userId || 'viewer';
+        setDraftPreset({
+          _id: `hidden-${viewerId}`,
+          layout: 'hidden',
+          modules: [],
+          stickers: [],
+          stylePreset: STYLE_PRESETS[0],
+          accentColor: DEFAULT_ACCENT,
+          canvasScale: 1,
+          canvasColorId: DEFAULT_CANVAS_COLOR_ID,
+          canvasColorAlpha: DEFAULT_CANVAS_COLOR_ALPHA,
+          dynamicSlotCount: 0,
+          cardBodyColor: '#ffffff',
+        });
       }
       setActiveModuleId(null);
       setLayoutMenuOpen(false);
@@ -1972,26 +2751,64 @@ const TitanTap = () => {
     const layout = findLayout(activeProfilePreset.layout);
     const alignedModules = alignModulesWithLayout(
       activeProfilePreset.modules,
-      layout.id
+      layout.id,
+      {
+        slotCount:
+          layout.id === 'dynamic'
+            ? resolveDynamicSlotCount(
+                layout.id,
+                Array.isArray(activeProfilePreset.modules)
+                  ? activeProfilePreset.modules.length
+                  : 0,
+                activeProfilePreset.dynamicSlotCount
+              )
+            : undefined,
+      }
     );
     const nextModules = alignedModules.map((mod) => ({
       ...mod,
       content:
         typeof mod.content === 'object' && mod.content ? { ...mod.content } : {},
     }));
+    const slotCount = resolveDynamicSlotCount(
+      layout.id,
+      nextModules.length,
+      activeProfilePreset.dynamicSlotCount
+    );
+    const orderedModules =
+      layout.id === 'dynamic'
+        ? applyDefaultSlotOrdering(nextModules, {
+            slotCount,
+            preserveEmpty: true,
+          })
+        : applyDefaultSlotOrdering(nextModules);
     const clonedPreset = {
       ...activeProfilePreset,
       layout: layout.id,
-      modules: nextModules,
+      modules: orderedModules,
       stickers: Array.isArray(activeProfilePreset.stickers)
         ? [...activeProfilePreset.stickers]
         : [],
+      stylePreset: activeProfilePreset.stylePreset || STYLE_PRESETS[0],
+      accentColor: activeProfilePreset.accentColor || DEFAULT_ACCENT,
+      canvasScale:
+        typeof activeProfilePreset.canvasScale === 'number'
+          ? activeProfilePreset.canvasScale
+          : 1,
+      canvasColorId: activeProfilePreset.canvasColorId || DEFAULT_CANVAS_COLOR_ID,
+      canvasColorAlpha: clamp01(
+        typeof activeProfilePreset.canvasColorAlpha === 'number'
+          ? activeProfilePreset.canvasColorAlpha
+          : DEFAULT_CANVAS_COLOR_ALPHA
+      ),
+      dynamicSlotCount: layout.id === 'dynamic' ? slotCount : 0,
+      cardBodyColor: activeProfilePreset.cardBodyColor || '#ffffff',
     };
     setDraftPreset(clonedPreset);
     setActiveModuleId(null);
     setLayoutMenuOpen(false);
     setSaveStatus('');
-  }, [customizeOpen, activeProfilePreset, bioFallbackPreset]);
+  }, [customizeOpen, activeProfilePreset, bioFallbackPreset, previewUser, userId]);
 
   const showCompactControls =
     filteredDeck.length > 0 && isShortViewport && !controlsVisible;
@@ -2014,8 +2831,24 @@ const TitanTap = () => {
     setDraftPreset((prev) => {
       if (!prev) return prev;
       const layout = findLayout(layoutId);
-      const modules = alignModulesWithLayout(prev.modules, layout.id);
-      return { ...prev, layout: layout.id, modules };
+      const modules = Array.isArray(prev.modules) ? prev.modules : [];
+      const nextSlotCount =
+        layout.id === 'dynamic'
+          ? resolveDynamicSlotCount(
+              layout.id,
+              modules.length,
+              prev.dynamicSlotCount
+            )
+          : 0;
+      const aligned = alignModulesWithLayout(modules, layout.id, {
+        slotCount: nextSlotCount || undefined,
+      });
+      return {
+        ...prev,
+        layout: layout.id,
+        modules: aligned,
+        dynamicSlotCount: layout.id === 'dynamic' ? nextSlotCount : 0,
+      };
     });
     setLayoutMenuOpen(false);
   }, []);
@@ -2035,39 +2868,284 @@ const TitanTap = () => {
     setLayoutMenuOpen((prev) => !prev);
   }, []);
 
+  const handleCanvasStyleCycle = useCallback(() => {
+    setDraftPreset((prev) => {
+      if (!prev) return prev;
+      const current = prev.stylePreset || STYLE_PRESETS[0];
+      const idx = STYLE_PRESETS.indexOf(current);
+      const nextPreset = STYLE_PRESETS[(idx + 1) % STYLE_PRESETS.length];
+      return { ...prev, stylePreset: nextPreset };
+    });
+  }, []);
+
+  const handleCanvasScaleChange = useCallback((scale) => {
+    setDraftPreset((prev) => {
+      if (!prev) return prev;
+      return { ...prev, canvasScale: scale };
+    });
+  }, []);
+
+  const handleCanvasColorChange = useCallback((colorId) => {
+    if (!colorId) return;
+    setDraftPreset((prev) => (prev ? { ...prev, canvasColorId: colorId } : prev));
+  }, []);
+
+  const handleCanvasOpacityChange = useCallback((alpha) => {
+    const clamped = clamp01(typeof alpha === 'number' ? alpha : 0);
+    setDraftPreset((prev) => (prev ? { ...prev, canvasColorAlpha: clamped } : prev));
+  }, []);
+
+  const handleCardBodyColorChange = useCallback((color) => {
+    if (!color) return;
+    setDraftPreset((prev) => (prev ? { ...prev, cardBodyColor: color } : prev));
+  }, []);
+
+  const handleAccentColorChange = useCallback(
+    async (color) => {
+      if (!color) return;
+      setDraftPreset((prev) => (prev ? { ...prev, accentColor: color } : prev));
+      if (userId) {
+        try {
+          await api(`/api/users/${userId}/preferences`, {
+            method: 'PATCH',
+            body: { userId, favoriteAccentColor: color },
+          });
+        } catch (err) {
+          console.warn('Accent color save failed', err?.message || err);
+        }
+      }
+    },
+    [userId]
+  );
+
   const handleLayoutMenuSelect = useCallback(
     (layoutId) => {
       handleLayoutChange(layoutId);
     },
     [handleLayoutChange]
   );
+  const handleLayoutMenuClose = useCallback(() => {
+    setLayoutMenuOpen(false);
+  }, []);
+
+  const handleAddModule = useCallback(() => {
+    setDraftPreset((prev) => {
+      if (!prev) return prev;
+      const currentModules = Array.isArray(prev.modules) ? prev.modules : [];
+      if (currentModules.length >= MAX_CANVAS_MODULES) return prev;
+      let nextLayoutId = prev.layout || 'dynamic';
+      if (nextLayoutId === 'hidden') {
+        nextLayoutId = lastVisibleLayoutRef.current || 'single';
+      }
+      let layout = findLayout(nextLayoutId);
+      const slotLimit = Array.isArray(layout.slots) ? layout.slots.length : 0;
+      if (
+        layout.id !== 'dynamic' &&
+        layout.id !== 'freeform' &&
+        slotLimit > 0 &&
+        currentModules.length >= slotLimit
+      ) {
+        nextLayoutId = 'dynamic';
+        layout = findLayout(nextLayoutId);
+      }
+      if (layout.id === 'dynamic') {
+        const currentSlotBudget = resolveDynamicSlotCount(
+          layout.id,
+          currentModules.length,
+          prev.dynamicSlotCount
+        );
+        let nextSlotBudget = currentSlotBudget || Math.max(currentModules.length, 1);
+        let targetSlotId = findFirstOpenDynamicSlotId(nextSlotBudget, currentModules);
+        if (!targetSlotId) {
+          if (nextSlotBudget >= MAX_CANVAS_MODULES) return prev;
+          nextSlotBudget = Math.min(MAX_CANVAS_MODULES, nextSlotBudget + 1);
+          targetSlotId = findFirstOpenDynamicSlotId(nextSlotBudget, currentModules);
+        }
+        const newModule = createBlankModule(
+          targetSlotId || `slot-${currentModules.length + 1}`
+        );
+        const orderedModules = applyDefaultSlotOrdering(
+          [...currentModules, newModule],
+          {
+            slotCount: nextSlotBudget,
+            preserveEmpty: true,
+          }
+        );
+        return {
+          ...prev,
+          layout: orderedModules.length ? nextLayoutId : 'hidden',
+          modules: orderedModules,
+          dynamicSlotCount: orderedModules.length ? nextSlotBudget : 0,
+        };
+      }
+      const slots = layout.slots && layout.slots.length ? layout.slots : [];
+      const nextSlotId =
+        slots[currentModules.length] || `slot-${currentModules.length + 1}`;
+      const newModule = createBlankModule(nextSlotId);
+      const orderedModules = applyDefaultSlotOrdering([
+        ...currentModules,
+        newModule,
+      ]);
+      return {
+        ...prev,
+        layout: orderedModules.length ? nextLayoutId : 'hidden',
+        modules: orderedModules,
+        dynamicSlotCount: nextLayoutId === 'dynamic' ? orderedModules.length : 0,
+      };
+    });
+  }, [lastVisibleLayoutRef]);
+
+  const handleRemoveModule = useCallback(() => {
+    setDraftPreset((prev) => {
+      if (!prev) return prev;
+      const currentModules = Array.isArray(prev.modules) ? prev.modules : [];
+      if (!currentModules.length) return prev;
+      if (prev.layout === 'dynamic') {
+        const slotCount = resolveDynamicSlotCount(
+          prev.layout,
+          currentModules.length,
+          prev.dynamicSlotCount
+        );
+        if (slotCount <= 0) return prev;
+        const hasEmptySlots = slotCount > currentModules.length;
+        const nextSlotCount = clampDynamicSlots(slotCount - 1);
+        const sourceModules = hasEmptySlots
+          ? currentModules
+          : currentModules.slice(0, -1);
+        const orderedModules = applyDefaultSlotOrdering(sourceModules, {
+          slotCount: nextSlotCount,
+          preserveEmpty: true,
+        });
+        const nextLayout =
+          orderedModules.length === 0
+            ? 'hidden'
+            : prev.layout === 'hidden'
+            ? lastVisibleLayoutRef.current || 'single'
+            : prev.layout;
+        const nextPreset = {
+          ...prev,
+          layout: nextLayout,
+          modules: orderedModules,
+          dynamicSlotCount: nextLayout === 'dynamic' ? nextSlotCount : 0,
+        };
+        return nextPreset;
+      }
+      const trimmed = currentModules.slice(0, -1);
+      const orderedModules = applyDefaultSlotOrdering(trimmed);
+      const nextLayout =
+        orderedModules.length === 0
+          ? 'hidden'
+          : prev.layout === 'hidden'
+          ? lastVisibleLayoutRef.current || 'single'
+          : prev.layout;
+      return {
+        ...prev,
+        layout: nextLayout,
+        modules: orderedModules,
+        dynamicSlotCount: nextLayout === 'dynamic' ? orderedModules.length : 0,
+      };
+    });
+  }, [lastVisibleLayoutRef]);
+
+  const handleModuleDelete = useCallback(
+    (moduleId) => {
+      setDraftPreset((prev) => {
+        if (!prev) return prev;
+        const currentModules = Array.isArray(prev.modules) ? prev.modules : [];
+        const filtered = currentModules.filter(
+          (mod) => String(mod._id) !== String(moduleId)
+        );
+        let orderedModules;
+        let nextSlotCount = prev.dynamicSlotCount;
+        if (prev.layout === 'dynamic') {
+          const slotCount = resolveDynamicSlotCount(
+            prev.layout,
+            currentModules.length,
+            prev.dynamicSlotCount
+          );
+          nextSlotCount = slotCount;
+          if (slotCount <= filtered.length) {
+            orderedModules = applyDefaultSlotOrdering(filtered, {
+              slotCount,
+              preserveEmpty: true,
+            });
+            nextSlotCount = orderedModules.length ? slotCount : 0;
+          } else {
+            orderedModules = filtered;
+            if (!orderedModules.length) {
+              nextSlotCount = 0;
+            }
+          }
+        } else {
+          orderedModules = applyDefaultSlotOrdering(filtered);
+          nextSlotCount = orderedModules.length && prev.layout === 'dynamic' ? orderedModules.length : 0;
+        }
+        const nextLayout =
+          orderedModules.length === 0
+            ? 'hidden'
+            : prev.layout === 'hidden'
+            ? lastVisibleLayoutRef.current || 'single'
+            : prev.layout;
+        return {
+          ...prev,
+          layout: nextLayout,
+          modules: orderedModules,
+          dynamicSlotCount: nextLayout === 'dynamic' ? nextSlotCount : 0,
+        };
+      });
+      if (String(activeModuleId) === String(moduleId)) {
+        setActiveModuleId(null);
+      }
+    },
+    [activeModuleId, lastVisibleLayoutRef]
+  );
 
   const handleModuleResize = useCallback((moduleId, nextLayout) => {
     setDraftPreset((prev) => {
       if (!prev) return prev;
-      const columnLimit = Math.max(getLayoutColumns(prev.layout || 'hidden'), 1);
-      const modules = prev.modules.map((mod) => {
+      const currentList = Array.isArray(prev.modules) ? prev.modules : [];
+      const sizingCount =
+        prev.layout === 'dynamic'
+          ? resolveDynamicSlotCount(
+              prev.layout,
+              currentList.length,
+              prev.dynamicSlotCount
+            )
+          : currentList.length;
+      const columnLimit = Math.max(
+        getLayoutColumns(prev.layout || 'hidden', sizingCount || currentList.length),
+        1
+      );
+      const modules = currentList.map((mod) => {
         if (String(mod._id) !== String(moduleId)) return mod;
-        const currentSettings =
-          typeof mod.layoutSettings === 'object' && mod.layoutSettings
-            ? { ...mod.layoutSettings }
-            : { span: 1, minHeight: null };
-        let nextSpan = currentSettings.span || 1;
-        if (nextLayout && typeof nextLayout.span === 'number') {
-          nextSpan = Math.min(Math.max(Math.round(nextLayout.span), 1), columnLimit);
-        } else {
-          nextSpan = Math.min(Math.max(nextSpan, 1), columnLimit);
+        const currentSettings = ensureLayoutDefaults(mod.layoutSettings);
+        const merged = {
+          ...currentSettings,
+          ...nextLayout,
+        };
+        if (merged.span != null) {
+          merged.span = Math.min(
+            Math.max(Math.round(merged.span), 1),
+            columnLimit
+          );
         }
-        let nextHeight = currentSettings.minHeight;
-        if (nextLayout && typeof nextLayout.minHeight === 'number') {
-          nextHeight = Math.max(Math.round(nextLayout.minHeight), 120);
+        if (merged.minHeight != null) {
+          merged.minHeight = Math.max(
+            Math.round(merged.minHeight),
+            MIN_MODULE_DIMENSION
+          );
+        }
+        if (merged.slotScaleX != null) merged.slotScaleX = clampSlotScale(merged.slotScaleX);
+        if (merged.slotScaleY != null) merged.slotScaleY = clampSlotScale(merged.slotScaleY);
+        if (merged.alignX && !ALIGN_TOKENS.includes(merged.alignX)) {
+          merged.alignX = currentSettings.alignX;
+        }
+        if (merged.alignY && !ALIGN_TOKENS.includes(merged.alignY)) {
+          merged.alignY = currentSettings.alignY;
         }
         return {
           ...mod,
-          layoutSettings: {
-            span: nextSpan,
-            minHeight: nextHeight != null ? nextHeight : null,
-          },
+          layoutSettings: merged,
         };
       });
       return { ...prev, modules };
@@ -2077,7 +3155,8 @@ const TitanTap = () => {
   const handleModuleTypeChange = useCallback((moduleId, nextType) => {
     setDraftPreset((prev) => {
       if (!prev) return prev;
-      const modules = prev.modules.map((mod) => {
+      const currentModules = Array.isArray(prev.modules) ? prev.modules : [];
+      const modules = currentModules.map((mod) => {
         if (String(mod._id) !== String(moduleId)) return mod;
         let content = {};
         if (nextType === 'text') {
@@ -2085,6 +3164,8 @@ const TitanTap = () => {
         } else if (nextType === 'image') {
           content = {
             url: typeof mod.content?.url === 'string' ? mod.content.url : '',
+            poster: typeof mod.content?.poster === 'string' ? mod.content.poster : '',
+            videoUrl: typeof mod.content?.videoUrl === 'string' ? mod.content.videoUrl : '',
           };
         } else if (nextType === 'club') {
           content = { clubId: typeof mod.content?.clubId === 'string' ? mod.content.clubId : '' };
@@ -2104,18 +3185,23 @@ const TitanTap = () => {
   const handleModuleContentChange = useCallback((moduleId, field, value) => {
     setDraftPreset((prev) => {
       if (!prev) return prev;
-      const modules = prev.modules.map((mod) => {
+      const currentModules = Array.isArray(prev.modules) ? prev.modules : [];
+      const modules = currentModules.map((mod) => {
         if (String(mod._id) !== String(moduleId)) return mod;
         const content = { ...mod.content };
         if (mod.type === 'text' && field === 'text') {
-          content.text = value.slice(0, 600);
+          content.text = applyTextLimits(value, TEXT_CHAR_LIMIT, MAX_MODULE_NEWLINES);
         } else if (mod.type === 'image') {
-          if (field === 'url') content.url = value.slice(0, 1024);
+          if (field === 'url') content.url = (value || '').slice(0, 1024);
+          if (field === 'poster') content.poster = (value || '').slice(0, 1024);
+          if (field === 'videoUrl') content.videoUrl = (value || '').slice(0, 1024);
         } else if (mod.type === 'club' && field === 'clubId') {
           content.clubId = value;
         } else if (mod.type === 'prompt') {
           if (field === 'promptKey') content.promptKey = value.slice(0, 80);
-          if (field === 'text') content.text = value.slice(0, 400);
+          if (field === 'text') {
+            content.text = applyTextLimits(value, TEXT_CHAR_LIMIT, MAX_MODULE_NEWLINES);
+          }
         } else {
           content[field] = value;
         }
@@ -2131,16 +3217,64 @@ const TitanTap = () => {
     setLayoutMenuOpen(false);
     try {
       const layout = findLayout(draftPreset.layout);
-      const modules = alignModulesWithLayout(draftPreset.modules, layout.id);
+      const sourceModules = Array.isArray(draftPreset.modules)
+        ? draftPreset.modules
+        : [];
+      const slotCount =
+        layout.id === 'dynamic'
+          ? resolveDynamicSlotCount(
+              layout.id,
+              sourceModules.length,
+              draftPreset.dynamicSlotCount
+            )
+          : 0;
+      const alignedModules = alignModulesWithLayout(sourceModules, layout.id, {
+        slotCount: slotCount || undefined,
+      });
+      const filteredModules = alignedModules.filter((mod) =>
+        moduleHasVisibleContentPublic(mod)
+      );
+      const normalizedModules = filteredModules.map((mod) => {
+        const modContent =
+          typeof mod.content === 'object' && mod.content ? { ...mod.content } : {};
+        if (mod.type === 'text' && typeof modContent.text === 'string') {
+          modContent.text = applyTextLimits(
+            modContent.text,
+            TEXT_CHAR_LIMIT,
+            MAX_MODULE_NEWLINES
+          );
+        }
+        if (mod.type === 'prompt' && typeof modContent.text === 'string') {
+          modContent.text = applyTextLimits(
+            modContent.text,
+            TEXT_CHAR_LIMIT,
+            MAX_MODULE_NEWLINES
+          );
+        }
+        return { ...mod, content: modContent };
+      });
+      const resolvedLayoutId = normalizedModules.length > 0 ? layout.id : 'hidden';
+      const resolvedSlotCount =
+        resolvedLayoutId === 'dynamic'
+          ? resolveDynamicSlotCount(
+              resolvedLayoutId,
+              normalizedModules.length,
+              draftPreset.dynamicSlotCount
+            )
+          : 0;
       const sanitizedDraft = {
         ...draftPreset,
-        layout: layout.id,
-        modules: modules.map((mod) => ({
-          ...mod,
-          content:
-            typeof mod.content === 'object' && mod.content ? { ...mod.content } : {},
-        })),
+        layout: resolvedLayoutId,
+        modules: normalizedModules,
         stickers: Array.isArray(draftPreset.stickers) ? draftPreset.stickers : [],
+        canvasColorId: draftPreset.canvasColorId || DEFAULT_CANVAS_COLOR_ID,
+        canvasColorAlpha: clamp01(
+          typeof draftPreset.canvasColorAlpha === 'number'
+            ? draftPreset.canvasColorAlpha
+            : DEFAULT_CANVAS_COLOR_ALPHA
+        ),
+        dynamicSlotCount: resolvedLayoutId === 'dynamic' ? resolvedSlotCount : 0,
+        cardBodyColor: draftPreset.cardBodyColor || '#ffffff',
       };
       const basePresets = Array.isArray(profileCardConfig?.presets)
         ? profileCardConfig.presets
@@ -2173,9 +3307,23 @@ const TitanTap = () => {
         null;
       if (savedActive) {
         const savedLayout = findLayout(savedActive.layout);
+        const savedSourceModules = Array.isArray(savedActive.modules)
+          ? savedActive.modules
+          : [];
+        const savedSlotCount =
+          savedLayout.id === 'dynamic'
+            ? resolveDynamicSlotCount(
+                savedLayout.id,
+                savedSourceModules.length,
+                savedActive.dynamicSlotCount
+              )
+            : 0;
         const savedModules = alignModulesWithLayout(
-          savedActive.modules,
-          savedLayout.id
+          savedSourceModules,
+          savedLayout.id,
+          {
+            slotCount: savedSlotCount || undefined,
+          }
         );
         const refreshedPreset = {
           ...savedActive,
@@ -2184,6 +3332,20 @@ const TitanTap = () => {
           stickers: Array.isArray(savedActive.stickers)
             ? [...savedActive.stickers]
             : [],
+          stylePreset: savedActive.stylePreset || STYLE_PRESETS[0],
+          accentColor: savedActive.accentColor || DEFAULT_ACCENT,
+          canvasScale:
+            typeof savedActive.canvasScale === 'number'
+              ? savedActive.canvasScale
+              : 1,
+          canvasColorId: savedActive.canvasColorId || DEFAULT_CANVAS_COLOR_ID,
+          canvasColorAlpha: clamp01(
+            typeof savedActive.canvasColorAlpha === 'number'
+              ? savedActive.canvasColorAlpha
+              : DEFAULT_CANVAS_COLOR_ALPHA
+          ),
+          dynamicSlotCount: savedLayout.id === 'dynamic' ? savedSlotCount : 0,
+          cardBodyColor: savedActive.cardBodyColor || '#ffffff',
         };
         setDraftPreset(refreshedPreset);
         setActiveModuleId(null);
@@ -2448,7 +3610,7 @@ const TitanTap = () => {
         </div>
       )}
 
-      <div className="deck">
+      <div className="deck" ref={deckRef}>
         {loading && <div className="note">Loading suggestions…</div>}
         {!loading && filteredDeck.length === 0 && (
           <div className="note">
@@ -2461,6 +3623,13 @@ const TitanTap = () => {
           const config =
             profileCardCacheRef.current.get(String(user._id)) || null;
           const preset = pickActivePreset(config);
+          const resolvedPreset =
+            preset ||
+            createBioFallbackPreset(user) || {
+              layout: 'hidden',
+              modules: [],
+              stickers: [],
+            };
           return (
             <div
               key={user._id}
@@ -2476,8 +3645,8 @@ const TitanTap = () => {
                 viewer={viewerProfile}
                 clubsMap={clubDirectory}
                 onDecision={decideTop}
-                profilePreset={preset}
-                canvasLayoutId={preset ? preset.layout : null}
+                profilePreset={resolvedPreset}
+                canvasLayoutId={resolvedPreset ? resolvedPreset.layout : null}
               />
             </div>
           );
@@ -2490,21 +3659,6 @@ const TitanTap = () => {
         </button>
         <button onClick={() => programmaticSwipe('right')}>Connect</button>
       </div>
-
-      {showCompactControls && (
-        <div className="controls-compact" role="group" aria-label="Swipe actions">
-          <button type="button" onClick={() => programmaticSwipe('left')}>
-            Pass
-          </button>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => programmaticSwipe('right')}
-          >
-            Connect
-          </button>
-        </div>
-      )}
 
       {customizeOpen &&
         typeof document !== 'undefined' &&
@@ -2550,7 +3704,14 @@ const TitanTap = () => {
                       className="customize-preview"
                       onClick={handlePreviewBackgroundClick}
                     >
-                      <div className="customize-preview-card">
+                      <div
+                        className="customize-preview-card"
+                        style={
+                          typeof liveCardHeight === 'number'
+                            ? { '--profile-card-height': `${liveCardHeight}px` }
+                            : undefined
+                        }
+                      >
                         <div
                           className="card-preview-shell"
                           onClick={(e) => e.stopPropagation()}
@@ -2564,18 +3725,39 @@ const TitanTap = () => {
                             preview
                             editable
                             moduleTypes={PROFILE_MODULE_TYPES}
-                            onModuleTypeChange={handleModuleTypeChange}
-                            onModuleContentChange={handleModuleContentChange}
-                            activeModuleId={activeModuleId}
-                            onModuleActivate={handleModuleActivate}
-                            onCanvasActivate={handleCanvasToggle}
-                            layoutMenuOpen={layoutMenuOpen}
-                            onLayoutSelect={handleLayoutMenuSelect}
-                            onModuleResize={handleModuleResize}
-                            canvasLayoutId={
-                              previewPreset ? previewPreset.layout : null
-                            }
-                          />
+                          onModuleTypeChange={handleModuleTypeChange}
+                          onModuleContentChange={handleModuleContentChange}
+                          activeModuleId={activeModuleId}
+                          onModuleActivate={handleModuleActivate}
+                          onCanvasActivate={handleCanvasToggle}
+                          layoutMenuOpen={layoutMenuOpen}
+                          onLayoutMenuClose={handleLayoutMenuClose}
+                          onLayoutSelect={handleLayoutMenuSelect}
+                          onModuleResize={handleModuleResize}
+                          onAddModule={handleAddModule}
+                          onRemoveModule={handleRemoveModule}
+                          onModuleDelete={handleModuleDelete}
+                          onStylePresetCycle={handleCanvasStyleCycle}
+                          moduleCount={draftPreset?.modules?.length || 0}
+                          maxModules={MAX_CANVAS_MODULES}
+                          stylePreset={draftPreset?.stylePreset || STYLE_PRESETS[0]}
+                          accentColor={draftPreset?.accentColor || DEFAULT_ACCENT}
+                          canvasScale={draftPreset?.canvasScale || 1}
+                          canvasColorId={draftPreset?.canvasColorId}
+                          canvasColorAlpha={
+                            typeof draftPreset?.canvasColorAlpha === 'number'
+                              ? draftPreset.canvasColorAlpha
+                              : undefined
+                          }
+                          onCanvasScaleChange={handleCanvasScaleChange}
+                          onCanvasColorChange={handleCanvasColorChange}
+                          onCanvasOpacityChange={handleCanvasOpacityChange}
+                          onAccentColorChange={handleAccentColorChange}
+                          onCardBodyColorChange={handleCardBodyColorChange}
+                          canvasLayoutId={
+                            previewPreset ? previewPreset.layout : null
+                          }
+                        />
                         </div>
                       </div>
                     </div>
