@@ -1489,9 +1489,10 @@ function CanvasControls({
 }
 
 function AccentPicker({ anchor, open, accentColor, onSelect, onClose }) {
-  if (typeof document === 'undefined' || !open || !anchor) return null;
   const pickerRef = useRef(null);
-  usePointerOutside(pickerRef, () => onClose?.(), open);
+  const canRender = typeof document !== 'undefined' && open && Boolean(anchor);
+  usePointerOutside(pickerRef, () => onClose?.(), canRender);
+  if (!canRender) return null;
   const viewportWidth =
     typeof window !== 'undefined'
       ? window.innerWidth || document.documentElement?.clientWidth || 0
@@ -1529,9 +1530,10 @@ function AccentPicker({ anchor, open, accentColor, onSelect, onClose }) {
 }
 
 function CardColorPicker({ anchor, open, value, onSelect, onClose }) {
-  if (typeof document === 'undefined' || !open || !anchor) return null;
   const pickerRef = useRef(null);
-  usePointerOutside(pickerRef, () => onClose?.(), open);
+  const canRender = typeof document !== 'undefined' && open && Boolean(anchor);
+  usePointerOutside(pickerRef, () => onClose?.(), canRender);
+  if (!canRender) return null;
   const viewportWidth =
     typeof window !== 'undefined'
       ? window.innerWidth || document.documentElement?.clientWidth || 0
@@ -2023,7 +2025,9 @@ function SwipeableCard({
       };
       setReleased(false);
       setIsSwiping(!skipSwipeRef.current);
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      if (!skipSwipeRef.current) {
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+      }
     },
     [swipable]
   );
