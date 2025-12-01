@@ -549,6 +549,29 @@ const PrimaryButton = styled.button`
   &:hover { filter: brightness(0.98); }
 `;
 
+const ThreeDotsButton = styled.button`
+  padding: clamp(4px, 1vw, 8px);
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  /* Keeps the button a perfect circle */
+  width: clamp(28px, 4vw, 36px);
+  height: clamp(28px, 4vw, 36px);
+
+  &:hover { filter: brightness(0.95); }
+
+  /* Optional: make the dots scale smoothly */
+  font-size: clamp(14px, 3vw, 18px);
+  color: var(--text-color);
+`;
+
+
 /* Themed input for delete-confirm field */
 const ModalInput = styled.input`
   width: 100%;
@@ -1367,6 +1390,9 @@ const Profile = () => {
                       <PrimaryButton $primary={!isFollowing} onClick={handleFollow}>
                         {isFollowing ? 'Unfollow' : 'Follow'}
                       </PrimaryButton>
+                      <ThreeDotsButton>
+                        ⋯
+                      </ThreeDotsButton>
                       {currentUser.isAdmin && String(currentUser._id) !== String(userOnPage?._id) && (
                         <DangerButton
                           onClick={onAdminDeleteUser}
