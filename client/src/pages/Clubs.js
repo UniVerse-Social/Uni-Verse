@@ -27,68 +27,69 @@ import ClubComposer from '../components/ClubComposer';
 import MemberDrawer from '../components/MemberDrawer';
 import Marketplace from './Marketplace';
 
-// ---------- layout ----------
+/* ---------- Layout shell ---------- */
+
 const Shell = styled.div`
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 24px 16px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: calc(105vh - 115px);
-  overflow-x: hidden;
-  padding-bottom: 30px;
+  /* Make the Clubs page slightly shorter than the viewport to avoid page scroll.
+     80px ≈ height of the global top navbar + a bit of breathing room. */
+  min-height: calc(100vh - 80px);
 
   @media (max-width: 900px) {
-    /* Keep your mobile behavior */
-    height: calc(100vh - 115px);
-    overflow-x: hidden;
+    padding: 8px 8px 72px; /* some space above bottom nav on mobile */
+    min-height: calc(100vh - 80px);
   }
 `;
 
 const Subbar = styled.div`
   display: flex;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 
   & > button {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 6px 12px;
     border-radius: 999px;
     border: 1px solid var(--border-color);
-    background: rgba(255,255,255,0.06);
+    background: rgba(255, 255, 255, 0.06);
     cursor: pointer;
     font-weight: 700;
     color: var(--text-color);
+    white-space: nowrap;
   }
   & > button.active {
     border-color: transparent;
-    background: linear-gradient(90deg, var(--primary-orange), #59D0FF);
+    background: linear-gradient(90deg, var(--primary-orange), #59d0ff);
     color: #000;
   }
 
-  /* center the 3 buttons on smaller screens */
   @media (max-width: 900px) {
     justify-content: center;
     flex-wrap: wrap;
   }
 `;
 
+/**
+ * Page grid – columns adapt like Discord:
+ * Clubs rail (narrow) | Channels (narrow) | Chat (fluid)
+ */
 const Page = styled.div`
-  display:grid; 
-  gap:16px; 
-  grid-template-columns: 290px minmax(0, 1fr) 320px;
-  auto: 1; 
-  overflow:hidden;     /* grid never exceeds viewport */
+  flex: 1;
+  min-height: 0; /* needed so children with overflow can scroll */
+  display: grid;
+  gap: 12px;
+  grid-template-columns: ${(p) => p.$cols};
+  align-items: stretch;
 
-  @media (max-width: 1024px) {
-    grid-template-columns: 280px 1fr 300px;
-  }
   @media (max-width: 900px) {
-    grid-template-columns: 1fr; /* phones keep single column */
-    overflow: hidden;           /* keep existing mobile behavior */
+    grid-template-columns: 1fr;
   }
 `;
 
@@ -97,18 +98,15 @@ const Col = styled.div`
   color: var(--text-color);
   border-radius: 12px;
   border: 1px solid var(--border-color);
-  box-shadow: 0 12px 28px rgba(0,0,0,0.35);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* allow the column to shrink inside the grid and avoid overflow */
   min-width: 0;
-  max-height: 72%;
-  overflow: hidden;
 `;
 
 const Head = styled.div`
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
@@ -118,9 +116,9 @@ const Head = styled.div`
 `;
 
 const Body = styled.div`
-  padding: 12px;
+  padding: 10px;
   min-height: 0;
-  overflow: ${(p) => (p.$scroll ? 'auto' : 'visible')};
+  overflow-y: ${(p) => (p.$scroll ? 'auto' : 'visible')};
   flex: ${(p) => (p.$scroll ? 1 : 'initial')};
 `;
 
@@ -128,72 +126,151 @@ const Row = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px;
+  padding: 7px;
   border-radius: 8px;
   cursor: pointer;
+  min-width: 0;
   &:hover {
-    background: rgba(255,255,255,0.06);
+    background: rgba(255, 255, 255, 0.06);
   }
 `;
-const Title = styled.div`font-weight:700;`;
-const Sub = styled.div`font-size:12px; color: rgba(230,233,255,0.65);`;
+
+const Title = styled.div`
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const Sub = styled.div`
+  font-size: 12px;
+  color: rgba(230, 233, 255, 0.65);
+`;
+
 const Btn = styled.button`
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-radius: 10px;
   border: none;
   background: var(--primary-orange);
   color: #000;
   cursor: pointer;
   font-weight: 800;
-  &:hover { background: linear-gradient(90deg, var(--primary-orange), #59D0FF); }
+  white-space: nowrap;
+  &:hover {
+    background: linear-gradient(90deg, var(--primary-orange), #59d0ff);
+  }
 `;
-const Ghost = styled(Btn)`background: rgba(255,255,255,0.06); color: var(--text-color); border: 1px solid var(--border-color);`;
+
+const Ghost = styled(Btn)`
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+`;
+
+/* ---------- Channel list (Discord-like) ---------- */
+
+const ChannelList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+`;
+
+const ChannelButton = styled.button`
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid
+    ${(p) => (p.$active ? 'transparent' : 'rgba(255, 255, 255, 0.12)')};
+  background: ${(p) =>
+    p.$active ? 'var(--primary-orange)' : 'rgba(255, 255, 255, 0.04)'};
+  color: ${(p) => (p.$active ? '#000' : 'var(--text-color)')};
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  &:hover {
+    background: ${(p) =>
+      p.$active ? 'var(--primary-orange)' : 'rgba(255, 255, 255, 0.07)'};
+  }
+`;
+
+const ChannelHeader = styled.div`
+  padding: 4px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+`;
+
+/* ---------- Mobile-only channel chips ---------- */
+
 const Chips = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
+
+  @media (min-width: 901px) {
+    display: none;
+  }
 `;
+
 const Chip = styled.button`
-  padding: 6px 10px;
+  padding: 5px 10px;
   border-radius: 999px;
   border: 1px solid ${(p) => (p.$active ? 'transparent' : 'var(--border-color)')};
-  background: ${(p) => (p.$active ? 'var(--primary-orange)' : 'rgba(255,255,255,0.06)')};
+  background: ${(p) =>
+    p.$active ? 'var(--primary-orange)' : 'rgba(255, 255, 255, 0.06)'};
   color: ${(p) => (p.$active ? '#000' : 'var(--text-color)')};
   cursor: pointer;
 `;
 
-/* ---------- Mobile helpers (no desktop changes) ---------- */
+/* ---------- Responsive helpers ---------- */
+
 const DesktopOnly = styled.div`
   @media (max-width: 900px) {
     display: none;
   }
 `;
+
 const MobileOnly = styled.div`
   display: none;
   @media (max-width: 900px) {
     display: block;
   }
 `;
+
 const MobileActions = styled.div`
   display: none;
+
   @media (max-width: 900px) {
     display: flex;
     gap: 8px;
     justify-content: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 
     button {
-      border: 1px solid #111;
-      background: #fff;
-      color: #111;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-color);
+    }
+    button:hover {
+      background: rgba(255, 255, 255, 0.1);
     }
   }
 `;
 
-/* Slide-in drawers for mobile */
+/* ---------- Drawers ---------- */
+
 const Backdrop = styled.div`
   position: fixed;
   inset: 0;
@@ -203,11 +280,12 @@ const Backdrop = styled.div`
   pointer-events: ${(p) => (p.$open ? 'auto' : 'none')};
   transition: opacity 0.2s ease;
 `;
+
 const LeftDrawer = styled.aside`
   position: fixed;
   top: 0;
   left: 0;
-  height: 100vh;
+  height: 100dvh;
   width: min(92vw, 360px);
   background: var(--container-white);
   color: var(--text-color);
@@ -217,12 +295,17 @@ const LeftDrawer = styled.aside`
   transition: transform 0.25s ease;
   display: flex;
   flex-direction: column;
+
+  @media (max-width: 900px) {
+    padding-bottom: 72px;
+  }
 `;
+
 const RightDrawer = styled.aside`
   position: fixed;
   top: 0;
   right: 0;
-  height: 100vh;
+  height: 100dvh;
   width: min(92vw, 420px);
   background: var(--container-white);
   color: var(--text-color);
@@ -232,48 +315,175 @@ const RightDrawer = styled.aside`
   transition: transform 0.25s ease;
   display: flex;
   flex-direction: column;
+
+  @media (max-width: 900px) {
+    padding-bottom: 72px;
+  }
 `;
+
 const DrawerHead = styled.div`
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 8px;
   font-weight: 700;
 `;
+
 const DrawerBody = styled.div`
-  padding: 12px;
+  padding: 10px;
   overflow: auto;
   min-height: 0;
   flex: 1;
 `;
 
-/* ---------- Events tab components (unchanged) ---------- */
+/* ---------- Events tab ---------- */
+
 const ComposerBox = styled.div`
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 10px;
-  background: var(--container-white);
-  margin-bottom: 12px;
+  background: rgba(15, 19, 41, 0.96);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.45);
+  margin-bottom: 10px;
 `;
+
 const TA = styled.textarea`
   width: 100%;
   min-height: 70px;
   border: none;
   outline: none;
   resize: vertical;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--text-color);
+  &::placeholder {
+    color: rgba(230, 233, 255, 0.55);
+  }
 `;
+
 const Input = styled.input`
   width: 100%;
-  padding: 8px;
+  padding: 8px 10px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 8px;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text-color);
-  &::placeholder{ color: rgba(230,233,255,0.55); }
+  &::placeholder {
+    color: rgba(230, 233, 255, 0.55);
+  }
 `;
+
+/* ---------- Discord-like chat area ---------- */
+
+const ChatPane = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+`;
+
+const Messages = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  padding-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  > * {
+    min-width: 0;
+  }
+
+  @media (max-width: 900px) {
+    padding-bottom: 72px;
+  }
+`;
+
+/* Themed, pinned composer. */
+const ComposeBar = styled.div`
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  border-top: 1px solid var(--border-color);
+  background: rgba(15, 19, 41, 0.98);
+  padding: 8px 12px;
+  box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.8);
+
+  & textarea {
+    min-height: 40px !important;
+    max-height: 120px !important;
+    resize: none;
+  }
+  & input[type='text'] {
+    height: 40px;
+  }
+
+  & textarea,
+  & input[type='text'] {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 10px 12px;
+  }
+
+  & ::placeholder {
+    color: rgba(230, 233, 255, 0.55);
+  }
+
+  & button,
+  & label[for*='photo'],
+  & [data-btn] {
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-color);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  & button:hover,
+  & label[for*='photo']:hover,
+  & [data-btn]:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  & button[type='submit'],
+  & button.post,
+  & [data-btn='post'],
+  & .post-btn {
+    background: var(--primary-orange);
+    color: #000;
+    border-color: transparent;
+  }
+
+  & button.photo,
+  & [data-btn='photo'],
+  & .photo-btn,
+  & label[for*='photo'] {
+    background: rgba(139, 123, 255, 0.16);
+    border-color: rgba(139, 123, 255, 0.6);
+    color: var(--text-color);
+  }
+`;
+
+const SearchRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  min-width: 0;
+
+  input {
+    min-width: 0;
+  }
+`;
+
+/* ---------- Events panel ---------- */
 
 function EventsPanel() {
   const { user } = useContext(AuthContext);
@@ -319,9 +529,9 @@ function EventsPanel() {
   };
 
   return (
-    <Col style={{ gridColumn: '1 / span 3' }}>
+    <Col style={{ gridColumn: '1 / -1' }}>
       <Head>
-        <FaBullhorn /> Events & Announcements
+        <FaBullhorn /> Events &amp; Announcements
       </Head>
       <Body $scroll>
         {canPost && (
@@ -351,8 +561,8 @@ function EventsPanel() {
               background: 'var(--container-white)',
               border: '1px solid var(--border-color)',
               borderRadius: 12,
-              padding: 12,
-              marginBottom: 12,
+              padding: 10,
+              marginBottom: 10,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -363,9 +573,17 @@ function EventsPanel() {
                 {new Date(ev.createdAt).toLocaleString()}
               </div>
             </div>
-            <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ev.text}</div>
+            <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>
+              {ev.text}
+            </div>
             {canPost && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  marginTop: 6,
+                }}
+              >
                 <Ghost onClick={() => del(ev._id)}>Delete</Ghost>
               </div>
             )}
@@ -377,23 +595,30 @@ function EventsPanel() {
   );
 }
 
+/* ---------- Main page ---------- */
+
 export default function Clubs() {
   const { user } = useContext(AuthContext);
 
-  // tabs
   const [tab, setTab] = useState('clubs');
 
-  // ------- existing Clubs state & logic -------
   const [myClubs, setMyClubs] = useState([]);
   const [explore, setExplore] = useState([]);
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState(null);
-  const [active, setActive] = useState({ type: 'main', sideId: null, name: 'Main' });
+  const [active, setActive] = useState({
+    type: 'main',
+    sideId: null,
+    name: 'Main',
+  });
   const [posts, setPosts] = useState([]);
   const [showMembers, setShowMembers] = useState(false);
-  const photoInput = useRef(null);
 
-  // mobile drawers
+  const photoInput = useRef(null);
+  const scrollerRef = useRef(null); // chat scroller
+  const initialClubLoadedRef = useRef(false);
+
+  // drawers
   const [showLeft, setShowLeft] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
 
@@ -417,9 +642,13 @@ export default function Clubs() {
   const loadClub = useCallback(
     async (clubId) => {
       const res = await axios.get(`${api.clubs}/${clubId}`);
+      setShowAbout(false);
       setSelected(res.data);
       setActive({ type: 'main', sideId: null, name: 'Main' });
-      setShowLeft(false); // close left drawer after choosing
+      setShowLeft(false);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('lastClubId', clubId);
+      }
     },
     [api.clubs]
   );
@@ -440,11 +669,59 @@ export default function Clubs() {
     searchClubs();
   }, [refreshMine, searchClubs]);
 
+  // Once myClubs is loaded, auto-open the last club the user accessed
+  useEffect(() => {
+    if (initialClubLoadedRef.current) return;
+    if (!myClubs || myClubs.length === 0) return;
+
+    let lastId = null;
+    if (typeof window !== 'undefined') {
+      lastId = localStorage.getItem('lastClubId');
+    }
+
+    let toOpen = null;
+    if (lastId && myClubs.some((c) => String(c._id) === String(lastId))) {
+      toOpen = lastId;
+    } else {
+      toOpen = myClubs[0]._id;
+    }
+
+    initialClubLoadedRef.current = true;
+    loadClub(toOpen);
+  }, [myClubs, loadClub]);
+
   useEffect(() => {
     if (selected) {
       loadPosts();
     }
   }, [selected, loadPosts]);
+
+  /* --- Discord semantics: oldest → newest, start scrolled to bottom --- */
+  const postsChrono = useMemo(() => {
+    const list = Array.isArray(posts) ? [...posts] : [];
+    try {
+      list.sort((a, b) => {
+        const da = new Date(a.createdAt || 0).getTime();
+        const db = new Date(b.createdAt || 0).getTime();
+        return da - db;
+      });
+    } catch {}
+    return list;
+  }, [posts]);
+
+  const scrollToBottom = useCallback((smooth = false) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: smooth ? 'smooth' : 'auto',
+    });
+  }, []);
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => scrollToBottom(false));
+    return () => cancelAnimationFrame(t);
+  }, [scrollToBottom, selected?._id, active.type, active.sideId, postsChrono.length]);
 
   const isMember = useMemo(
     () =>
@@ -452,6 +729,7 @@ export default function Clubs() {
       (selected.members || []).map(String).includes(String(user._id)),
     [selected, user._id]
   );
+
   const amPresident = useMemo(
     () => selected && String(selected.president) === String(user._id),
     [selected, user._id]
@@ -467,6 +745,10 @@ export default function Clubs() {
       description,
     });
     setSelected(res.data);
+    setShowAbout(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('lastClubId', res.data._id);
+    }
     refreshMine();
     searchClubs();
   };
@@ -477,10 +759,15 @@ export default function Clubs() {
     refreshMine();
     searchClubs();
   };
+
   const leave = async (clubId) => {
     if (!window.confirm('Leave this club?')) return;
     await axios.put(`${api.clubs}/${clubId}/leave`, { userId: user._id });
     setSelected(null);
+    setShowAbout(false);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('lastClubId');
+    }
     refreshMine();
     searchClubs();
   };
@@ -496,6 +783,7 @@ export default function Clubs() {
   };
 
   const choosePhoto = () => photoInput.current?.click();
+
   const onPhotoSelected = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !selected) return;
@@ -516,23 +804,39 @@ export default function Clubs() {
     searchClubs();
   };
 
-  // ---------- render ----------
+  /* ---------- Desktop columns (Discord-like widths) ---------- */
+  let cols;
+  if (!selected) {
+    cols = '240px minmax(0, 1fr)';
+  } else {
+    cols = '220px 200px minmax(0, 1fr)'; // Clubs | Channels | Chat
+  }
+
   return (
     <Shell>
-      {/* Sub-Navbar */}
+      {/* Sub-tabs */}
       <Subbar>
-        <button className={tab === 'clubs' ? 'active' : ''} onClick={() => setTab('clubs')}>
+        <button
+          className={tab === 'clubs' ? 'active' : ''}
+          onClick={() => setTab('clubs')}
+        >
           <FaUsers /> Clubs
         </button>
-        <button className={tab === 'events' ? 'active' : ''} onClick={() => setTab('events')}>
+        <button
+          className={tab === 'events' ? 'active' : ''}
+          onClick={() => setTab('events')}
+        >
           <FaBullhorn /> Events
         </button>
-        <button className={tab === 'market' ? 'active' : ''} onClick={() => setTab('market')}>
+        <button
+          className={tab === 'market' ? 'active' : ''}
+          onClick={() => setTab('market')}
+        >
           <FaStore /> Marketplace
         </button>
       </Subbar>
 
-      {/* Mobile quick actions (centered) */}
+      {/* Mobile quick actions */}
       {tab === 'clubs' && (
         <MobileOnly>
           <MobileActions>
@@ -549,17 +853,19 @@ export default function Clubs() {
         </MobileOnly>
       )}
 
-      {/* Tab: Clubs */}
+      {/* Clubs tab */}
       {tab === 'clubs' && (
-        <Page>
-          {/* Left: My Clubs & Explore (desktop only) */}
+        <Page $cols={cols}>
+          {/* LEFT: My Clubs + Explore (desktop) */}
           <DesktopOnly>
             <Col>
               <Head>
                 <FaUsers /> My Clubs
               </Head>
               <Body $scroll>
-                {myClubs.length === 0 && <Sub>You haven’t joined any clubs yet.</Sub>}
+                {myClubs.length === 0 && (
+                  <Sub>You haven’t joined any clubs yet.</Sub>
+                )}
                 {myClubs.map((c) => (
                   <Row key={c._id} onClick={() => loadClub(c._id)}>
                     <div
@@ -568,23 +874,28 @@ export default function Clubs() {
                         width: 28,
                         height: 28,
                         borderRadius: 8,
-                        background: 'rgba(255,255,255,0.06)',
+                        background: 'rgba(255, 255, 255, 0.06)',
                         display: 'grid',
                         placeItems: 'center',
                         overflow: 'hidden',
+                        flex: '0 0 auto',
                       }}
                     >
                       {c.profilePicture ? (
                         <img
                           src={c.profilePicture}
                           alt=""
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                          }}
                         />
                       ) : (
                         c.name[0]?.toUpperCase()
                       )}
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <Title>{c.name}</Title>
                       <Sub>{(c.members || []).length} members</Sub>
                     </div>
@@ -593,75 +904,161 @@ export default function Clubs() {
                     )}
                   </Row>
                 ))}
-              </Body>
-              <Body>
-                <Btn onClick={createClub}>
-                  <FaPaperPlane style={{ marginRight: 6 }} /> Create a Club
-                </Btn>
-              </Body>
 
-              <Head>
-                <FaSearch /> Explore
-              </Head>
-              <Body $scroll>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    style={{ flex: 1, padding: 8, border: '1px solid #eee', borderRadius: 8 }}
-                    placeholder="Search clubs…"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && searchClubs()}
-                  />
-                  <Ghost onClick={searchClubs}>Search</Ghost>
+                <div style={{ marginTop: 8, marginBottom: 12 }}>
+                  <Btn onClick={createClub}>
+                    <FaPaperPlane style={{ marginRight: 6 }} /> Create a Club
+                  </Btn>
                 </div>
-                <div style={{ marginTop: 8 }}>
-                  {explore.map((c) => (
-                    <Row key={c._id} onClick={() => loadClub(c._id)}>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          width: 28,
-                          height: 28,
-                          borderRadius: 8,
-                          background: 'rgba(255,255,255,0.06)',
-                          display: 'grid',
-                          placeItems: 'center',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        {c.profilePicture ? (
-                          <img
-                            src={c.profilePicture}
-                            alt=""
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          c.name[0]?.toUpperCase()
-                        )}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <Title>{c.name}</Title>
-                        <Sub>{c.membersCount} members</Sub>
-                      </div>
-                      {!c.isMember && (
-                        <Ghost
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            join(c._id);
+
+                {/* Explore */}
+                <div
+                  style={{
+                    marginTop: 4,
+                    paddingTop: 8,
+                    borderTop: '1px solid var(--border-color)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginBottom: 6,
+                    }}
+                  >
+                    <FaSearch />
+                    <span style={{ fontWeight: 700 }}>Explore</span>
+                  </div>
+                  <SearchRow>
+                    <input
+                      placeholder="Search clubs…"
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && searchClubs()}
+                      style={{
+                        padding: 7,
+                        border: '1px solid #eee',
+                        borderRadius: 8,
+                        background: 'rgba(255,255,255,0.03)',
+                        color: 'var(--text-color)',
+                      }}
+                    />
+                    <Ghost onClick={searchClubs}>Search</Ghost>
+                  </SearchRow>
+                  <div style={{ marginTop: 6 }}>
+                    {explore.map((c) => (
+                      <Row key={c._id} onClick={() => loadClub(c._id)}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            width: 28,
+                            height: 28,
+                            borderRadius: 8,
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            display: 'grid',
+                            placeItems: 'center',
+                            overflow: 'hidden',
+                            flex: '0 0 auto',
                           }}
                         >
-                          <FaUserPlus /> Join
-                        </Ghost>
-                      )}
-                    </Row>
-                  ))}
+                          {c.profilePicture ? (
+                            <img
+                              src={c.profilePicture}
+                              alt=""
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                            />
+                          ) : (
+                            c.name[0]?.toUpperCase()
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Title>{c.name}</Title>
+                          <Sub>{c.membersCount} members</Sub>
+                        </div>
+                        {!c.isMember && (
+                          <Ghost
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              join(c._id);
+                            }}
+                          >
+                            <FaUserPlus /> Join
+                          </Ghost>
+                        )}
+                      </Row>
+                    ))}
+                  </div>
                 </div>
               </Body>
             </Col>
           </DesktopOnly>
 
-          {/* Middle: Club view */}
-          <Col style={{ gridColumn: 'span 1' }}>
+          {/* MIDDLE: Channels (desktop) */}
+          {selected && (
+            <DesktopOnly>
+              <Col>
+                <Head>Channels</Head>
+                <>
+                  <ChannelList>
+                    <ChannelHeader>Text Channels</ChannelHeader>
+                    <ChannelButton
+                      $active={active.type === 'main'}
+                      onClick={() =>
+                        setActive({
+                          type: 'main',
+                          sideId: null,
+                          name: 'Main',
+                        })
+                      }
+                    >
+                      # Main
+                    </ChannelButton>
+                    {(selected.sideChannels || []).map((sc) => (
+                      <ChannelButton
+                        key={sc._id}
+                        $active={
+                          active.type === 'side' &&
+                          String(active.sideId) === String(sc._id)
+                        }
+                        onClick={() =>
+                          setActive({
+                            type: 'side',
+                            sideId: sc._id,
+                            name: sc.name,
+                          })
+                        }
+                      >
+                        # {sc.name}
+                      </ChannelButton>
+                    ))}
+                  </ChannelList>
+                  {amPresident && (
+                    <div
+                      style={{
+                        padding: '8px 10px 10px',
+                        borderTop: '1px solid var(--border-color)',
+                      }}
+                    >
+                      <Ghost
+                        style={{ width: '100%' }}
+                        onClick={newSideChannel}
+                      >
+                        <FaPlus /> New channel
+                      </Ghost>
+                    </div>
+                  )}
+                </>
+              </Col>
+            </DesktopOnly>
+          )}
+
+          {/* RIGHT: Chat */}
+          <Col>
             {!selected ? (
               <Body $scroll>
                 <Sub>Select a club to view its feeds.</Sub>
@@ -688,7 +1085,11 @@ export default function Clubs() {
                         <img
                           src={selected.profilePicture}
                           alt=""
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                          }}
                         />
                       ) : (
                         <span style={{ fontWeight: 700 }}>
@@ -714,9 +1115,7 @@ export default function Clubs() {
                       </Ghost>
                     )}
                     <Ghost onClick={() => setShowMembers(true)}>Members</Ghost>
-                    <Ghost className="mobile-only" onClick={() => setShowAbout(true)}>
-                      About
-                    </Ghost>
+                    <Ghost onClick={() => setShowAbout(true)}>About</Ghost>
                   </div>
                   <input
                     ref={photoInput}
@@ -727,80 +1126,82 @@ export default function Clubs() {
                   />
                 </Head>
 
+                {/* Mobile: channel chips */}
                 <Chips>
                   <Chip
                     $active={active.type === 'main'}
-                    onClick={() => setActive({ type: 'main', sideId: null, name: 'Main' })}
+                    onClick={() =>
+                      setActive({
+                        type: 'main',
+                        sideId: null,
+                        name: 'Main',
+                      })
+                    }
                   >
                     Main
                   </Chip>
                   {(selected.sideChannels || []).map((sc) => (
                     <Chip
                       key={sc._id}
-                      $active={active.type === 'side' && String(active.sideId) === String(sc._id)}
-                      onClick={() => setActive({ type: 'side', sideId: sc._id, name: sc.name })}
+                      $active={
+                        active.type === 'side' &&
+                        String(active.sideId) === String(sc._id)
+                      }
+                      onClick={() =>
+                        setActive({
+                          type: 'side',
+                          sideId: sc._id,
+                          name: sc.name,
+                        })
+                      }
                     >
                       {sc.name}
                     </Chip>
                   ))}
                   {amPresident && (
-                    <Ghost style={{ marginLeft: 'auto' }} onClick={newSideChannel}>
-                      <FaPlus /> New channel
+                    <Ghost
+                      style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
+                      onClick={newSideChannel}
+                    >
+                      <FaPlus /> New
                     </Ghost>
                   )}
                 </Chips>
 
-                <Body $scroll>
-                  {isMember && (
-                    <ClubComposer
-                      club={selected}
-                      channel={active.type}
-                      sideChannelId={active.type === 'side' ? active.sideId : null}
-                      onPosted={loadPosts}
-                    />
-                  )}
-                  {!isMember && <Sub>Join this club to post and comment.</Sub>}
-
-                  <div style={{ marginTop: 12 }}>
-                    {posts.map((p) => (
-                      <ClubPostCard key={p._id} post={p} refresh={loadPosts} />
+                {/* Chat pane */}
+                <ChatPane>
+                  <Messages ref={scrollerRef}>
+                    {postsChrono.length === 0 && <Sub>No posts yet.</Sub>}
+                    {postsChrono.map((p) => (
+                      <div key={p._id}>
+                        <ClubPostCard post={p} refresh={loadPosts} />
+                      </div>
                     ))}
-                    {posts.length === 0 && <Sub>No posts yet.</Sub>}
-                  </div>
-                </Body>
+                  </Messages>
+
+                  <ComposeBar>
+                    {isMember ? (
+                      <ClubComposer
+                        club={selected}
+                        channel={active.type}
+                        sideChannelId={
+                          active.type === 'side' ? active.sideId : null
+                        }
+                        onPosted={() => {
+                          loadPosts();
+                          setTimeout(() => scrollToBottom(true), 0);
+                        }}
+                      />
+                    ) : (
+                      <Sub>Join this club to post and comment.</Sub>
+                    )}
+                  </ComposeBar>
+                </ChatPane>
               </>
             )}
           </Col>
 
-          {/* Right: About (desktop only; hidden on phones) */}
-          <DesktopOnly>
-            <Col>
-              {!selected ? (
-                <Body $scroll>
-                  <Sub>
-                    Tips: Create channels for different teams (e.g., “Recruitment”, “Events”). Each
-                    channel can have a Director.
-                  </Sub>
-                </Body>
-              ) : (
-                <>
-                  <Head>About</Head>
-                  <Body $scroll>
-                    <div style={{ marginBottom: 8 }}>
-                      {selected.description || 'No description yet.'}
-                    </div>
-                    <div>
-                      <b>Members:</b> {(selected.members || []).length}
-                    </div>
-                    <div>
-                      <b>Channels:</b> {(selected.sideChannels || []).length} side
-                    </div>
-                  </Body>
-                </>
-              )}
-            </Col>
-          </DesktopOnly>
-
+          {/* Members Drawer */}
           {selected && showMembers && (
             <MemberDrawer
               club={selected}
@@ -814,83 +1215,34 @@ export default function Clubs() {
         </Page>
       )}
 
-      {/* Tab: Events */}
+      {/* Events tab */}
       {tab === 'events' && <EventsPanel />}
 
-      {/* Tab: Marketplace (reuses existing page component) */}
+      {/* Marketplace tab */}
       {tab === 'market' && (
-        <div style={{ background: 'transparent' }}>
+        <div style={{ background: 'transparent', flex: 1, minHeight: 0 }}>
           <Marketplace embedded />
         </div>
       )}
 
-      {/* --- Mobile Drawers --- */}
-      {/* Left drawer: My Clubs + Explore */}
-      <Backdrop $open={showLeft} onClick={() => setShowLeft(false)} />
-      <LeftDrawer $open={showLeft}>
-        <DrawerHead>
-          <FaUsers /> My Clubs
-          <span style={{ marginLeft: 'auto', cursor: 'pointer' }} onClick={() => setShowLeft(false)}>
-            ×
-          </span>
-        </DrawerHead>
-        <DrawerBody>
-          {myClubs.length === 0 && <Sub>You haven’t joined any clubs yet.</Sub>}
-          {myClubs.map((c) => (
-            <Row key={c._id} onClick={() => loadClub(c._id)}>
-              <div
-                style={{
-                  fontSize: 12,
-                  width: 28,
-                  height: 28,
-                  borderRadius: 8,
-                  background: 'rgba(255,255,255,0.06)',
-                  display: 'grid',
-                  placeItems: 'center',
-                  overflow: 'hidden',
-                }}
-              >
-                {c.profilePicture ? (
-                  <img
-                    src={c.profilePicture}
-                    alt=""
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  c.name[0]?.toUpperCase()
-                )}
-              </div>
-              <div style={{ flex: 1 }}>
-                <Title>{c.name}</Title>
-                <Sub>{(c.members || []).length} members</Sub>
-              </div>
-              {String(c.president) === String(user._id) && (
-                <FaCrown title="President" color="#d4a417" />
-              )}
-            </Row>
-          ))}
-
-          <div style={{ marginTop: 10 }}>
-            <Btn onClick={createClub}>
-              <FaPaperPlane style={{ marginRight: 6 }} /> Create a Club
-            </Btn>
-          </div>
-
-          <Head style={{ marginTop: 14, border: 'none', paddingLeft: 0 }}>
-            <FaSearch /> Explore
-          </Head>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              style={{ flex: 1, padding: 8, border: '1px solid #eee', borderRadius: 8 }}
-              placeholder="Search clubs…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && searchClubs()}
-            />
-            <Ghost onClick={searchClubs}>Search</Ghost>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            {explore.map((c) => (
+      {/* Mobile left drawer */}
+      <MobileOnly>
+        <Backdrop $open={showLeft} onClick={() => setShowLeft(false)} />
+        <LeftDrawer $open={showLeft}>
+          <DrawerHead>
+            <FaUsers /> My Clubs
+            <span
+              style={{ marginLeft: 'auto', cursor: 'pointer' }}
+              onClick={() => setShowLeft(false)}
+            >
+              ×
+            </span>
+          </DrawerHead>
+          <DrawerBody>
+            {myClubs.length === 0 && (
+              <Sub>You haven’t joined any clubs yet.</Sub>
+            )}
+            {myClubs.map((c) => (
               <Row key={c._id} onClick={() => loadClub(c._id)}>
                 <div
                   style={{
@@ -898,7 +1250,7 @@ export default function Clubs() {
                     width: 28,
                     height: 28,
                     borderRadius: 8,
-                    background: 'rgba(255,255,255,0.06)',
+                    background: 'rgba(255, 255, 255, 0.06)',
                     display: 'grid',
                     placeItems: 'center',
                     overflow: 'hidden',
@@ -908,7 +1260,11 @@ export default function Clubs() {
                     <img
                       src={c.profilePicture}
                       alt=""
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
                     />
                   ) : (
                     c.name[0]?.toUpperCase()
@@ -916,25 +1272,106 @@ export default function Clubs() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <Title>{c.name}</Title>
-                  <Sub>{c.membersCount} members</Sub>
+                  <Sub>{(c.members || []).length} members</Sub>
                 </div>
-                {!c.isMember && (
-                  <Ghost
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      join(c._id);
-                    }}
-                  >
-                    <FaUserPlus /> Join
-                  </Ghost>
+                {String(c.president) === String(user._id) && (
+                  <FaCrown title="President" color="#d4a417" />
                 )}
               </Row>
             ))}
-          </div>
-        </DrawerBody>
-      </LeftDrawer>
 
-      {/* Right drawer: About */}
+            <div style={{ marginTop: 8 }}>
+              <Btn onClick={createClub}>
+                <FaPaperPlane style={{ marginRight: 6 }} /> Create a Club
+              </Btn>
+            </div>
+
+            <div
+              style={{
+                marginTop: 12,
+                paddingTop: 8,
+                borderTop: '1px solid var(--border-color)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 6,
+                }}
+              >
+                <FaSearch />
+                <span style={{ fontWeight: 700 }}>Explore</span>
+              </div>
+              <SearchRow>
+                <input
+                  placeholder="Search clubs…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && searchClubs()}
+                  style={{
+                    padding: 7,
+                    border: '1px solid #eee',
+                    borderRadius: 8,
+                    background: 'rgba(255,255,255,0.03)',
+                    color: 'var(--text-color)',
+                  }}
+                />
+                <Ghost onClick={searchClubs}>Search</Ghost>
+              </SearchRow>
+              <div style={{ marginTop: 6 }}>
+                {explore.map((c) => (
+                  <Row key={c._id} onClick={() => loadClub(c._id)}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        width: 28,
+                        height: 28,
+                        borderRadius: 8,
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {c.profilePicture ? (
+                        <img
+                          src={c.profilePicture}
+                          alt=""
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                          }}
+                        />
+                      ) : (
+                        c.name[0]?.toUpperCase()
+                      )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Title>{c.name}</Title>
+                      <Sub>{c.membersCount} members</Sub>
+                    </div>
+                    {!c.isMember && (
+                      <Ghost
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          join(c._id);
+                        }}
+                      >
+                        <FaUserPlus /> Join
+                      </Ghost>
+                    )}
+                  </Row>
+                ))}
+              </div>
+            </div>
+          </DrawerBody>
+        </LeftDrawer>
+      </MobileOnly>
+
+      {/* About drawer */}
       <Backdrop $open={showAbout} onClick={() => setShowAbout(false)} />
       <RightDrawer $open={showAbout}>
         <DrawerHead>
@@ -949,12 +1386,14 @@ export default function Clubs() {
         <DrawerBody>
           {!selected ? (
             <Sub>
-              Tips: Create channels for different teams (e.g., “Recruitment”, “Events”). Each
-              channel can have a Director.
+              Tips: Create channels for different teams (e.g., “Recruitment”,
+              “Events”). Each channel can have a Director.
             </Sub>
           ) : (
             <>
-              <div style={{ marginBottom: 8 }}>{selected.description || 'No description yet.'}</div>
+              <div style={{ marginBottom: 8 }}>
+                {selected.description || 'No description yet.'}
+              </div>
               <div>
                 <b>Members:</b> {(selected.members || []).length}
               </div>

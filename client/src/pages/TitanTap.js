@@ -3455,7 +3455,7 @@ const TitanTap = () => {
       <style>{styles}</style>
 
       <div className="titantap-header">
-        <h2>TitanTap</h2>
+        <h2>UniConnect</h2>
         <input
           type="text"
           value={query}

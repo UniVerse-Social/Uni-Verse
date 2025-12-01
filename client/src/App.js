@@ -1,10 +1,9 @@
 // client/src/App.js
 import React, { createContext, useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate} from 'react-router-dom';
 import { createGlobalStyle } from 'styled-components';
 
 import Navbar from './components/Navbar';
-import Footer from './components/Footer';
 import Home from './pages/Home';
 import Profile from './pages/Profile';
 import Signup from './pages/Signup';
@@ -29,6 +28,11 @@ import UniversitySelect from './pages/EduConnect/UniversitySelect';
 import { DMDrawerProvider } from './context/DMDrawerContext';
 import DMDrawer from './components/DMDrawer';
 
+// 🆕 Daily challenge pages
+import CrosswordDaily from './pages/CrosswordDaily';
+import WordGuessDaily from './pages/WordGuessDaily';
+import SudokuDaily from './pages/SudokuDaily';
+
 // ---------- Global username click handler ----------
 function GlobalUsernameLinker() {
   const navigate = useNavigate();
@@ -50,12 +54,8 @@ function GlobalUsernameLinker() {
 
 // ---------- Footer gate ----------
 function FooterSwitch() {
-  const { pathname } = useLocation();
-  if (pathname.startsWith('/profile/')) return <Footer />;   // inline
-  if (pathname === '/clubs') return <Footer fixed />;        // fixed overlay
   return null;                                               // hidden elsewhere
 }
-
 
 // ---------- Lazy pages ----------
 const Clubs = React.lazy(() => import('./pages/Clubs'));
@@ -131,6 +131,10 @@ function App() {
                       }
                     />
                     <Route path="/games" element={<Games />} />
+                    {/* Daily challenge routes */}
+                    <Route path="/games/challenges/crossword" element={<CrosswordDaily />} />
+                    <Route path="/games/challenges/word" element={<WordGuessDaily />} />
+                    <Route path="/games/challenges/sudoku" element={<SudokuDaily />} />
                     <Route path="/dms" element={<DMPage />} />
                     <Route path="/ai" element={<AI />} />
                     <Route path="/ai/noted" element={<NotedAI />} />
@@ -138,9 +142,18 @@ function App() {
                     <Route path="/ai/citelab" element={<CiteLab />} />
                     <Route path="/ai/resumate" element={<Resumate />} />
                     {/* Legal pages available while logged in */}
-                    <Route path="/terms" element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />} />
-                    <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
-                    <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
+                    <Route
+                      path="/terms"
+                      element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />}
+                    />
+                    <Route
+                      path="/privacy"
+                      element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />}
+                    />
+                    <Route
+                      path="/guidelines"
+                      element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />}
+                    />
 
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>
@@ -158,9 +171,18 @@ function App() {
                     <Route path="/signup" element={<Signup />} />
 
                     {/* Public legal pages */}
-                    <Route path="/terms" element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />} />
-                    <Route path="/privacy" element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />} />
-                    <Route path="/guidelines" element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />} />
+                    <Route
+                      path="/terms"
+                      element={<LegalDocPage docUrl="/terms.html" title="Terms of Service" />}
+                    />
+                    <Route
+                      path="/privacy"
+                      element={<LegalDocPage docUrl="/privacy.html" title="Privacy Policy" />}
+                    />
+                    <Route
+                      path="/guidelines"
+                      element={<LegalDocPage docUrl="/guidelines.html" title="Community Guidelines" />}
+                    />
 
                     <Route path="*" element={<PublicEntryRouter />} />
                   </Routes>

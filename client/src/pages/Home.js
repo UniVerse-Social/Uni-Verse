@@ -1,5 +1,4 @@
 // client/src/pages/Home.js
-// Saved without a BOM to satisfy eslint unicode-bom rule in CRA builds.
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';

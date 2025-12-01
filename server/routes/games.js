@@ -3,7 +3,7 @@ const router = require('express').Router();
 const mongoose = require('mongoose');
 const GameProfile = require('../models/GameProfile');
 const GameResult = require('../models/GameResult');
-const { checkAndUnlock } = require('../services/badges'); // optional, if present
+const { checkAndUnlock } = require('../services/badges'); // optional
 const User = require('../models/User');
 
 /* -------------------- Ranks / tiers -------------------- */
@@ -30,16 +30,14 @@ async function ensureProfile(userId) {
 }
 
 /* -------------------- Monthly (existing) -------------------- */
-/**
- * Optional monthly soft reset:
- * - If total trophies exceed Champion threshold, overflow converts to coins
- * - Scale down per-game trophies proportionally to keep total at cap
- */
 async function maybeMonthlyReset(gp) {
   if (!gp) return gp;
   const now = new Date();
   const last = gp.lastResetAt || new Date(0);
-  const monthsApart = (now.getUTCFullYear() - last.getUTCFullYear()) * 12 + (now.getUTCMonth() - last.getUTCMonth());
+  const monthsApart =
+    (now.getUTCFullYear() - last.getUTCFullYear()) * 12 +
+    (now.getUTCMonth() - last.getUTCMonth());
+
   const currentRank = rankFromTrophies(gp.totalTrophies);
 
   if (monthsApart >= 1) {
@@ -47,7 +45,7 @@ async function maybeMonthlyReset(gp) {
       const overflow = gp.totalTrophies - 1500;
       gp.coins = (gp.coins || 0) + overflow;
 
-      // Scale per-game trophies down proportionally to total=1500
+      // scale per-game trophies down proportionally to cap total at 1500
       const total = Math.max(1, gp.totalTrophies);
       const scale = 1500 / total;
       const nextMap = new Map();
@@ -63,14 +61,8 @@ async function maybeMonthlyReset(gp) {
   return gp;
 }
 
-/* -------------------- Coins helpers (new) -------------------- */
+/* -------------------- Coins helpers -------------------- */
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-async function awardCoins(gp, amount) {
-  gp.coins = Math.max(0, (gp.coins || 0) + (amount || 0));
-  await gp.save();
-  return gp.coins;
-}
 
 async function autoGrantDailyCoins(gp) {
   const now = Date.now();
@@ -85,14 +77,12 @@ async function autoGrantDailyCoins(gp) {
 }
 
 /* -------------------- Routes -------------------- */
-/** GET game profile / rank (+auto daily coins) */
+// stats (+auto daily coins)
 router.get('/stats/:userId', async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.params.userId);
     let gp = await ensureProfile(userId);
     gp = await maybeMonthlyReset(gp);
-
-    // NEW: +100 once per day, granted on first stats load per day
     await autoGrantDailyCoins(gp);
 
     res.json({
@@ -109,9 +99,7 @@ router.get('/stats/:userId', async (req, res) => {
   }
 });
 
-/** POST game result -> adjust trophies (+1 coin on wins)
- * body: { userId, gameKey, delta }  // e.g. +15 win, -5 loss (floored at 0)
- */
+// result -> adjust trophies (+1 coin on wins)
 router.post('/result', async (req, res) => {
   try {
     const { userId, gameKey, delta } = req.body || {};
@@ -123,31 +111,25 @@ router.post('/result', async (req, res) => {
     const gp = await ensureProfile(uid);
     await maybeMonthlyReset(gp);
 
-    // Adjust per-game trophies
     const current = Number(gp.trophiesByGame.get(gameKey) || 0);
     const next = Math.max(0, current + delta);
     gp.trophiesByGame.set(gameKey, next);
 
-    // Recompute total
+    // recompute total
     let total = 0;
     for (const v of gp.trophiesByGame.values()) total += v;
     gp.totalTrophies = total;
 
-    // NEW: +1 coin for wins (we treat delta>0 as a win from bot games)
-    if (delta > 0) {
-      gp.coins = (gp.coins || 0) + 1;
-    }
+    if (delta > 0) gp.coins = (gp.coins || 0) + 1;
 
     await gp.save();
 
-    // Log history
-    try {
-      await GameResult.create({ userId: uid, gameKey, delta, didWin: delta > 0 });
-    } catch (e) {
+    // history log
+    try { await GameResult.create({ userId: uid, gameKey, delta, didWin: delta > 0 }); } catch (e) {
       console.warn('unable to create game result log', e?.message);
     }
 
-    // Optional: award badges (unchanged, but kept for compatibility)
+    // optional badges
     try {
       if (Math.abs(delta) > 0) {
         await checkAndUnlock(userId, { type: 'played_game' });
@@ -171,10 +153,7 @@ router.post('/result', async (req, res) => {
   }
 });
 
-/** NEW: POST /api/games/coins/badge -> +100 coins per unique badge
- * body: { userId, badgeKey }
- * - Idempotent: same badgeKey only pays once per user.
- */
+// coins for badges (idempotent)
 router.post('/coins/badge', async (req, res) => {
   try {
     const { userId, badgeKey } = req.body || {};
@@ -197,52 +176,18 @@ router.post('/coins/badge', async (req, res) => {
   }
 });
 
-/** GET leaderboard by gameKey (top N) */
-router.get('/leaderboard/:gameKey', async (req, res) => {
-  try {
-    const gameKey = String(req.params.gameKey);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '10', 10)));
-    const path = `trophiesByGame.${gameKey}`;
-
-    const leaders = await GameProfile.aggregate([
-      { $addFields: { score: { $ifNull: [`$${path}`, 0] } } },
-      { $match: { score: { $gt: 0 } } },
-      { $sort: { score: -1 } },
-      { $limit: limit },
-      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
-      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
-      { $project: { _id: 0, userId: '$userId', username: { $ifNull: ['$user.username', 'Player'] }, score: 1 } },
-    ]);
-
-    res.json({ leaders });
-  } catch (e) {
-    console.error('games leaderboard error:', e);
-    res.status(500).json({ message: 'Failed to load leaderboard' });
-  }
-});
-
-/** GET recent history for a user/gameKey */
-router.get('/history/:userId/:gameKey', async (req, res) => {
-  try {
-    const userId = new mongoose.Types.ObjectId(req.params.userId);
-    const gameKey = String(req.params.gameKey);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '10', 10)));
-
-    const history = await GameResult.find({ userId, gameKey })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
-
-    res.json({ history });
-  } catch (e) {
-    console.error('games history error:', e);
-    res.status(500).json({ message: 'Failed to load history' });
-  }
-});
-
-/** NEW: GET overall leaderboard (top N) + optional "me" rank
- *   /api/games/leaderboard/overall?limit=100&userId=<id>
+/* ---------- OVERALL LEADERBOARDS ---------- */
+/**
+ * 1) MAIN leaderboard (original): from GameProfile.totalTrophies
+ *    – This is the “database” you were using before.
+ *    – Kept at /leaderboard/overall.
+ *
+ * 2) UNION leaderboard (new): from Users left-joined with GameProfile
+ *    – Includes zero-score users; available at /leaderboard/overall/all
+ *    – Safe add, doesn’t replace the main one.
  */
+
+/* (1) MAIN overall (GameProfile) — define BEFORE the :gameKey route */
 router.get('/leaderboard/overall', async (req, res) => {
   try {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '100', 10)));
@@ -282,8 +227,102 @@ router.get('/leaderboard/overall', async (req, res) => {
 
     res.json({ leaders, me });
   } catch (e) {
-    console.error('overall leaderboard error:', e);
+    console.error('overall leaderboard (main) error:', e);
     res.status(500).json({ message: 'Failed to load overall leaderboard' });
+  }
+});
+
+/* (2) UNION overall (Users ⟕ GameProfile) — additional endpoint */
+router.get('/leaderboard/overall/all', async (req, res) => {
+  try {
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '100', 10)));
+    const userIdParam = req.query.userId;
+
+    const leaders = await User.aggregate([
+      { $project: { username: 1, profilePicture: 1 } },
+      { $lookup: { from: 'gameprofiles', localField: '_id', foreignField: 'userId', as: 'gp' } },
+      { $unwind: { path: '$gp', preserveNullAndEmptyArrays: true } },
+      { $project: {
+          _id: 0,
+          userId: '$_id',
+          username: { $ifNull: ['$username', 'Player'] },
+          avatarUrl: { $ifNull: ['$profilePicture', ''] },
+          score: { $ifNull: ['$gp.totalTrophies', 0] },
+      } },
+      { $sort: { score: -1, userId: 1 } },
+      { $limit: limit },
+    ]);
+
+    let me = null;
+    if (userIdParam) {
+      const uid = new mongoose.Types.ObjectId(userIdParam);
+      const gp = await GameProfile.findOne({ userId: uid }).lean();
+      const score = gp?.totalTrophies ?? 0;
+      const higher = await GameProfile.countDocuments({ totalTrophies: { $gt: score } });
+      const u = await User.findById(uid).select('username profilePicture').lean();
+
+      me = {
+        userId: uid,
+        username: u?.username || 'You',
+        avatarUrl: u?.profilePicture || '',
+        score,
+        rank: higher + 1
+      };
+    }
+
+    res.json({ leaders, me });
+  } catch (e) {
+    console.error('overall leaderboard (all) error:', e);
+    res.status(500).json({ message: 'Failed to load overall-all leaderboard' });
+  }
+});
+
+/* ---------- Per-game leaderboard (used by sidebar) ---------- */
+router.get('/leaderboard/:gameKey', async (req, res) => {
+  try {
+    const gameKey = String(req.params.gameKey);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '10', 10)));
+    const path = `trophiesByGame.${gameKey}`;
+
+    const leaders = await GameProfile.aggregate([
+      { $addFields: { score: { $ifNull: [`$${path}`, 0] } } },
+      { $match: { score: { $gt: 0 } } },
+      { $sort: { score: -1 } },
+      { $limit: limit },
+      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $project: {
+          _id: 0,
+          userId: '$userId',
+          username: { $ifNull: ['$user.username', 'Player'] },
+          avatarUrl: { $ifNull: ['$user.profilePicture', ''] }, // needed for sidebar
+          score: 1
+      } },
+    ]);
+
+    res.json({ leaders });
+  } catch (e) {
+    console.error('games leaderboard error:', e);
+    res.status(500).json({ message: 'Failed to load leaderboard' });
+  }
+});
+
+/* ---------- Recent history (used by sidebar) ---------- */
+router.get('/history/:userId/:gameKey', async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.params.userId);
+    const gameKey = String(req.params.gameKey);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '10', 10)));
+
+    const history = await GameResult.find({ userId, gameKey })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    res.json({ history });
+  } catch (e) {
+    console.error('games history error:', e);
+    res.status(500).json({ message: 'Failed to load history' });
   }
 });
 

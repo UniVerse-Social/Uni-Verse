@@ -1,3 +1,4 @@
+
 // client/src/components/Footer.jsx
 import React from 'react';
 import styled from 'styled-components';

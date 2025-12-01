@@ -6,6 +6,7 @@ import axios from 'axios';
 import { AuthContext } from '../App';
 import { toMediaUrl, API_BASE_URL } from '../config';
 import EditPostModal from './EditPostModal';
+import LetterAvatar from './LetterAvatar';
 import CommentDrawer from './CommentDrawer';
 import {
   createStickerPlacement,
@@ -711,7 +712,8 @@ const formatRelativeLabel = (createdAt) => {
   const diffYears = Math.floor(diffDays / 365);
   return `${diffYears} year${diffYears === 1 ? '' : 's'} ago`;
 };
-
+const isMeaningfulAvatar = (v) =>
+  typeof v === 'string' && v.trim() && !/^(null|undefined)$/i.test(v.trim());
 const makeSnippet = (body) => {
   const cleaned = String(body || '').replace(/\s+/g, ' ').trim();
   if (!cleaned) return '';
@@ -820,6 +822,7 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
   const [editOpen, setEditOpen] = useState(false);
   const [textContent, setTextContent] = useState(post.textContent);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [avatarBroken, setAvatarBroken] = useState(false);
   const [commentCount, setCommentCount] = useState(
     typeof post.commentCount === 'number'
       ? post.commentCount
@@ -2086,11 +2089,9 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
   }, [post.createdAt]);
   const dateLabel = useMemo(() => formatRelativeLabel(post.createdAt), [post.createdAt]);
 
-  /* Use custom avatar if provided; otherwise the hardcoded fallback */
-  const avatarSrc =
-    post.profilePicture && String(post.profilePicture).trim()
-      ? toMediaUrl(post.profilePicture)
-      : FALLBACK_AVATAR;
+ const avatarUrl = isMeaningfulAvatar(post.profilePicture)
+   ? toMediaUrl(post.profilePicture)
+   : null;
 
   const mediaAttachments = useMemo(() => {
     const list = Array.isArray(post.attachments) ? [...post.attachments] : [];
@@ -2501,8 +2502,32 @@ const Post = ({ post, onPostDeleted, onPostUpdated, animationsDisabled }) => {
         </PermissionNotice>
       )}
         <PostHeader>
-          <ProfilePic ref={avatarRef} src={avatarSrc} fallback={FALLBACK_AVATAR} alt="User avatar" />
-
+          {avatarUrl && !avatarBroken ? (
+            <img
+              ref={avatarRef}
+              src={avatarUrl}
+              alt="User avatar"
+              width={42}
+              height={42}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                marginRight: 12,
+                objectFit: 'cover',
+                border: '1px solid var(--border-color)',
+              }}
+              onError={() => setAvatarBroken(true)}
+            />
+          ) : (
+            <div ref={avatarRef} style={{ marginRight: 12 }}>
+              <LetterAvatar
+                name={post?.username || 'User'}
+                size={42}
+                className="post-letter-avatar"
+              />
+            </div>
+          )}
           <UserInfo>
             <UsernameRow>
               <Username

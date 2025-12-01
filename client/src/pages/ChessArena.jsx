@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, useContext } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useContext, useLayoutEffect } from 'react';
 import styled from 'styled-components';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
@@ -10,22 +10,124 @@ import { createStockfish } from '../engine/sfEngine';
 import GameRules from '../components/GameRules';
 import GameSidebar from '../components/GameSidebar';
 
+/* === Layout constants (match left GameSidebar width) === */
+const SIDE_W = 360;      // matches sidebar
+const HEADER_H = 76;     // header height (matches sidebar)
+const BOTTOM_GAP = 40;   // breathing room
+const MOBILE_NAV_H = 64;
+const RAIL_PAD = 12; 
+
 /* Styles */
 const Wrap = styled.div`
-  display:grid; grid-template-columns: 460px 1fr; gap:16px; align-items:start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 26vw, ${SIDE_W}px);
+  gap: 16px;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+
   @media (max-width: 860px) {
-    grid-template-columns: 1fr;   /* stack panels */
-    gap: 12px;
+    display: block;          /* single-column on phones */
+    width: 100%;
+    overflow-x: hidden;
   }
 `;
+
+const RightRailShell = styled.div`
+  position: sticky;
+  top: ${HEADER_H}px;
+  align-self: start;
+  padding: 12px 0 ${RAIL_PAD}px 0;
+
+  /* Keep the entire right rail (top bar + panel + padding) inside the viewport
+     below the global header, regardless of screen size */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - ${HEADER_H}px);
+  box-sizing: border-box;
+
+  @media (max-width: 860px) {
+    display: none !important; /* hide on phones; we use drawer */
+  }
+`;
+
 const Panel = styled.div`
   border:1px solid var(--border-color);
   background:var(--container-white);
   color: var(--text-color);
   border-radius:12px;
   padding:12px;
-  box-shadow: 0 14px 32px rgba(0,0,0,.35);
+  box-shadow: 0 12px 28px rgba(0,0,0,.28);
 `;
+const RightRailTopBar = styled.div`
+  z-index: 3; 
+  display: flex;
+  justify-content: flex-end;     /* button flush right */
+  align-items: center;
+  padding: 0 8px;
+  height: 56px;
+  margin-bottom: 12px;
+`;
+
+const ControlsPanel = styled(Panel)`
+  grid-column: 2;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  /* Let RightRailShell control the total height; this just fills it */
+  flex: 1 1 auto;
+  min-height: 0;
+  align-self: stretch;
+  overflow: auto; /* rail can scroll, board never does */
+  -webkit-overflow-scrolling: touch;
+
+  @media (max-width: 860px) {
+    grid-column: auto;
+    width: 100%;
+    max-height: none;
+  }
+`;
+
+const BoardPanel = styled(Panel)`
+  grid-column: 1;
+  justify-self: center;
+  align-self: start;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  /* Fit viewport; avoid any board scrollbars */
+  max-height: calc(100vh - ${HEADER_H}px - ${BOTTOM_GAP}px);
+  overflow: hidden;
+
+  @media (max-width: 860px) {
+    width: 100%;
+    max-width: 100vw;
+    margin: 0;
+    /* Keep content clear of the bottom navbar + iOS safe area */
+    padding: 0 0 calc(${MOBILE_NAV_H}px + env(safe-area-inset-bottom, 0px)) 0;
+    /* Also constrain the panel height on phones */
+    max-height: calc(100vh - ${HEADER_H}px - ${MOBILE_NAV_H}px);
+
+    align-items: stretch;        /* <-- NEW: children can use full width */
+  }
+`;
+
+const BoardViewport = styled.div`
+  flex: 0 0 auto;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden; /* no scrollbars */
+  min-height: 0;
+  position: relative;
+`;
+
 const Button = styled.button`
   padding: 8px 12px;
   border-radius: 10px;
@@ -38,6 +140,32 @@ const Button = styled.button`
   &:hover{ background: ${p=>p.$primary ? 'linear-gradient(90deg,var(--primary-orange),#59D0FF)' : 'rgba(255,255,255,0.10)'}; transform: translateY(-1px); }
   &:active{ transform: translateY(0); }
 `;
+
+const ReturnButton = styled(Button)`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;   /* <-- center icon + text */
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.06);
+  backdrop-filter: blur(6px);
+  color: var(--text-color);
+  width: 100%;
+  box-sizing: border-box;
+
+  &:hover {
+    background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+    border-color: rgba(255,255,255,0.16);
+    transform: translateY(-1px);
+  }
+  .icon { font-size: 18px; line-height: 1; opacity: .95; }
+`;
+
 const Alert = styled.div`
   margin-top: 10px; padding: 8px 10px; border-radius: 10px; font-size: 13px;
   border: 1px solid rgba(239,68,68,.35);
@@ -54,95 +182,125 @@ const Modal = styled.div`
   border-radius: 14px; box-shadow: 0 24px 64px rgba(0,0,0,.45);
   border:1px solid var(--border-color); padding:16px;
 `;
-const ModalGrid = styled.div`display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px;`;
-// show only on phones
-const MobileOnly = styled.div`
+
+/* top-left launcher + opponent pill (only on phones) */
+const MobileTopBar = styled.div`
   display: none;
-  @media (max-width: 860px) { display: block; }
-`;
-
-// compact dropdown shell for the sidebar on mobile
-const MobileDropdown = styled.details`
-  background: var(--container-white);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 8px 10px;
-  box-shadow: 0 12px 28px rgba(0,0,0,.18);
-
-  summary {
-    list-style: none;
-    cursor: pointer;
-    font-weight: 800;
-  }
-  summary::-webkit-details-marker { display: none; }
-
-  /* Overlay behavior only on phones */
   @media (max-width: 860px) {
-    &[open] {
-      position: fixed;
-      inset: 0;
-      margin: 0;
-      padding: 0;
-      border-radius: 0;
-      z-index: 1000;                  /* ↑ above site header */
-      background: rgba(0,0,0,.35);    /* dim backdrop */
-    }
-
-    /* keep the summary as a top bar you can also tap to close */
-    &[open] > summary {
-      position: fixed;
-      top: calc(env(safe-area-inset-top, 0px) + 8px);
-      left: 8px; right: 8px;
-      margin: 0;
-      padding: 12px 14px;
-      background: var(--container-white);
-      border-radius: 10px;
-      border: 1px solid var(--border-color);
-      z-index: 1001;
-    }
-
-    /* Inner sheet that holds the sidebar content */
-    &[open] .content {
-      position: absolute;
-      top: calc(env(safe-area-inset-top, 0px) + 56px); /* below summary bar */
-      left: 0; right: 0; bottom: 0;
-      background: var(--container-white);
-      border-radius: 12px 12px 0 0;
-      padding: 10px;
-      overflow: auto; /* scroll stats/leaderboard, not the board behind */
-      -webkit-overflow-scrolling: touch;
-    }
-
-    /* Top-right X close button */
-    &[open] .x {
-      position: fixed;
-      top: calc(env(safe-area-inset-top, 0px) + 10px);
-      right: calc(env(safe-area-inset-right, 0px) + 10px);
-      z-index: 1002;                  /* above summary/content */
-      width: 36px; height: 36px;
-      border: 1px solid var(--border-color);
-      background: var(--container-white);
-      border-radius: 999px;
-      box-shadow: 0 8px 18px rgba(0,0,0,.12);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px; font-weight: 900; line-height: 1;
-    }
-
-    /* (Optional) bottom-right close, keep if you like having two exits */
-    &[open] .close {
-      position: fixed;
-      right: 12px;
-      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-      z-index: 1002;
-      border: 1px solid var(--border-color);
-      background: var(--container-white);
-      border-radius: 999px;
-      padding: 10px 14px;
-      box-shadow: 0 8px 18px rgba(0,0,0,.12);
-      font-weight: 800;
-    }
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+    margin-bottom: 8px;
   }
 `;
+
+const MobileOpponentPill = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.06);
+  font-size: 11px;
+`;
+
+const MobileOpponentName = styled.span`
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const MobileOpponentClock = styled.span`
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: rgba(230,233,255,0.75);
+`;
+
+const DrawerButton = styled.button`
+  @media (max-width: 860px) {
+    border: 1px solid var(--border-color);
+    background: var(--container-white);
+    color: var(--text-color);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-weight: 800;
+    box-shadow: 0 8px 18px rgba(0,0,0,.12);
+  }
+  @media (min-width: 861px) { display: none; }
+`;
+
+/* Left-side drawer for the sidebar on phones */
+const Drawer = styled.aside`
+  position: fixed;
+  top: ${HEADER_H}px;
+  left: 0;
+  bottom: 0;
+  width: min(92vw, 360px);
+  background: var(--container-white);
+  border-right: 1px solid var(--border-color);
+  box-shadow: 12px 0 28px rgba(0,0,0,.28);
+  transform: translateX(${p => (p.$open ? '0' : '-100%')});
+  transition: transform .22s ease;
+  z-index: 60;
+  padding: 12px 10px;
+  overflow: auto;
+`;
+
+const DrawerBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.35);
+  z-index: 59;
+`;
+
+const ModalGrid = styled.div`display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px;`;
+
+/* Mobile stack below the board */
+const MobileStack = styled.div`
+  display: none;
+  @media (max-width: 860px) {
+    display: grid;
+    gap: 10px;
+    margin-top: 8px;
+    width: 100%;
+  }
+`;
+
+/* Buttons overlayed on the board when no game is active */
+const BoardOverlayCTA = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 3;              /* <— ensure CTA appears above the board */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  @media (min-width: 861px) { display: none; }
+  > div {
+    pointer-events: auto;
+    display: grid; gap: 10px;
+    background: rgba(0,0,0,.28);
+    backdrop-filter: blur(6px);
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.12);
+  }
+`;
+
+const MobileStatsRow = styled.div`
+  @media (max-width: 860px) {
+    width: 100%;                           
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+  }
+  @media (min-width: 861px) { display: none; }
+`;
+
 /* Bot presets — strengths & personalities */
 const BOT_PRESETS = {
   tutorial:  { label: 'Tutorial', status: 'Tutorial bot: explains moves clearly.', useSF: true,  sf: { movetime: 280, depth: 12, multipv: 1 }, explain:true, thinkMs: 150 },
@@ -540,7 +698,7 @@ async function gradeWithStockfish(sfRef, readyRef, withSFLock, fen, uciPlayed) {
 }
 
 /* Component */
-export default function ChessArena() {
+export default function ChessArena({ onExit }) {
   const { user } = useContext(AuthContext);
 
   const [mode, setMode] = useState(null);
@@ -557,14 +715,74 @@ export default function ChessArena() {
   const chessRef = useRef(new Chess());
   const awardedRef = useRef(false);
   const noticeTimer = useRef(null);
-  const statsRef = useRef(null);
-  const [statsOpen, setStatsOpen] = useState(false);
+  const panelRef = useRef(null);
+  const [boardSize, setBoardSize] = useState(720);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // define resultModal BEFORE using it
+  const [resultModal, setResultModal] = useState(null); // { didWin, resultText, trophies, rank, place }
+
+  // now it's safe to compute the CTA flag
+  const noMovesYet = (chessRef.current?.history?.() || []).length === 0;
+  const showStartCTA =
+    !resultModal &&
+    noMovesYet &&
+    (
+      !mode ||
+      (mode === 'bot' && !botProfile) ||
+      (mode === 'online' && !roomId)
+    );
+
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof document === 'undefined') return;
+    if (drawerOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => (document.body.style.overflow = '');
+  }, [drawerOpen]);
+
+  useLayoutEffect(() => {
+    const getPad = (el) => {
+      const cs = window.getComputedStyle(el);
+      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      return { padX, padY };
+    };
+
+  const BREATHING = BOTTOM_GAP;
+
+  const calc = () => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const { padX, padY } = getPad(panel);
+    const innerW = Math.max(240, Math.floor(panel.clientWidth - padX));
     const isPhone = window.matchMedia('(max-width: 860px)').matches;
-    document.body.style.overflow = (isPhone && statsOpen) ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [statsOpen]);
+    // visualViewport gap helps detect bottom bars / keyboard shrink on iOS
+    const inset = window.visualViewport
+      ? Math.max(0, (window.innerHeight || 0) - window.visualViewport.height)
+      : 0;
+    const mobileExtra = isPhone ? (MOBILE_NAV_H + inset) : 0;
+    const availH = Math.max(
+      240,
+      Math.floor((window.innerHeight || 900) - HEADER_H - BREATHING - padY - mobileExtra)
+    );
+ 
+
+    setBoardSize(Math.min(innerW, availH));
+  };
+
+  calc();
+  window.addEventListener('resize', calc);
+  let ro;
+  if ('ResizeObserver' in window && panelRef.current) {
+    ro = new ResizeObserver(calc);
+    ro.observe(panelRef.current);
+  }
+  return () => {
+    window.removeEventListener('resize', calc);
+    if (ro) ro.disconnect();
+  };
+}, []);
   // Track my color for online in a ref to avoid stale closures
   const colorRef = useRef('w'); // 'w' | 'b'
 
@@ -579,39 +797,19 @@ export default function ChessArena() {
   }, [fen]);
 
   // end-of-game modal & naming
-  const [resultModal, setResultModal] = useState(null); // { didWin, resultText, trophies, rank, place }
   const [oppName, setOppName] = useState('');
   const myColor = useCallback(
     () => (orientation === 'white' ? 'w' : 'b'),
     [orientation]
   );
-
+  const lastTurnRef = useRef('w');
+  const timeoutHandledRef = useRef(false);
   // Drag origin highlight
   const [dragFrom, setDragFrom] = useState(null);
 
   // Bot busy lock
   const botBusyRef = useRef(false);
   const setBusy = (v) => { botBusyRef.current = v; };
-
-const [boardSize, setBoardSize] = useState(432);
-const [isNarrow, setIsNarrow]   = useState((typeof window !== 'undefined') ? window.innerWidth <= 860 : false);
-
-useEffect(() => {
-  const calc = () => {
-    const vh = window.innerHeight || 900;
-    const vw = window.innerWidth  || 430;
-
-    // same desktop cap as before; also respect available width on phones
-    const fitH = Math.min(444, Math.floor(vh - 320));
-    const fitW = Math.max(300, Math.floor(vw - 48));  // leaves some padding
-    setBoardSize(Math.max(300, Math.min(fitH, fitW)));
-
-    setIsNarrow(vw <= 860);
-  };
-  calc();
-  window.addEventListener('resize', calc);
-  return () => window.removeEventListener('resize', calc);
-}, []);
 
   // PREMOVE
   const [premove, setPremove] = useState(null); // {from, to, promotion}
@@ -979,6 +1177,10 @@ useEffect(() => {
   const [bMs, setBms] = useState(600000);
   const [clockSince, setClockSince] = useState(null); // when the last server sync arrived
   const [nowTs, setNowTs] = useState(Date.now());
+  const clockSinceRef = useRef(null);
+  const modeRef = useRef(mode);
+  useEffect(() => { clockSinceRef.current = clockSince; }, [clockSince]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => {
     if (mode !== 'online' || !roomId) return;
     const id = setInterval(() => setNowTs(Date.now()), 200); // smooth UI countdown
@@ -1056,6 +1258,7 @@ useEffect(() => {
       setFen(chessRef.current.fen());
       setOrientation(color === 'w' ? 'white' : 'black');
       colorRef.current = color === 'w' ? 'w' : 'b';
+      lastTurnRef.current = chessRef.current.turn?.() || 'w';
       setRoomId(roomId);
       setMode('online');
       awardedRef.current = false;
@@ -1066,14 +1269,29 @@ useEffect(() => {
       recentFensRef.current = [chessRef.current.fen()];
       if (typeof wMs === 'number') setWms(wMs);
       if (typeof bMs === 'number') setBms(bMs);
-      setClockSince(Date.now());
+      const now = Date.now();
+      setClockSince(now);
+      clockSinceRef.current = now;
+      timeoutHandledRef.current = false;
     });
 
     s.on('chess:state', ({ fen, wMs, bMs }) => {
+      /* Apply a local debit to the side that was running since the last sync
+         without reading stale state from closures. */
+      if (clockSinceRef.current && modeRef.current === 'online') {
+        const delta = Math.max(0, Date.now() - clockSinceRef.current);
+        if (lastTurnRef.current === 'w') setWms(prev => Math.max(0, prev - delta));
+        else setBms(prev => Math.max(0, prev - delta));
+      }
       try { chessRef.current.load(fen); setFen(fen); clearNotice(); } catch {}
+      /* Prefer server-provided times if present; otherwise keep locally debited values */
       if (typeof wMs === 'number') setWms(wMs);
       if (typeof bMs === 'number') setBms(bMs);
-      setClockSince(Date.now());
+      /* Update whose turn is now running and start a new local epoch */
+      lastTurnRef.current = chessRef.current.turn?.() || lastTurnRef.current;
+      const now = Date.now();
+      setClockSince(now);
+      clockSinceRef.current = now
     });
 
     s.on('chess:gameover', async ({ result, reason }) => {
@@ -1216,6 +1434,15 @@ useEffect(() => {
       if (!chess.isGameOver()) botMove();
       else { const txt = endMessage(chess); setStatus(txt); openResultModal(txt); }
     } else if (mode === 'online' && socketRef.current && roomId) {
+      /* Before we emit our move, locally debit our running clock so the UI
+         continues smoothly without waiting for the server push. */
+      if (clockSince) {
+        const delta = Math.max(0, Date.now() - clockSince);
+        if (myColor() === 'w') setWms(prev => Math.max(0, prev - delta));
+        else setBms(prev => Math.max(0, prev - delta));
+      }
+      lastTurnRef.current = (myColor() === 'w') ? 'b' : 'w';  // after our move, opp runs
+      setClockSince(Date.now());   
       socketRef.current.emit('chess:move', { roomId, ...mv });
     }
     return true;
@@ -1250,12 +1477,33 @@ useEffect(() => {
   const oppRunning = (mode === 'online' && turn === oppCol);
   const myRunning  = (mode === 'online' && turn === myCol);
 
+  useEffect(() => {
+    if (mode !== 'online' || !roomId || timeoutHandledRef.current) return;
+    if (wLeft <= 0 || bLeft <= 0) {
+      timeoutHandledRef.current = true;
+      const loser = (wLeft <= 0) ? 'w' : 'b';
+      const resultText = `Game over: ${loser === 'w' ? '0-1' : '1-0'} (flagged)`;
+      try { socketRef.current?.emit?.('chess:timeout', { roomId, loser }); } catch {}
+      setStatus(resultText);
+      setRoomId(null);
+      const didWin = (colorRef.current !== loser);
+      openResultModal(resultText, null, didWin);
+    }
+  }, [wLeft, bLeft, mode, roomId, openResultModal]);
+
   const CaptRow = ({ name, caps, up, timeMs, running }) => (
     <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:13, padding:'6px 8px'}}>
       <strong>{name}</strong>
       <div style={{display:'flex', alignItems:'center', gap:8}}>
         {typeof timeMs === 'number' && mode==='online' && (
-          <span style={{fontVariantNumeric:'tabular-nums', fontWeight:700, color: running ? '#111' : '#6b7280'}}>
+          <span
+            style={{
+              fontVariantNumeric:'tabular-nums',
+              fontWeight:700,
+              /* Ensure timers are legible on dark UI */
+              color: running ? '#ffffff' : 'rgba(230,233,255,0.65)'
+            }}
+          >
             {fmtClock(timeMs)}
           </span>
         )}
@@ -1341,151 +1589,302 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
 
   return (
     <>
-      <MobileOnly>
-        <MobileDropdown
-          ref={statsRef}
-          onToggle={(e) => setStatsOpen(e.currentTarget.open)}
-          onClick={(e) => {
-            // tap on dim backdrop closes (only when clicking the <details> itself)
-            if (e.target === e.currentTarget && e.currentTarget.open) {
-              e.currentTarget.open = false;
-              setStatsOpen(false);
-            }
-          }}
+      {/* Mobile top bar: games sidebar toggle + opponent summary */}
+      <MobileTopBar>
+        <DrawerButton
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open chess sidebar"
         >
-          <summary>📊 Chess stats &amp; leaderboard</summary>
-          <button
-            type="button"
-            className="x"
-            onClick={() => {
-              if (statsRef.current) statsRef.current.open = false;
-              setStatsOpen(false);
-            }}
-            aria-label="Close stats"
-          >
-            ×
-          </button>
-          <div className="content">
-            <GameSidebar gameKey="chess" title="Chess" showOnMobile />
-          </div>
+          ➤
+        </DrawerButton>
 
-          {/* Always-accessible close button */}
-          <button
-            type="button"
-            className="close"
-            onClick={() => {
-              if (statsRef.current) statsRef.current.open = false;
-              setStatsOpen(false);
-            }}
-            aria-label="Close stats"
-          >
-            ✕ Close
-          </button>
-        </MobileDropdown>
-      </MobileOnly>
+        <MobileOpponentPill>
+          <MobileOpponentName>
+            {oppName || (mode === 'bot' ? (botProfile?.label || 'Bot') : 'Opponent')}
+          </MobileOpponentName>
+
+          {mode === 'online' && (
+            <MobileOpponentClock
+              style={{
+                opacity: oppTime > 0 ? 1 : 0.5,
+              }}
+            >
+              {fmtClock(oppTime)}
+            </MobileOpponentClock>
+          )}
+        </MobileOpponentPill>
+      </MobileTopBar>
       <Wrap>
-        <Panel>
-          <CaptRow
-            name={oppName || (mode==='bot' ? (botProfile?.label || 'Bot') : 'Opponent')}
-            caps={oppCap}
-            up={Math.max(0, oppUpCp)}
-            timeMs={oppTime}
-            running={oppRunning}
-          />
-          <Chessboard
-            position={fen}
-            onPieceDrop={onPieceDrop}
-            autoPromoteToQueen={false}
-            onPieceDragBegin={(_, from) => setDragFrom(from)}
-            onPieceDragEnd={() => setDragFrom(null)}
-            boardOrientation={orientation}
-            boardWidth={boardSize}
-            customBoardStyle={{ borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)' }}
-            customSquareStyles={customSquareStyles}
-            isDraggablePiece={({ piece }) => piece && piece[0] === myColor()}
-          />
-          <CaptRow
-            name={user?.username || 'You'}
-            caps={meCap}
-            up={Math.max(0, meUpCp)}
-            timeMs={myTime}
-            running={myRunning}
-          />
-        </Panel>
+        <BoardPanel ref={panelRef}>
+          <BoardViewport>
+            <div style={{ position:'relative', width: boardSize, maxWidth: '100%', margin:'0 auto' }}>
+              {/* Start overlay CTA on phones */}
+              {showStartCTA && (
+                <BoardOverlayCTA>
+                  <div>
+                    <Button onClick={openBotPicker}>Practice vs Bot</Button>
+                    <Button $primary onClick={startOnline}>Play Online</Button>
+                  </div>
+                </BoardOverlayCTA>
+              )}
 
-        <Panel>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-            <Button onClick={openBotPicker}>Practice vs Bot</Button>
+              <Chessboard
+                position={fen}
+                onPieceDrop={onPieceDrop}
+                autoPromoteToQueen={false}
+                onPieceDragBegin={(_, from) => setDragFrom(from)}
+                onPieceDragEnd={() => setDragFrom(null)}
+                boardOrientation={orientation}
+                boardWidth={boardSize}
+                customBoardStyle={{ borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)' }}
+                customSquareStyles={customSquareStyles}
+                isDraggablePiece={({ piece }) => piece && piece[0] === myColor()}
+              />
+            </div>
+          </BoardViewport>
+
+          <MobileStack>
+            {/* your own username row, snug under the board */}
+            <MobileStatsRow>
+              <CaptRow
+                name={user?.username || 'You'}
+                caps={meCap}
+                up={Math.max(0, meUpCp)}
+                timeMs={myTime}
+                running={myRunning}
+              />
+            </MobileStatsRow>
+
+            {/* mobile controls: only in-game actions + rules + return */}
+            <div style={{ display: 'grid', gap: 10 }}>
+              {mode && (
+                <>
+                  {mode === 'online' && (
+                    <Button onClick={leaveOnline}>Leave Online</Button>
+                  )}
+                  <Button onClick={resign}>Resign</Button>
+                </>
+              )}
+
+              <GameRules
+                title="How to Play Chess"
+                subtitle="Quick basics with examples."
+                sections={[
+                  { heading: 'Goal', text: 'Checkmate the enemy king (attack it so it can’t escape).' },
+                  { heading: 'Setup', text: 'White starts. Pieces: ♔♕♖♖♗♗♘♘ + 8×♙ per side.' },
+                  {
+                    heading: 'Moves',
+                    list: [
+                      '♙ Pawns move forward 1 (2 from start), capture diagonally; en passant is allowed.',
+                      '♘ Knights jump in an L-shape.',
+                      '♗ Bishops along diagonals; ♖ rooks along files/ranks; ♕ both; ♔ one square.',
+                      'Castling: king two squares toward a rook, rook jumps over; only if not in check, no pieces in between, and neither piece has moved.',
+                      'Promotion: a pawn reaching last rank becomes a queen by default (or any piece).',
+                    ],
+                  },
+                  {
+                    heading: 'Draws',
+                    list: ['Stalemate', 'Threefold repetition', 'Insufficient material', '50-move rule'],
+                    note: 'Tip: Control the center and develop knights/bishops before moving the same piece twice.',
+                  },
+                ]}
+                buttonText="📘 Rules"
+                buttonTitle="Chess Rules"
+                buttonStyle={{
+                  position: 'static',
+                  width: '100%',
+                  boxShadow: 'none',
+                  borderRadius: 10,
+                  padding: '6px 10px',
+                  background: 'rgba(255,255,255,0.06)',
+                }}
+              />
+
+              {/* New: Return to Games button on mobile, under Rules */}
+              <ReturnButton
+                onClick={() => (typeof onExit === 'function' ? onExit() : null)}
+                title="Return to Games"
+              >
+                <span className="icon">←</span>
+                <span>Return to Games</span>
+              </ReturnButton>
+            </div>
+          </MobileStack>
+        </BoardPanel>
+        {/* RIGHT: start/resign & rules in a sticky rail (same width as sidebar) */}
+        <RightRailShell>
+            <RightRailTopBar>
+              <ReturnButton
+                onClick={() => (typeof onExit === 'function' ? onExit() : null)}
+                title="Return to Games"
+              >
+                <span className="icon">←</span>
+                <span>Return to Games</span>
+              </ReturnButton>
+            </RightRailTopBar>
+          <ControlsPanel>
+
+          {/* Primary actions (compact; keep original size/spacing) */}
+          <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+            <Button onClick={openBotPicker} style={{ padding: '10px 12px' }}>
+              Practice vs Bot
+            </Button>
             {mode !== 'online' ? (
-              <Button $primary onClick={startOnline}>Play Online</Button>
+              <Button $primary onClick={startOnline} style={{ padding: '10px 12px' }}>
+                Play Online
+              </Button>
             ) : (
-              <Button onClick={leaveOnline}>Leave Online</Button>
+              <Button onClick={leaveOnline} style={{ padding: '10px 12px' }}>
+                Leave Online
+              </Button>
             )}
-            <Button onClick={resign}>Resign</Button>
+            <Button onClick={resign} style={{ padding: '10px 12px' }}>
+              Resign
+            </Button>
           </div>
-          <div style={{marginTop:10, color:'rgba(230,233,255,0.75)'}}>{status}</div>
-          {!!notice && <Alert>{notice}</Alert>}
 
+          {/* Status + Engine + Ranked note */}
+          <div style={{ marginTop: 16, color: 'rgba(230,233,255,0.75)' }}>{status}</div>
+          {!!notice && <Alert>{notice}</Alert>}
           {(!botProfile || botProfile.useSF) && (
-            <div style={{marginTop:8, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
+            <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(230,233,255,0.65)' }}>
               Engine: <b>{sfStatus}</b>
             </div>
           )}
 
+          {/* === Game stats (usernames, points, timers) === */}
+          <div
+            style={{
+              marginTop: 10,
+              border: '1px solid var(--border-color)',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.06)',
+              padding: '8px 10px',
+              display: 'grid',
+              gap: 6
+            }}
+          >
+            <div style={{ fontWeight: 800 }}>Game</div>
+            <CaptRow
+              name={oppName || (mode === 'bot' ? (botProfile?.label || 'Bot') : 'Opponent')}
+              caps={oppCap}
+              up={Math.max(0, oppUpCp)}
+              timeMs={oppTime}
+              running={oppRunning}
+            />
+            <CaptRow
+              name={user?.username || 'You'}
+              caps={meCap}
+              up={Math.max(0, meUpCp)}
+              timeMs={myTime}
+              running={myRunning}
+            />
+          </div>
+
           {premove && (
-            <div style={{marginTop:8, fontSize:12, color:'var(--text-color)', display:'flex', alignItems:'center', gap:8}}>
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-color)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>⏭️ Premove queued: <b>{fmt(premove)}</b></span>
-              <Button onClick={()=> setPremove(null)} style={{padding:'4px 8px', borderRadius:8, fontSize:12}}>Clear</Button>
+              <Button onClick={() => setPremove(null)} style={{ padding: '4px 8px', borderRadius: 8, fontSize: 12 }}>Clear</Button>
             </div>
           )}
 
           {botProfile?.explain && tips.length > 0 && (
-            <div style={{marginTop:10, padding:'8px 10px', border:'1px solid var(--border-color)', borderRadius:10, background:'rgba(255,255,255,0.06)'}}>
-              <div style={{fontWeight:600, marginBottom:6}}>Tutorial</div>
-              <ul style={{margin:0, paddingLeft:18}}>
-                {tips.map((t,i)=> <li key={i} style={{fontSize:13, color:'rgba(230,233,255,0.80)', margin:'4px 0'}}>{t}</li>)}
+            <div style={{ marginTop: 10, padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: 10, background: 'rgba(255,255,255,0.06)' }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Tutorial</div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {tips.map((t, i) => (
+                  <li key={i} style={{ fontSize: 13, color: 'rgba(230,233,255,0.80)', margin: '4px 0' }}>
+                    {t}
+                  </li>
+                ))}
               </ul>
             </div>
           )}
-          <div style={{marginTop:12, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
+
+          <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(230,233,255,0.65)' }}>
             Wins vs real players grant <b>+8 trophies</b>. Bot games are unranked.
           </div>
-        </Panel>
+
+          {/* Rules inside the right rail (not floating) */}
+          <div style={{ marginTop: 12 }}>
+            <GameRules
+              title="How to Play Chess"
+              subtitle="Quick basics with examples."
+              sections={[
+                { heading: 'Goal', text: 'Checkmate the enemy king (attack it so it can’t escape).' },
+                { heading: 'Setup', text: 'White starts. Pieces: ♔♕♖♖♗♗♘♘ + 8×♙ per side.' },
+                {
+                  heading: 'Moves',
+                  list: [
+                    '♙ Pawns move forward 1 (2 from start), capture diagonally; en-passant is allowed.',
+                    '♘ Knights jump in an L-shape.',
+                    '♗ Bishops along diagonals; ♖ rooks along files/ranks; ♕ both; ♔ one square.',
+                    'Castling: king two squares toward a rook, rook jumps over; only if not in check, no pieces in between, and neither piece has moved.',
+                    'Promotion: a pawn reaching last rank becomes a queen by default (or any piece).',
+                  ],
+                },
+                {
+                  heading: 'Draws',
+                  list: ['Stalemate', 'Threefold repetition', 'Insufficient material', '50-move rule'],
+                  note: 'Tip: Control the center and develop knights/bishops before moving the same piece twice.',
+                },
+              ]}
+              buttonText="📘 Rules"
+              buttonTitle="Chess Rules"
+              buttonStyle={{
+                position: 'static',
+                width: '100%',
+                boxShadow: 'none',
+                borderRadius: 10,
+                padding: '6px 10px',
+                background: 'rgba(255,255,255,0.06)',
+              }}
+            />
+          </div>
+          </ControlsPanel>
+        </RightRailShell>
       </Wrap>
+      {drawerOpen && <DrawerBackdrop onClick={() => setDrawerOpen(false)} />}
 
-      {/* Floating Rules button */}
-      <button
-        style={{
-          position: 'fixed',
-          right: isNarrow ? 12 : 24,
-          bottom: isNarrow ? 12 : 24,
-          zIndex: 20,
-          border: '1px solid var(--border-color)',
-          background: 'var(--container-white)', color: 'var(--text-color)',
-          borderRadius: 12,
-          padding: isNarrow ? '6px 10px' : '8px 12px',
-          boxShadow: '0 12px 28px rgba(0,0,0,.18)',
-        }}
-        title="Basic Chess Rules"
-      >
-        📘 Rules
-      </button>
+      <Drawer $open={drawerOpen} role="complementary" aria-label="Chess sidebar">
+        {/* X close button in the top-right of the drawer */}
+        <div style={{display:'flex', justifyContent:'flex-end', marginBottom:8}}>
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close sidebar"
+            style={{
+              border: '1px solid var(--border-color)',
+              background: 'var(--container-white)',
+              borderRadius: 999,
+              width: 36,
+              height: 36,
+              fontWeight: 900,
+              lineHeight: 1,
+              boxShadow: '0 8px 18px rgba(0,0,0,.12)'
+            }}
+          >
+            ×
+          </button>
+        </div>
 
+        <GameSidebar gameKey="chess" title="Chess" showOnMobile />
+      </Drawer>
       {/* Bot picker */}
       {showPicker && (
-        <Overlay onClick={()=>setShowPicker(false)}>
-          <Modal onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:18, fontWeight:700}}>Select a bot mode</div>
-            <div style={{fontSize:13, color:'#6b7280', marginTop:4}}>
+        <Overlay onClick={() => setShowPicker(false)}>
+          <Modal onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>Select a bot mode</div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
               Tutorial explains moves; other modes approximate player ratings.
             </div>
             <ModalGrid>
-              <Button onClick={()=>chooseBot('tutorial')}>Tutorial</Button>
-              <Button onClick={()=>chooseBot('easy')}>Easy</Button>
-              <Button onClick={()=>chooseBot('medium')}>Medium</Button>
-              <Button onClick={()=>chooseBot('hard')}>Hard</Button>
-              <Button onClick={()=>chooseBot('elite')}>Elite</Button>
-              <Button onClick={()=>chooseBot('gm')}>Grandmaster</Button>
+              <Button onClick={() => chooseBot('tutorial')}>Tutorial</Button>
+              <Button onClick={() => chooseBot('easy')}>Easy</Button>
+              <Button onClick={() => chooseBot('medium')}>Medium</Button>
+              <Button onClick={() => chooseBot('hard')}>Hard</Button>
+              <Button onClick={() => chooseBot('elite')}>Elite</Button>
+              <Button onClick={() => chooseBot('gm')}>Grandmaster</Button>
             </ModalGrid>
           </Modal>
         </Overlay>
@@ -1493,51 +1892,72 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
 
       {/* End-of-game modal */}
       {resultModal && (
-        <Overlay onClick={()=>setResultModal(null)}>
-          <Modal onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:18, fontWeight:800, marginBottom:6}}>
+        <Overlay onClick={() => setResultModal(null)}>
+          <Modal onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>
               {resultModal.didWin ? 'You win! 🎉' : /draw/i.test(resultModal.resultText) ? 'Draw' : 'You lose'}
             </div>
-            <div style={{fontSize:13, color:'#6b7280'}}>{resultModal.resultText}</div>
-            <div style={{display:'flex', gap:10, alignItems:'center', marginTop:10, padding:'8px 10px', border:'1px solid var(--border-color)', borderRadius:10}}>
-              <span style={{fontWeight:800}}>🏆 {resultModal.trophies}</span>
-              <span style={{padding:'3px 10px', borderRadius:999, fontSize:12, fontWeight:800, background:'var(--primary-orange)', color:'#000'}}>
+            <div style={{ fontSize: 13, color: '#6b7280' }}>{resultModal.resultText}</div>
+            <div
+              style={{
+                display: 'flex',
+                gap: 10,
+                alignItems: 'center',
+                marginTop: 10,
+                padding: '8px 10px',
+                border: '1px solid var(--border-color)',
+                borderRadius: 10,
+              }}
+            >
+              <span style={{ fontWeight: 800 }}>🏆 {resultModal.trophies}</span>
+              <span
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  background: 'var(--primary-orange)',
+                  color: '#000',
+                }}
+              >
                 {resultModal.rank}
               </span>
             </div>
-            <div style={{marginTop:6, fontSize:12, color:'rgba(230,233,255,0.65)'}}>
+            <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(230,233,255,0.65)' }}>
               Overall leaderboard place: <b>#{resultModal.place ?? '—'}</b>
             </div>
-            <ModalGrid style={{marginTop:12}}>
-              <Button onClick={()=>{ setMode(null); setRoomId(null); setResultModal(null); setStatus('Pick a mode to start.'); }}>Back</Button>
-              <Button onClick={()=>{ setResultModal(null); openBotPicker(); }}>Play Bot Again</Button>
-              <Button $primary onClick={()=>{ setResultModal(null); startOnline(); }}>Matchmake Online</Button>
+            <ModalGrid style={{ marginTop: 12 }}>
+              <Button
+                onClick={() => {
+                  setMode(null);
+                  setRoomId(null);
+                  setResultModal(null);
+                  setStatus('Pick a mode to start.');
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                onClick={() => {
+                  setResultModal(null);
+                  openBotPicker();
+                }}
+              >
+                Play Bot Again
+              </Button>
+              <Button
+                $primary
+                onClick={() => {
+                  setResultModal(null);
+                  startOnline();
+                }}
+              >
+                Matchmake Online
+              </Button>
             </ModalGrid>
           </Modal>
         </Overlay>
       )}
-
-      <GameRules
-        title="How to Play Chess"
-        subtitle="Quick basics with examples."
-        sections={[
-          { heading: 'Goal', text: 'Checkmate the enemy king (attack it so it can’t escape).' },
-          { heading: 'Setup', text: 'White starts. Pieces: ♔♕♖♖♗♗♘♘ + 8×♙ per side.' },
-          { heading: 'Moves', list: [
-              '♙ Pawns move forward 1 (2 from start), capture diagonally; en-passant is allowed.',
-              '♘ Knights jump in an L-shape.',
-              '♗ Bishops along diagonals; ♖ rooks along files/ranks; ♕ both; ♔ one square.',
-              'Castling: king two squares toward a rook, rook jumps over; allowed only if not in check, no pieces in between, and neither piece has moved.',
-              'Promotion: a pawn reaching last rank becomes a queen by default (or any piece).',
-            ],
-          },
-          { heading: 'Draws', list: [
-              'Stalemate', 'Threefold repetition', 'Insufficient material', '50-move rule'
-            ],
-            note: 'Tip: Control the center and develop knights/bishops before moving the same piece twice.',
-          },
-        ]}
-      />
     </>
   );
 }

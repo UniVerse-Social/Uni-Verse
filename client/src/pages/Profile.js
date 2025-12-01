@@ -14,6 +14,7 @@ import FollowersModal from '../components/FollowersModal';
 import HobbiesModal from '../components/HobbiesModal';
 import { getHobbyEmoji, HOBBY_LIMIT } from '../utils/hobbies';
 import { adminDeleteUserByUsername } from '../api';
+import LetterAvatar from '../components/LetterAvatar';
 
 /* --------------------------- Styled Components --------------------------- */
 
@@ -163,13 +164,6 @@ const AvatarImg = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
-`;
-
-const DefaultAvatar = styled.div`
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: #fff url(${(p) => p.src}) center / 150% no-repeat;
 `;
 
 const AvatarUpload = styled.label`
@@ -665,7 +659,6 @@ const SettingsItem = styled.button`
 
 /* --------------------------- Constants --------------------------- */
 
-const TUFFY_DEFAULT_URL = 'https://www.clipartmax.com/png/middle/72-721825_tuffy-tuffy-the-titan-csuf.png';
 const DEFAULT_BANNER_DATA = 'https://dslv9ilpbe7p1.cloudfront.net/jT7zrQp7WtGXTdoT3rpLxg_store_banner_image.jpeg';
 
 /* --------------------------- Component --------------------------- */
@@ -700,6 +693,7 @@ const Profile = () => {
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
   const [showHobbiesModal, setShowHobbiesModal] = useState(false);
+  const [pfpBroken, setPfpBroken] = useState(false);
   const [interestTooltip, setInterestTooltip] = useState(null);
   const interestTooltipTimerRef = useRef(null);
 
@@ -831,7 +825,7 @@ const Profile = () => {
 
   useEffect(() => {
     if (!userOnPage || !currentUser) return;
-
+    setPfpBroken(false);
     // Only redirect if we're truly viewing our *own* profile route.
     const viewingOwnRoute = username === currentUser.username;
 
@@ -1274,10 +1268,14 @@ const Profile = () => {
           <Header>
             <AvatarWrap>
               <AvatarFrame>
-                {userOnPage.profilePicture ? (
-                  <AvatarImg src={userOnPage.profilePicture} alt="Profile" />
+                {userOnPage.profilePicture && !pfpBroken ? (
+                  <AvatarImg
+                    src={userOnPage.profilePicture}
+                    alt="Profile"
+                    onError={() => setPfpBroken(true)}
+                  />
                 ) : (
-                  <DefaultAvatar src={TUFFY_DEFAULT_URL} aria-label="Default avatar" />
+                  <LetterAvatar name={userOnPage.username} size="100%" />
                 )}
               </AvatarFrame>
               {isOwnProfile && (
