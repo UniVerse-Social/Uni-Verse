@@ -571,6 +571,23 @@ const ThreeDotsButton = styled.button`
   color: var(--text-color);
 `;
 
+const PopupMenu = styled.div`
+  position: absolute;
+  top: 100%; /* directly below the button */
+  right: 0;
+  background: #1a1a1a;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 4px;
+  white-space: nowrap;
+  z-index: 100;
+`;
+
+const BlockText = styled.span`
+  color: red;
+  cursor: pointer;
+`;
 
 /* Themed input for delete-confirm field */
 const ModalInput = styled.input`
@@ -1022,6 +1039,10 @@ const Profile = () => {
     () => (Array.isArray(userOnPage?.hobbies) ? userOnPage.hobbies : []),
     [userOnPage?.hobbies]
   );
+  // Three dots popup state
+  const [showThreeDotsPopup, setShowThreeDotsPopup] = useState(false);
+  const threeDotsRef = useRef(null);
+
 
   /* ---- Badges helpers ---- */
 
@@ -1041,6 +1062,19 @@ const Profile = () => {
   }, [userOnPage?._id]);
 
   useEffect(() => { if (userOnPage?._id) fetchBadges(); }, [userOnPage?._id, fetchBadges]);
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (threeDotsRef.current && !threeDotsRef.current.contains(event.target)) {
+        setShowThreeDotsPopup(false);
+      }
+    };
+
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, []);
+
 
   const openBadgesModal = (slotIndex) => {
     setActiveSlot(slotIndex);
@@ -1390,9 +1424,18 @@ const Profile = () => {
                       <PrimaryButton $primary={!isFollowing} onClick={handleFollow}>
                         {isFollowing ? 'Unfollow' : 'Follow'}
                       </PrimaryButton>
-                      <ThreeDotsButton>
+                      <div style={{ position: 'relative' }} ref={threeDotsRef}>
+                      <ThreeDotsButton onClick={() => setShowThreeDotsPopup(prev => !prev)}>
                         ⋯
                       </ThreeDotsButton>
+                      {showThreeDotsPopup && (
+                        <PopupMenu>
+                          <BlockText onClick={() => alert('Block user clicked!')}>
+                            Block User
+                          </BlockText>
+                        </PopupMenu>
+                      )}
+                    </div>
                       {currentUser.isAdmin && String(currentUser._id) !== String(userOnPage?._id) && (
                         <DangerButton
                           onClick={onAdminDeleteUser}
