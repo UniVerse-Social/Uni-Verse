@@ -13,7 +13,7 @@ const MAX_PRESETS = 6;
 const VALID_LAYOUTS = new Set(ProfileCard.validLayouts || ['single', 'double', 'triple']);
 const VALID_MODULE_TYPES = new Set(ProfileCard.validModuleTypes || ['text', 'image', 'club', 'prompt']);
 const VALID_CANVAS_COLORS = new Set(
-  ProfileCard.validCanvasColors || ['classic', 'frost', 'citrus', 'blush', 'aurora', 'lagoon', 'midnight', 'pearl']
+  ProfileCard.validCanvasColors || ['glass', 'classic', 'frost', 'citrus', 'blush', 'aurora', 'lagoon', 'midnight', 'pearl']
 );
 
 const isObjectId = (value) => mongoose.Types.ObjectId.isValid(String(value || '').trim());
@@ -22,11 +22,26 @@ const toObjectId = (value) => new mongoose.Types.ObjectId(String(value).trim());
 const ALIGN_VALUES = new Set(['start', 'center', 'end']);
 const HEX_COLOR_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 const SLOT_SCALE_MIN = 0.2;
+const MIN_IMAGE_FOCUS_ZOOM = 1;
+const MAX_IMAGE_FOCUS_ZOOM = 3;
+const SHAPE_VALUES = new Set(['square', 'circle', 'star', 'heart']);
 
 function clampSlotScale(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return 1;
   return Math.min(1, Math.max(SLOT_SCALE_MIN, num));
+}
+
+function clamp01(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  return Math.min(1, Math.max(0, num));
+}
+
+function clampFocusZoom(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return MIN_IMAGE_FOCUS_ZOOM;
+  return Math.min(MAX_IMAGE_FOCUS_ZOOM, Math.max(MIN_IMAGE_FOCUS_ZOOM, num));
 }
 
 function sanitizeLayoutSettings(raw = {}) {
@@ -61,6 +76,12 @@ function sanitizeLayoutSettings(raw = {}) {
   if (raw.slotScaleX != null) out.slotScaleX = clampSlotScale(raw.slotScaleX);
   if (raw.slotScaleY != null) out.slotScaleY = clampSlotScale(raw.slotScaleY);
   if (typeof raw.autoPlaced === 'boolean') out.autoPlaced = raw.autoPlaced;
+  if (SHAPE_VALUES.has(raw.shape)) out.shape = raw.shape;
+  if (typeof raw.moduleColor === 'string' && HEX_COLOR_RE.test(raw.moduleColor)) {
+    out.moduleColor = raw.moduleColor;
+  } else {
+    out.moduleColor = null;
+  }
   return {
     span: 1,
     minHeight: null,
@@ -69,6 +90,8 @@ function sanitizeLayoutSettings(raw = {}) {
     slotScaleX: 1,
     slotScaleY: 1,
     autoPlaced: true,
+    shape: 'square',
+    moduleColor: null,
     ...out,
   };
 }
@@ -94,6 +117,21 @@ function sanitizeModule(raw = {}, index = 0) {
     }
     if (typeof raw?.content?.alt === 'string') {
       content.alt = raw.content.alt.slice(0, 160);
+    }
+    if (typeof raw?.content?.poster === 'string') {
+      content.poster = raw.content.poster.slice(0, 1024);
+    }
+    if (typeof raw?.content?.videoUrl === 'string') {
+      content.videoUrl = raw.content.videoUrl.slice(0, 1024);
+    }
+    if (raw?.content?.focusX != null) {
+      content.focusX = clamp01(raw.content.focusX);
+    }
+    if (raw?.content?.focusY != null) {
+      content.focusY = clamp01(raw.content.focusY);
+    }
+    if (raw?.content?.focusZoom != null) {
+      content.focusZoom = clampFocusZoom(raw.content.focusZoom);
     }
   } else if (type === 'club') {
     const clubId =
@@ -166,7 +204,7 @@ function sanitizePreset(raw = {}, idx = 0) {
     })(),
     canvasColorId: VALID_CANVAS_COLORS.has(raw.canvasColorId)
       ? raw.canvasColorId
-      : 'classic',
+      : 'glass',
     canvasColorAlpha: (() => {
       const alpha = Number(raw.canvasColorAlpha);
       if (!Number.isFinite(alpha)) return 1;
@@ -196,8 +234,8 @@ async function ensureProfileCard(userObjectId) {
     stylePreset: 'classic',
     accentColor: '#fbbf24',
     canvasScale: 1,
-    canvasColorId: 'classic',
-    canvasColorAlpha: 1,
+    canvasColorId: 'glass',
+    canvasColorAlpha: 0.5,
     dynamicSlotCount: 0,
     cardBodyColor: '#ffffff',
     modules: [

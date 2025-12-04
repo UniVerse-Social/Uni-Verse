@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const VALID_LAYOUTS = ['hidden', 'single', 'double', 'triple', 'dynamic', 'freeform'];
 const VALID_MODULE_TYPES = ['text', 'image', 'club', 'prompt'];
 const VALID_CANVAS_COLORS = [
+  'glass',
   'classic',
   'frost',
   'citrus',
@@ -30,6 +31,12 @@ const LayoutSettingsSchema = new mongoose.Schema(
     slotScaleX: { type: Number, min: 0.2, max: 1, default: 1 },
     slotScaleY: { type: Number, min: 0.2, max: 1, default: 1 },
     autoPlaced: { type: Boolean, default: true },
+    shape: {
+      type: String,
+      enum: ['square', 'circle', 'star', 'heart'],
+      default: 'square',
+    },
+    moduleColor: { type: String, default: null },
   },
   { _id: false }
 );
@@ -65,8 +72,8 @@ const PresetSchema = new mongoose.Schema(
     stylePreset: { type: String, default: 'classic' },
     accentColor: { type: String, default: '#fbbf24' },
     canvasScale: { type: Number, min: 0.3, max: 1.2, default: 1 },
-    canvasColorId: { type: String, enum: VALID_CANVAS_COLORS, default: 'classic' },
-    canvasColorAlpha: { type: Number, min: 0, max: 1, default: 1 },
+    canvasColorId: { type: String, enum: VALID_CANVAS_COLORS, default: 'glass' },
+    canvasColorAlpha: { type: Number, min: 0, max: 1, default: 0.5 },
     modules: {
       type: [ModuleSchema],
       default: [],

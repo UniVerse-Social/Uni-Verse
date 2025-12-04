@@ -31,23 +31,19 @@ const ACCENT_COLORS = [
   '#fbbf24',
   '#f97316',
   '#ef4444',
+  '#f43f5e',
   '#ec4899',
+  '#d946ef',
   '#a855f7',
   '#6366f1',
-  '#3b82f6',
+  '#2563eb',
   '#0ea5e9',
+  '#22d3ee',
   '#14b8a6',
+  '#10b981',
   '#22c55e',
   '#84cc16',
-  '#65a30d',
-  '#d946ef',
-  '#f43f5e',
-  '#f87171',
   '#1e293b',
-  '#fde047',
-  '#2563eb',
-  '#0f766e',
-  '#94a3b8',
 ];
 
 const mixWithWhite = (hex, ratio = 0.5) => {
@@ -69,52 +65,120 @@ const mixWithWhite = (hex, ratio = 0.5) => {
   return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
 };
 
-const CARD_BODY_COLORS = ACCENT_COLORS.map((color) =>
-  color.toLowerCase() === '#94a3b8' ? '#ffffff' : mixWithWhite(color, 0.5)
-);
+const darkenHex = (hex, ratio = 0.35) => {
+  if (!hex) return '#0f172a';
+  let normalized = hex.replace('#', '');
+  if (normalized.length === 3) {
+    normalized = normalized
+      .split('')
+      .map((c) => c + c)
+      .join('');
+  }
+  const value = parseInt(normalized, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  const scale = Math.max(0, 1 - ratio);
+  const toHex = (channel) => channel.toString(16).padStart(2, '0');
+  return `#${toHex(Math.round(r * scale))}${toHex(Math.round(g * scale))}${toHex(
+    Math.round(b * scale)
+  )}`;
+};
 
-const DEFAULT_CANVAS_COLOR_ID = 'classic';
-const DEFAULT_CANVAS_OPACITY = 1;
+const CARD_BODY_BASE_COLORS = [
+  '#f97316',
+  '#ef4444',
+  '#ec4899',
+  '#a855f7',
+  '#6366f1',
+  '#0ea5e9',
+  '#14b8a6',
+  '#22c55e',
+  '#65a30d',
+  '#fbbf24',
+  '#1e293b',
+  '#94a3b8',
+];
+const DEFAULT_CARD_BODY_PALENESS = 0.45;
+const MIN_CARD_BODY_WHITE_MIX = 0;
+const MAX_CARD_BODY_WHITE_MIX = 0.82;
+
+const DEFAULT_CANVAS_COLOR_ID = 'glass';
+const DEFAULT_CANVAS_OPACITY = 0.5;
+const DEFAULT_CANVAS_PALENESS = 0.08;
+const MIN_CANVAS_WHITE_MIX = 0.08;
+const MAX_CANVAS_WHITE_MIX = 0.08;
 const CANVAS_COLOR_OPTIONS = [
+  {
+    id: 'glass',
+    label: 'Glass',
+    colors: ['#f8fbff', '#e5edff'],
+  },
   {
     id: 'classic',
     label: 'Classic',
-    colors: ['#f8faff', '#e2e8f0'],
+    colors: ['#f7e27a', '#f2b94f'],
+    angle: 150,
   },
   {
     id: 'frost',
-    label: 'Frost',
-    colors: ['#e0f2fe', '#f0f9ff'],
+    label: 'Lilac Frost',
+    colors: ['#dcd2ff', '#9b7bff'],
+    angle: 140,
   },
   {
     id: 'citrus',
     label: 'Citrus',
-    colors: ['#fff7ed', '#fed7aa'],
+    colors: ['#ffd89a', '#ff8c42'],
+    angle: 155,
   },
   {
     id: 'blush',
     label: 'Blush',
-    colors: ['#fef2f2', '#fee2e2'],
+    colors: ['#ffc2d9', '#ff5f8f'],
+    angle: 145,
   },
   {
     id: 'aurora',
     label: 'Aurora',
-    colors: ['#ecfccb', '#d9f99d'],
+    colors: ['#d9ffb3', '#7ddf6a'],
+    angle: 160,
   },
   {
     id: 'lagoon',
     label: 'Lagoon',
-    colors: ['#cffafe', '#a5f3fc'],
+    colors: ['#7be8e6', '#1bb0b8'],
+    angle: 150,
   },
   {
     id: 'midnight',
     label: 'Midnight',
-    colors: ['#1e293b', '#0f172a'],
+    colors: ['#0f172a', '#1c2742'],
   },
   {
-    id: 'pearl',
-    label: 'Pearl',
-    colors: ['#f9fafb'],
+    id: 'sunset',
+    label: 'Sunset',
+    colors: ['#ff9a62', '#ff4f81'],
+    angle: 135,
+  },
+  {
+    id: 'oceanic',
+    label: 'Oceanic',
+    colors: ['#0f7bdc', '#00c6ff'],
+    angle: 155,
+  },
+  {
+    id: 'dune',
+    label: 'Dune',
+    colors: ['#f2e3c6', '#d9b88c'],
+    angle: 125,
+  },
+  {
+    id: 'neonwave',
+    label: 'Neon Wave',
+    colors: ['#ffd8f1', '#e7f3ff', '#ffe6cf'],
+    stops: ['0%', '65%', '100%'],
+    angle: 125,
   },
 ];
 const CANVAS_COLOR_LOOKUP = new Map(CANVAS_COLOR_OPTIONS.map((option) => [option.id, option]));
@@ -142,7 +206,7 @@ const CARD_CANVAS_HORIZONTAL_CHROME =
   (CARD_CANVAS_PADDING + CARD_CANVAS_BORDER) * 2;
 const TEXT_CHAR_LIMIT = TEXT_MODULE_CHAR_LIMIT;
 const MAX_MODULE_NEWLINES = MAX_TEXTAREA_NEWLINES;
-const TEXT_PLACEHOLDER = 'Share something about yourself...';
+const TEXT_PLACEHOLDER = 'Tap to interact';
 
 const ALIGN_MAP = {
   start: 'flex-start',
@@ -162,6 +226,10 @@ function clampSlotScale(value, minScale = SLOT_SCALE_MIN) {
   );
   return Math.min(1, Math.max(floor, num));
 }
+
+const DEFAULT_FOCUS_POINT = { x: 0.5, y: 0.5, zoom: 1 };
+const MIN_IMAGE_FOCUS_ZOOM = 1;
+const MAX_IMAGE_FOCUS_ZOOM = 3;
 
 const hexToRgba = (hex, alpha = 1) => {
   if (!hex) return `rgba(251, 191, 36, ${alpha})`;
@@ -185,8 +253,28 @@ const clamp01 = (value) => {
   return Math.min(1, Math.max(0, num));
 };
 
-const buildCanvasBackground = (colorId, opacity = 1) => {
+const clampFocusZoom = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return DEFAULT_FOCUS_POINT.zoom;
+  return Math.min(
+    MAX_IMAGE_FOCUS_ZOOM,
+    Math.max(MIN_IMAGE_FOCUS_ZOOM, num)
+  );
+};
+
+const toCardWhiteMix = (paleness = DEFAULT_CARD_BODY_PALENESS) =>
+  MIN_CARD_BODY_WHITE_MIX +
+  clamp01(typeof paleness === 'number' ? paleness : DEFAULT_CARD_BODY_PALENESS) *
+    (MAX_CARD_BODY_WHITE_MIX - MIN_CARD_BODY_WHITE_MIX);
+
+const toWhiteMix = (paleness = DEFAULT_CANVAS_PALENESS) =>
+  MIN_CANVAS_WHITE_MIX +
+  clamp01(typeof paleness === 'number' ? paleness : DEFAULT_CANVAS_PALENESS) *
+    (MAX_CANVAS_WHITE_MIX - MIN_CANVAS_WHITE_MIX);
+
+const buildCanvasBackground = (colorId, opacity = 1, paleness = DEFAULT_CANVAS_PALENESS) => {
   const alpha = clamp01(opacity);
+  const whiteMix = toWhiteMix(paleness);
   const option =
     CANVAS_COLOR_LOOKUP.get(colorId) ||
     CANVAS_COLOR_LOOKUP.get(DEFAULT_CANVAS_COLOR_ID);
@@ -197,10 +285,11 @@ const buildCanvasBackground = (colorId, opacity = 1) => {
     Array.isArray(option.colors) && option.colors.length
       ? option.colors
       : ['#f8faff', '#e2e8f0'];
-  if (colors.length === 1) {
-    return hexToRgba(colors[0], alpha);
+  const tinted = colors.map((color) => mixWithWhite(color, whiteMix));
+  if (tinted.length === 1) {
+    return hexToRgba(tinted[0], alpha);
   }
-  const stops = colors
+  const stops = tinted
     .map((color, index) => {
       const stop = option.stops?.[index];
       const rgba = hexToRgba(color, alpha);
@@ -235,7 +324,10 @@ function InterestCloud({
             style={{
               borderColor: isMutual ? accentColor : undefined,
               boxShadow: isMutual
-                ? `0 0 0 2px ${hexToRgba(accentColor, 0.25)}`
+                ? `0 14px 32px ${hexToRgba(accentColor, 0.45)}, 0 0 0 2px ${hexToRgba(
+                    accentColor,
+                    0.3
+                  )}`
                 : undefined,
             }}
             onClick={(event) => {
@@ -266,7 +358,7 @@ function usePointerOutside(targetRef, handler, when) {
       const target = targetRef.current;
       if (!target) return;
       if (target.contains(event.target)) return;
-      handler?.();
+      handler?.(event);
     };
     document.addEventListener('pointerdown', listener);
     return () => document.removeEventListener('pointerdown', listener);
@@ -292,6 +384,8 @@ function ModuleMenu({
   isEmpty,
   onClose,
   anchorRect = null,
+  canEditImagePosition = false,
+  onEditImagePosition,
 }) {
   const menuRef = useRef(null);
   const stopMenuEvent = useCallback((event) => {
@@ -316,9 +410,20 @@ function ModuleMenu({
     const fallback = typeLabels.get(currentType) || 'module';
     return 'Edit ' + fallback;
   })();
-  const typeOptions = isEmpty
-    ? moduleTypes
-    : moduleTypes.filter((option) => option.value !== currentType);
+  let typeOptions = moduleTypes;
+  if (currentType === 'image') {
+    typeOptions = moduleTypes.filter((option) => option.value !== 'image');
+  } else if (!isEmpty) {
+    typeOptions = moduleTypes.filter((option) => option.value !== currentType);
+  }
+  const visibleTypeOptions = typeOptions.filter((option) => option.value !== 'club');
+
+  const shouldShowPrimaryAction =
+    !isEmpty &&
+    currentType &&
+    currentType !== 'text' &&
+    currentType !== 'image';
+  const shouldShowPositionButton = currentType === 'image' && canEditImagePosition;
 
   const overlayWidth = layoutMode === 'overlay' && anchorRect
     ? Math.min(160, Math.max(124, anchorRect.width - 20))
@@ -327,12 +432,25 @@ function ModuleMenu({
 
   const menuBody = (
     <div className="module-menu-surface" style={surfaceStyle}>
-      {!isEmpty && currentType ? (
+      {shouldShowPrimaryAction || shouldShowPositionButton ? (
         <div className="module-menu-section">
-          <span className="module-menu-header">Done</span>
-          <button type="button" className="module-menu-primary" onClick={() => onClose?.()}>
-            {actionLabel}
-          </button>
+          {shouldShowPrimaryAction ? (
+            <button type="button" className="module-menu-primary" onClick={() => onClose?.()}>
+              {actionLabel}
+            </button>
+          ) : null}
+          {shouldShowPositionButton ? (
+            <button
+              type="button"
+              className="module-menu-primary secondary"
+              onClick={() => {
+                onEditImagePosition?.();
+                onClose?.();
+              }}
+            >
+              Set image position
+            </button>
+          ) : null}
         </div>
       ) : null}
       <div className="module-menu-section">
@@ -340,7 +458,7 @@ function ModuleMenu({
           {isEmpty ? 'Choose module type' : 'Switch module'}
         </span>
         <div className="module-menu-options">
-          {typeOptions.map((option) => (
+          {visibleTypeOptions.map((option) => (
             <button
               key={option.value}
               type="button"
@@ -358,7 +476,11 @@ function ModuleMenu({
               }}
             >
               {typeLabels.get(option.value) || option.label}
-              {option.disabled ? ' · soon' : ''}
+              {option.disabled
+                ? option.value === 'prompt'
+                  ? ' - WIP'
+                  : ' - coming soon'
+                : ''}
             </button>
           ))}
         </div>
@@ -416,6 +538,184 @@ function ModuleMenu({
   );
 }
 
+function ImagePositionModal({
+  open,
+  imageSrc,
+  videoSrc,
+  focusX = DEFAULT_FOCUS_POINT.x,
+  focusY = DEFAULT_FOCUS_POINT.y,
+  focusZoom = DEFAULT_FOCUS_POINT.zoom,
+  onSave,
+  onClose,
+}) {
+  const stageRef = useRef(null);
+  const draggingRef = useRef(false);
+  const [draftFocus, setDraftFocus] = useState(() => ({
+    x: clamp01(focusX),
+    y: clamp01(focusY),
+    zoom: clampFocusZoom(focusZoom),
+  }));
+
+  useEffect(() => {
+    if (!open) return;
+    setDraftFocus({
+      x: clamp01(focusX),
+      y: clamp01(focusY),
+      zoom: clampFocusZoom(focusZoom),
+    });
+  }, [focusX, focusY, focusZoom, open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, open]);
+
+  const updateFromPoint = useCallback((clientX, clientY) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const rect = stage.getBoundingClientRect();
+    const x = clamp01((clientX - rect.left) / Math.max(rect.width, 1));
+    const y = clamp01((clientY - rect.top) / Math.max(rect.height, 1));
+    setDraftFocus((prev) => ({ ...prev, x, y }));
+  }, []);
+
+  const handlePointerDown = useCallback(
+    (event) => {
+      event.preventDefault();
+      draggingRef.current = true;
+      updateFromPoint(event.clientX, event.clientY);
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    },
+    [updateFromPoint]
+  );
+
+  const handlePointerMove = useCallback(
+    (event) => {
+      if (!draggingRef.current) return;
+      updateFromPoint(event.clientX, event.clientY);
+    },
+    [updateFromPoint]
+  );
+
+  const handlePointerUp = useCallback((event) => {
+    draggingRef.current = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    onClose?.();
+  }, [onClose]);
+
+  const handleSave = useCallback(() => {
+    onSave?.(draftFocus);
+    onClose?.();
+  }, [draftFocus, onClose, onSave]);
+
+  if (!open) return null;
+
+  const objectPosition = `${(draftFocus.x * 100).toFixed(1)}% ${(draftFocus.y * 100).toFixed(1)}%`;
+  const mediaStyle = {
+    objectPosition,
+    transform:
+      draftFocus.zoom !== DEFAULT_FOCUS_POINT.zoom
+        ? `translateZ(0) scale(${draftFocus.zoom})`
+        : undefined,
+    transformOrigin: objectPosition,
+  };
+  const markerStyle = {
+    left: `${draftFocus.x * 100}%`,
+    top: `${draftFocus.y * 100}%`,
+  };
+  const hasImage = Boolean(imageSrc);
+  const hasVideo = !hasImage && Boolean(videoSrc);
+
+  return createPortal(
+    <div
+      className="image-position-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={handleClose}
+    >
+      <div
+        className="image-position-modal"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div
+          ref={stageRef}
+          className="image-position-stage"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          {hasImage ? (
+            <img src={imageSrc} alt="Reposition" style={mediaStyle} />
+          ) : hasVideo ? (
+            <video
+              src={videoSrc}
+              muted
+              loop
+              autoPlay
+              playsInline
+              style={mediaStyle}
+            />
+          ) : null}
+          <div className="image-position-marker" style={markerStyle} />
+          <div className="image-position-help">
+            Drag to set the focal point
+          </div>
+        </div>
+        <div className="image-position-controls">
+          <div className="image-position-zoom">
+            <div className="image-position-zoom-label">
+              Zoom <span>{draftFocus.zoom.toFixed(2)}x</span>
+            </div>
+            <input
+              type="range"
+              min={MIN_IMAGE_FOCUS_ZOOM}
+              max={MAX_IMAGE_FOCUS_ZOOM}
+              step="0.01"
+              value={draftFocus.zoom}
+              onChange={(event) => {
+                const nextZoom = clampFocusZoom(event.target.value);
+                setDraftFocus((prev) => ({ ...prev, zoom: nextZoom }));
+              }}
+            />
+          </div>
+          <div className="image-position-actions">
+            <button
+              type="button"
+              className="reset"
+              onClick={() =>
+                setDraftFocus({
+                  ...DEFAULT_FOCUS_POINT,
+                })
+              }
+            >
+              Reset to center
+            </button>
+            <div className="image-position-actions-right">
+              <button type="button" onClick={handleClose}>
+                Cancel
+              </button>
+              <button type="button" className="primary" onClick={handleSave}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 
 function CardCanvasModule({
   module,
@@ -429,6 +729,10 @@ function CardCanvasModule({
   onContentChange,
   onResize,
   onDelete,
+  activeShapeTool,
+  activeColorTool,
+  onApplyShape,
+  onApplyColor,
   gridPlacement,
   autoPlacementActive = false,
   freeformMode = false,
@@ -448,6 +752,15 @@ function CardCanvasModule({
   const resolvedPoster = imagePoster ? toMediaUrl(imagePoster) : resolvedImageUrl;
   const resolvedVideoUrl = videoUrl ? toMediaUrl(videoUrl) : '';
   const hasImageMedia = Boolean(resolvedVideoUrl || resolvedImageUrl);
+  const focusX = clamp01(
+    typeof content.focusX === 'number' ? content.focusX : DEFAULT_FOCUS_POINT.x
+  );
+  const focusY = clamp01(
+    typeof content.focusY === 'number' ? content.focusY : DEFAULT_FOCUS_POINT.y
+  );
+  const focusZoom = clampFocusZoom(
+    typeof content.focusZoom === 'number' ? content.focusZoom : DEFAULT_FOCUS_POINT.zoom
+  );
   const clubId = typeof content.clubId === 'string' ? content.clubId : '';
   const club = clubId && clubsMap ? clubsMap.get(String(clubId)) : null;
   const layoutSettings = ensureLayoutDefaults(module?.layoutSettings);
@@ -474,8 +787,10 @@ function CardCanvasModule({
   const [moduleSize, setModuleSize] = useState({ width: 0, height: 0 });
   const [imageUploadBusy, setImageUploadBusy] = useState(false);
   const [imageUploadError, setImageUploadError] = useState('');
+  const [positionEditorOpen, setPositionEditorOpen] = useState(false);
   const [textMeasureNonce, setTextMeasureNonce] = useState(0);
   const resizingRef = useRef(null);
+  const resizeFrameRef = useRef(null);
   const autoSlotted = Boolean(autoPlacementActive && gridPlacement);
   const resolvedSlotScaleX = autoSlotted ? draftSlotScale.x : 1;
   const resolvedSlotScaleY = autoSlotted ? draftSlotScale.y : 1;
@@ -572,6 +887,10 @@ function CardCanvasModule({
         measureNode.parentNode.removeChild(measureNode);
       }
       textMeasureRef.current = null;
+      if (resizeFrameRef.current) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
     };
   }, []);
 
@@ -646,6 +965,12 @@ function CardCanvasModule({
   }, [type]);
 
   useEffect(() => {
+    if (type !== 'image' || !hasImageMedia) {
+      setPositionEditorOpen(false);
+    }
+  }, [hasImageMedia, type]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const node = moduleRef.current;
     if (!node) return undefined;
@@ -701,22 +1026,65 @@ function CardCanvasModule({
   const autoWidthPercent = (resolvedSlotScaleX * 100).toFixed(2);
   const autoHeightPercent = (resolvedSlotScaleY * 100).toFixed(2);
 
-  const alignStyle = {
-    justifySelf: ALIGN_MAP[alignPreview.x] || 'center',
-    alignSelf: ALIGN_MAP[alignPreview.y] || 'center',
-  };
+  const alignStyle = autoSlotted
+    ? { justifySelf: 'center', alignSelf: 'center' }
+    : {
+        justifySelf: ALIGN_MAP[alignPreview.x] || 'center',
+        alignSelf: ALIGN_MAP[alignPreview.y] || 'center',
+      };
 
+  const moduleShape = layoutSettings.shape || 'square';
+  const isFixedShape = moduleShape === 'heart' || moduleShape === 'star';
   const moduleStyle = {
     minWidth: `${MIN_MODULE_DIMENSION}px`,
     minHeight: `${MIN_MODULE_DIMENSION}px`,
   };
+  const moduleColor =
+    typeof layoutSettings.moduleColor === 'string' ? layoutSettings.moduleColor : null;
+  const normalizedModuleColor = (moduleColor || '').trim().toLowerCase();
+  const moduleFillColor = moduleColor || '#ffffff';
+  const moduleBorderColor = moduleColor ? darkenHex(moduleColor, 0.18) : 'rgba(148,163,184,0.48)';
+  const isWhiteModule =
+    !normalizedModuleColor ||
+    normalizedModuleColor === '#fff' ||
+    normalizedModuleColor === '#ffffff';
+  const textOnModule = (() => {
+    if (isWhiteModule) return '#0f172a';
+    return '#ffffff';
+  })();
+  moduleStyle['--module-fill-color'] = moduleFillColor;
+  moduleStyle['--module-border-color'] = moduleBorderColor;
+  moduleStyle['--module-text-color'] = textOnModule;
   if (autoSlotted) {
     if (gridPlacement) {
       moduleStyle.gridColumn = `${gridPlacement.column} / span ${gridPlacement.colSpan || 1}`;
       moduleStyle.gridRow = `${gridPlacement.row} / span ${gridPlacement.rowSpan || 1}`;
     }
     moduleStyle.maxWidth = '100%';
-    moduleStyle.width = `${autoWidthPercent}%`;
+    if (!isFixedShape) {
+      moduleStyle.width = `${autoWidthPercent}%`;
+    }
+    moduleStyle.minHeight = `${MIN_MODULE_DIMENSION}px`;
+    if (slotHeightLimit != null) {
+      const scaledHeight = Math.max(
+        slotHeightLimit * resolvedSlotScaleY,
+        AUTO_GRID_MIN_DIMENSION
+      );
+      const clampedHeight = Math.min(scaledHeight, slotHeightLimit);
+      const appliedHeight = Math.max(clampedHeight, MIN_MODULE_DIMENSION);
+      moduleStyle.height = `${appliedHeight}px`;
+      moduleStyle.minHeight = `${MIN_MODULE_DIMENSION}px`;
+      moduleStyle.maxHeight = `${Math.max(slotHeightLimit, appliedHeight)}px`;
+    }
+    Object.assign(moduleStyle, alignStyle);
+  } else if (autoPlacementActive && gridPlacement) {
+    moduleStyle.gridColumn = `${gridPlacement.column} / span ${gridPlacement.colSpan || 1}`;
+    moduleStyle.gridRow = `${gridPlacement.row} / span ${gridPlacement.rowSpan || 1}`;
+    moduleStyle.maxWidth = '100%';
+    if (!isFixedShape) {
+      moduleStyle.width = `${autoWidthPercent}%`;
+    }
+    moduleStyle.minHeight = `${MIN_MODULE_DIMENSION}px`;
     if (slotHeightLimit != null) {
       const scaledHeight = Math.max(
         slotHeightLimit * resolvedSlotScaleY,
@@ -727,14 +1095,7 @@ function CardCanvasModule({
       moduleStyle.height = `${appliedHeight}px`;
       moduleStyle.minHeight = `${appliedHeight}px`;
       moduleStyle.maxHeight = `${Math.max(slotHeightLimit, appliedHeight)}px`;
-    } else {
-      moduleStyle.height = `${autoHeightPercent}%`;
-      moduleStyle.minHeight = `${MIN_MODULE_DIMENSION}px`;
     }
-    Object.assign(moduleStyle, alignStyle);
-  } else if (autoPlacementActive && gridPlacement) {
-    moduleStyle.gridColumn = `${gridPlacement.column} / span ${gridPlacement.colSpan || 1}`;
-    moduleStyle.gridRow = `${gridPlacement.row} / span ${gridPlacement.rowSpan || 1}`;
     Object.assign(moduleStyle, alignStyle);
   } else if (freeformMode) {
     const frame = layoutSettings.freeform || {};
@@ -746,11 +1107,22 @@ function CardCanvasModule({
   } else {
     moduleStyle.gridColumn = `span ${Math.min(layoutSettings.span || 1, Math.max(layoutColumns, 1))}`;
     if (draftMinHeight != null) {
-      moduleStyle.minHeight = `${Math.min(
+      const clampedHeight = Math.min(
         Math.max(draftMinHeight, MIN_MODULE_DIMENSION),
         MAX_MANUAL_HEIGHT
-      )}px`;
+      );
+      moduleStyle.minHeight = `${clampedHeight}px`;
+      moduleStyle.height = `${clampedHeight}px`;
+      moduleStyle.maxHeight = `${MAX_MANUAL_HEIGHT}px`;
     }
+  }
+
+  if (isFixedShape && !freeformMode) {
+    moduleStyle.aspectRatio = '1 / 1';
+    moduleStyle.width = 'auto';
+    moduleStyle.maxWidth = moduleStyle.maxWidth || '100%';
+    moduleStyle.justifySelf = 'center';
+    moduleStyle.alignSelf = moduleStyle.alignSelf || 'center';
   }
 
   const estimatedTextScale = useMemo(() => {
@@ -878,16 +1250,20 @@ function CardCanvasModule({
   ]);
 
   const [textScale, setTextScale] = useState(() => estimatedTextScale);
+  const shapedTextScale = useMemo(() => {
+    if (type !== 'text') return textScale;
+    const shape = layoutSettings.shape;
+    if (shape === 'heart' || shape === 'star') {
+      return Number((textScale * 0.9).toFixed(3));
+    }
+    return textScale;
+  }, [layoutSettings.shape, textScale, type]);
 
   useEffect(() => {
-    if (type !== 'text') {
+    if (type !== 'text' && textScale !== 1) {
       setTextScale(1);
-      return;
     }
-    setTextScale((prev) =>
-      Math.abs(prev - estimatedTextScale) <= 0.005 ? prev : estimatedTextScale
-    );
-  }, [estimatedTextScale, type]);
+  }, [type, textScale]);
 
   useLayoutEffect(() => {
     if (type !== 'text') return;
@@ -984,15 +1360,27 @@ function CardCanvasModule({
   const handleActivate = useCallback(
     (event) => {
       event.stopPropagation();
+      if (editable && activeShapeTool) {
+        onApplyShape?.(module?._id || module?.slotId, activeShapeTool);
+        return;
+      }
+      if (editable && activeColorTool) {
+        onApplyColor?.(module?._id || module?.slotId, activeColorTool);
+        return;
+      }
       onActivate?.(module?._id);
-      setMenuMode(moduleHasVisibleContentPublic(module) ? 'below' : 'overlay');
+      const nextMenuMode =
+        type === 'image' || moduleHasVisibleContentPublic(module)
+          ? 'below'
+          : 'overlay';
+      setMenuMode(nextMenuMode);
       setMenuVisible(true);
       const target = moduleRef.current;
       if (target) {
         setMenuAnchorRect(target.getBoundingClientRect());
       }
     },
-    [module, onActivate]
+    [activeColorTool, activeShapeTool, editable, module, onActivate, onApplyColor, onApplyShape, type]
   );
 
   const handleResizePointerDown = useCallback(
@@ -1038,6 +1426,20 @@ function CardCanvasModule({
     ]
   );
 
+  const queueResizeUpdate = useCallback((apply) => {
+    if (typeof window === 'undefined') {
+      apply();
+      return;
+    }
+    if (resizeFrameRef.current) {
+      window.cancelAnimationFrame(resizeFrameRef.current);
+    }
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      apply();
+    });
+  }, []);
+
   const handleResizePointerMove = useCallback(
     (event) => {
       const state = resizingRef.current;
@@ -1071,13 +1473,14 @@ function CardCanvasModule({
         if (nextX === draftSlotScale.x && nextY === draftSlotScale.y) {
           return;
         }
-        setDraftSlotScale({ x: nextX, y: nextY });
-        onResize?.(module?._id, {
-          ...layoutSettings,
-          slotScaleX: nextX,
-          slotScaleY: nextY,
+        queueResizeUpdate(() => {
+          setDraftSlotScale({ x: nextX, y: nextY });
+          onResize?.(module?._id, {
+            ...layoutSettings,
+            slotScaleX: nextX,
+            slotScaleY: nextY,
+          });
         });
-        setTextMeasureNonce((prev) => prev + 1);
         return;
       }
 
@@ -1085,12 +1488,13 @@ function CardCanvasModule({
         Math.max(state.startHeight + deltaY, MIN_MODULE_DIMENSION),
         MAX_MANUAL_HEIGHT
       );
-      setDraftMinHeight(nextHeight);
-      onResize?.(module?._id, {
-        ...layoutSettings,
-        minHeight: nextHeight,
+      queueResizeUpdate(() => {
+        setDraftMinHeight(nextHeight);
+        onResize?.(module?._id, {
+          ...layoutSettings,
+          minHeight: nextHeight,
+        });
       });
-      setTextMeasureNonce((prev) => prev + 1);
     },
     [
       autoGridRowHeight,
@@ -1100,6 +1504,7 @@ function CardCanvasModule({
       layoutSettings,
       module?._id,
       onResize,
+      queueResizeUpdate,
     ]
   );
 
@@ -1109,6 +1514,10 @@ function CardCanvasModule({
       if (!state) return;
       resizingRef.current = null;
       event.currentTarget.releasePointerCapture?.(state.pointerId);
+      if (resizeFrameRef.current) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
       setTextMeasureNonce((prev) => prev + 1);
     },
     []
@@ -1128,6 +1537,7 @@ function CardCanvasModule({
   const handlePreviewPointerDown = useCallback(
     (event) => {
       if (!editable || type !== 'text' || !isActive) return;
+      if (activeShapeTool || activeColorTool) return; // let apply tools handle click
       const editor = textAreaRef.current;
       if (!editor) return;
       if (editor.contains(event.target)) return;
@@ -1135,7 +1545,7 @@ function CardCanvasModule({
       editor.focus();
       moveCaretToEnd(editor);
     },
-    [editable, isActive, moveCaretToEnd, type]
+    [activeColorTool, activeShapeTool, editable, isActive, moveCaretToEnd, type]
   );
 
   useLayoutEffect(() => {
@@ -1178,16 +1588,25 @@ function CardCanvasModule({
     }
   };
 
+  const resetImageFocus = useCallback(() => {
+    if (!editable || !moduleId) return;
+    onContentChange?.(moduleId, 'focusX', DEFAULT_FOCUS_POINT.x);
+    onContentChange?.(moduleId, 'focusY', DEFAULT_FOCUS_POINT.y);
+    onContentChange?.(moduleId, 'focusZoom', DEFAULT_FOCUS_POINT.zoom);
+  }, [editable, moduleId, onContentChange]);
+
   const handleImageUrlChange = useCallback(
     (event) => {
       if (!editable || !moduleId) return;
       const value = (event.currentTarget.value || '').slice(0, 1024);
+      const changed = value !== imageUrl;
       onContentChange?.(moduleId, 'url', value);
       if (content.videoUrl) onContentChange?.(moduleId, 'videoUrl', '');
       if (content.poster) onContentChange?.(moduleId, 'poster', '');
+      if (changed) resetImageFocus();
       setImageUploadError('');
     },
-    [content.poster, content.videoUrl, editable, moduleId, onContentChange]
+    [content.poster, content.videoUrl, editable, imageUrl, moduleId, onContentChange, resetImageFocus]
   );
 
   const handleImageFileChange = useCallback(
@@ -1225,6 +1644,7 @@ function CardCanvasModule({
           onContentChange?.(moduleId, 'poster', '');
           onContentChange?.(moduleId, 'videoUrl', '');
         }
+        resetImageFocus();
         setImageUploadError('');
       } catch (error) {
         setImageUploadError(
@@ -1235,8 +1655,22 @@ function CardCanvasModule({
         event.target.value = '';
       }
     },
-    [moduleId, onContentChange, userId]
+    [moduleId, onContentChange, resetImageFocus, userId]
   );
+
+  const objectPosition = `${(focusX * 100).toFixed(1)}% ${(focusY * 100).toFixed(1)}%`;
+  const mediaFocusStyle = hasImageMedia
+    ? {
+        objectPosition,
+        transform:
+          focusZoom !== DEFAULT_FOCUS_POINT.zoom
+            ? `translateZ(0) scale(${focusZoom})`
+            : undefined,
+        transformOrigin: objectPosition,
+      }
+    : undefined;
+  const focusPreviewImage = resolvedImageUrl || resolvedPoster;
+  const focusPreviewVideo = focusPreviewImage ? '' : resolvedVideoUrl;
 
   const freeformPlaceholder =
     editable &&
@@ -1244,6 +1678,35 @@ function CardCanvasModule({
     !moduleHasVisibleContentPublic(module) && (
       <p className="card-canvas-empty">Drag to place an image or text.</p>
     );
+
+  const textBody = (
+    <div className="module-text-body">
+      {editable && isActive ? (
+        <div
+          ref={attachTextEditorRef}
+          className="module-inline-editor text"
+          role="textbox"
+          aria-label="Canvas text module editor"
+          aria-multiline="true"
+          contentEditable="plaintext-only"
+          suppressContentEditableWarning
+          data-placeholder={TEXT_PLACEHOLDER}
+          spellCheck
+          data-skip-swipe="true"
+          tabIndex={0}
+          onInput={handleTextInput}
+        />
+      ) : !editable && !hasTextContent ? (
+        <p ref={attachStaticTextRef} className="card-canvas-empty" aria-hidden="true">
+          &nbsp;
+        </p>
+      ) : (
+        <p ref={attachStaticTextRef} className={hasTextContent ? undefined : 'card-canvas-empty'}>
+          {resolvedTextValue || TEXT_PLACEHOLDER}
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -1255,6 +1718,7 @@ function CardCanvasModule({
         autoPlacementActive ? 'auto-slotted' : '',
         freeformMode ? 'freeform' : '',
         isActive ? 'active' : '',
+        moduleShape ? `shape-${moduleShape}` : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -1265,7 +1729,7 @@ function CardCanvasModule({
     >
       <div
         className="module-preview"
-        style={{ '--text-scale': textScale }}
+        style={{ '--text-scale': shapedTextScale }}
         onPointerDown={
           editable && isActive && type === 'text'
             ? handlePreviewPointerDown
@@ -1274,39 +1738,7 @@ function CardCanvasModule({
       >
         {type === 'text' && (
           <>
-            <div className="module-text-body">
-              {editable && isActive ? (
-                <div
-                  ref={attachTextEditorRef}
-                  className="module-inline-editor text"
-                  role="textbox"
-                  aria-label="Canvas text module editor"
-                  aria-multiline="true"
-                  contentEditable="plaintext-only"
-                  suppressContentEditableWarning
-                  data-placeholder={TEXT_PLACEHOLDER}
-                  spellCheck
-                  data-skip-swipe="true"
-                  tabIndex={0}
-                  onInput={handleTextInput}
-                />
-              ) : !editable && !hasTextContent ? (
-                <p
-                  ref={attachStaticTextRef}
-                  className="card-canvas-empty"
-                  aria-hidden="true"
-                >
-                  &nbsp;
-                </p>
-              ) : (
-                <p
-                  ref={attachStaticTextRef}
-                  className={hasTextContent ? undefined : 'card-canvas-empty'}
-                >
-                  {resolvedTextValue || TEXT_PLACEHOLDER}
-                </p>
-              )}
-            </div>
+            {textBody}
             {editable && isActive && <ModuleCharCount value={resolvedTextValue} />}
           </>
         )}
@@ -1321,9 +1753,14 @@ function CardCanvasModule({
                   loop
                   muted
                   playsInline
+                  style={mediaFocusStyle}
                 />
               ) : (
-                <img src={resolvedImageUrl} alt={user?.username || 'highlight'} />
+                <img
+                  src={resolvedImageUrl}
+                  alt={user?.username || 'highlight'}
+                  style={mediaFocusStyle}
+                />
               )
             ) : (
               <div className="image-dropzone-empty">
@@ -1355,7 +1792,7 @@ function CardCanvasModule({
                     onClick={() => imageFileInputRef.current?.click()}
                     disabled={imageUploadBusy}
                   >
-                    {imageUploadBusy ? 'Uploading…' : 'Choose file'}
+                    {imageUploadBusy ? 'Uploading...' : 'Choose file'}
                   </button>
                   <input
                     ref={imageFileInputRef}
@@ -1368,7 +1805,7 @@ function CardCanvasModule({
                 {imageUploadError ? (
                   <p className="image-panel-error">{imageUploadError}</p>
                 ) : null}
-                <p className="image-panel-note">JPEG, PNG, WebP, or GIF · 10MB max</p>
+                <p className="image-panel-note">JPEG, PNG, WebP, or GIF - 10MB max</p>
               </div>
             )}
           </div>
@@ -1400,6 +1837,10 @@ function CardCanvasModule({
             setMenuAnchorRect(null);
           }}
           anchorRect={menuAnchorRect}
+          canEditImagePosition={type === 'image' && hasImageMedia}
+          onEditImagePosition={() => {
+            setPositionEditorOpen(true);
+          }}
           onSelect={(result) => {
             if (!result) {
               setMenuVisible(false);
@@ -1411,6 +1852,24 @@ function CardCanvasModule({
           onDelete={() => {
             onDelete?.(module?._id);
           }}
+        />
+      )}
+
+      {editable && positionEditorOpen && (
+        <ImagePositionModal
+          open={positionEditorOpen}
+          imageSrc={focusPreviewImage}
+          videoSrc={focusPreviewVideo}
+          focusX={focusX}
+          focusY={focusY}
+          focusZoom={focusZoom}
+          onSave={({ x, y, zoom }) => {
+            if (!moduleId) return;
+            onContentChange?.(moduleId, 'focusX', clamp01(x));
+            onContentChange?.(moduleId, 'focusY', clamp01(y));
+            onContentChange?.(moduleId, 'focusZoom', clampFocusZoom(zoom));
+          }}
+          onClose={() => setPositionEditorOpen(false)}
         />
       )}
 
@@ -1497,14 +1956,18 @@ function AccentPicker({ anchor, open, accentColor, onSelect, onClose }) {
     typeof window !== 'undefined'
       ? window.innerWidth || document.documentElement?.clientWidth || 0
       : 0;
-  const width = 170;
+  const width = 136;
+  const horizontalMargin = 12;
   const clampedLeft = Math.max(
-    12,
-    Math.min(viewportWidth - width - 12, anchor.left - width / 2)
+    horizontalMargin,
+    Math.min(viewportWidth - width - horizontalMargin, anchor.left - width / 2)
   );
+  // Bias the picker above the anchor; clamp to viewport top
+  const targetTop = anchor.top - 140;
+  const clampedTop = Math.max(12, targetTop);
   const style = {
     position: 'fixed',
-    top: Math.max(16, anchor.top - 150),
+    top: clampedTop,
     left: Number.isFinite(clampedLeft) ? clampedLeft : 24,
   };
   return createPortal(
@@ -1529,7 +1992,15 @@ function AccentPicker({ anchor, open, accentColor, onSelect, onClose }) {
   );
 }
 
-function CardColorPicker({ anchor, open, value, onSelect, onClose }) {
+function CardColorPicker({
+  anchor,
+  open,
+  value,
+  paleness,
+  onSelect,
+  onPalenessChange,
+  onClose,
+}) {
   const pickerRef = useRef(null);
   const canRender = typeof document !== 'undefined' && open && Boolean(anchor);
   usePointerOutside(pickerRef, () => onClose?.(), canRender);
@@ -1549,24 +2020,48 @@ function CardColorPicker({ anchor, open, value, onSelect, onClose }) {
     left: Number.isFinite(clampedLeft) ? clampedLeft : 24,
     zIndex: 3100,
   };
+  const resolvedPaleness = clamp01(
+    typeof paleness === 'number' ? paleness : DEFAULT_CARD_BODY_PALENESS
+  );
+  const whiteMix = toCardWhiteMix(resolvedPaleness);
   return createPortal(
     <div className="card-color-picker" ref={pickerRef} style={style}>
       <span>Card background</span>
       <div className="card-color-grid">
-        {CARD_BODY_COLORS.map((color) => (
-          <button
-            key={color}
-            type="button"
-            className={`card-color-swatch ${value === color ? 'selected' : ''}`}
-            style={{ background: color }}
-            aria-label={`Use ${color} background`}
-            onClick={() => {
-              onSelect?.(color);
-              onClose?.();
-            }}
-          />
-        ))}
+        {CARD_BODY_BASE_COLORS.map((color) => {
+          const tinted = mixWithWhite(color, whiteMix);
+          return (
+            <button
+              key={color}
+              type="button"
+              className={`card-color-swatch ${value === color ? 'selected' : ''}`}
+              style={{ background: tinted }}
+              aria-label={`Use ${color} background`}
+              onClick={() => {
+                onSelect?.(color);
+                onClose?.();
+              }}
+            />
+          );
+        })}
       </div>
+      <label className="canvas-color-slider" style={{ marginTop: 8 }}>
+        <span>Paleness: {Math.round(whiteMix * 100)}% white</span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={Math.round(resolvedPaleness * 100)}
+          onChange={(event) => {
+            const value = Math.min(
+              100,
+              Math.max(Number(event.target.value) || 0, 0)
+            );
+            const nextPaleness = clamp01(value / 100);
+            onPalenessChange?.(nextPaleness);
+          }}
+        />
+      </label>
     </div>,
     document.body
   );
@@ -1625,9 +2120,13 @@ function SwipeableCard({
   onAccentColorChange,
   canvasColorId = null,
   canvasColorAlpha = null,
+  canvasColorPaleness = null,
   onCanvasColorChange,
   onCanvasOpacityChange,
   onCardBodyColorChange,
+  onCardBodyPalenessChange,
+  cardBodyBaseColor = null,
+  cardBodyPaleness = null,
 }) {
   const bioFallbackPreset = useMemo(() => createBioFallbackPreset(user), [user]);
 
@@ -1646,12 +2145,19 @@ function SwipeableCard({
       const hasVisibleModules = presetModules.some((mod) =>
         moduleHasVisibleContentPublic(mod)
       );
-      if (presetLayout === 'hidden') {
-        return withDefaults(profilePreset);
-      }
-      if (!hasVisibleModules) {
-        if (bioFallbackPreset) return withDefaults(bioFallbackPreset);
-        return withDefaults({ ...profilePreset, layout: 'hidden', modules: [] });
+      if (presetLayout === 'hidden' || !hasVisibleModules) {
+        if (bioFallbackPreset) {
+          // Keep user settings (e.g., colors) but use the bio fallback stand-in
+          return withDefaults({
+            ...bioFallbackPreset,
+            ...profilePreset,
+            layout: 'hidden',
+            modules: [],
+            dynamicSlotCount: 0,
+            isBioFallback: true,
+          });
+        }
+        return withDefaults({ ...profilePreset, layout: 'hidden', modules: [], dynamicSlotCount: 0 });
       }
       return withDefaults(profilePreset);
     }
@@ -1677,15 +2183,30 @@ function SwipeableCard({
             ? resolvedPreset.canvasColorAlpha
             : DEFAULT_CANVAS_OPACITY
         );
+  const resolvedCanvasPaleness =
+    canvasColorPaleness != null
+      ? clamp01(canvasColorPaleness)
+      : clamp01(
+          typeof resolvedPreset?.canvasColorPaleness === 'number'
+            ? resolvedPreset.canvasColorPaleness
+            : DEFAULT_CANVAS_PALENESS
+        );
   const resolvedCanvasBackground = buildCanvasBackground(
     resolvedCanvasColorId,
-    resolvedCanvasAlpha
+    resolvedCanvasAlpha,
+    resolvedCanvasPaleness
   );
-  const hideCanvasChrome =
-    resolvedCanvasColorId === DEFAULT_CANVAS_COLOR_ID && resolvedCanvasAlpha === 0;
+  const hideCanvasChrome = resolvedCanvasAlpha === 0;
   const canvasWrapperRef = useRef(null);
   const canvasRef = useRef(null);
-  const [canvasHostWidth, setCanvasHostWidth] = useState(null);
+  const [canvasHostWidth, setCanvasHostWidth] = useState(() => {
+    if (typeof window === 'undefined') return BASE_CANVAS_WIDTH;
+    const vwWidth = Math.min(
+      520,
+      Math.max((window.innerWidth || BASE_CANVAS_WIDTH) - 32, BASE_CANVAS_WIDTH)
+    );
+    return vwWidth;
+  });
   const [accentPickerOpen, setAccentPickerOpen] = useState(false);
   const [accentPickerAnchor, setAccentPickerAnchor] = useState(null);
   const [dx, setDx] = useState(0);
@@ -1693,7 +2214,16 @@ function SwipeableCard({
   const [rot, setRot] = useState(0);
   const [released, setReleased] = useState(false);
   const [isSwiping, setIsSwiping] = useState(false);
-  const [canvasColorMenuOpen, setCanvasColorMenuOpen] = useState(false);
+  const [canvasStyleMenuOpen, setCanvasStyleMenuOpen] = useState(false);
+  const [canvasStyleAnchor, setCanvasStyleAnchor] = useState(null);
+  const [canvasStyleMenuStyle, setCanvasStyleMenuStyle] = useState(null);
+  const [activeCanvasStylePanel, setActiveCanvasStylePanel] = useState(null);
+  const canvasColorMenuOpen = activeCanvasStylePanel === 'canvasColor';
+  const moduleShapeMenuOpen = activeCanvasStylePanel === 'moduleShape';
+  const moduleColorMenuOpen = activeCanvasStylePanel === 'moduleColor';
+  const [moduleShapeTool, setModuleShapeTool] = useState(null);
+  const [moduleColorTool, setModuleColorTool] = useState(null);
+  const canvasStyleMenuRef = useRef(null);
   const pointerIdRef = useRef(null);
   const skipSwipeRef = useRef(false);
   const swipeStateRef = useRef({
@@ -1715,13 +2245,40 @@ function SwipeableCard({
     setInterestTooltip(null);
   }, []);
 
+  const closeCanvasStylePanels = useCallback(() => {
+    setActiveCanvasStylePanel(null);
+  }, []);
+
+  const toggleCanvasStylePanel = useCallback((panelId) => {
+    setActiveCanvasStylePanel((prev) => (prev === panelId ? null : panelId));
+  }, []);
+
   const resolvedAccentColor =
     accentColor || user?.favoriteAccentColor || ACCENT_COLORS[0];
   const accentTheme = useMemo(
     () => ({ '--mutual-accent': resolvedAccentColor }),
     [resolvedAccentColor]
   );
-  const resolvedCardBodyColor = resolvedPreset?.cardBodyColor || '#ffffff';
+  const resolvedCardBodyBase =
+    cardBodyBaseColor ||
+    resolvedPreset?.cardBodyBaseColor ||
+    resolvedPreset?.cardBodyColor ||
+    '#ffffff';
+  const hasExplicitCardBase =
+    Boolean(cardBodyBaseColor) || Boolean(resolvedPreset?.cardBodyBaseColor);
+  const resolvedCardBodyPaleness = clamp01(
+    typeof cardBodyPaleness === 'number'
+      ? cardBodyPaleness
+      : typeof resolvedPreset?.cardBodyPaleness === 'number'
+        ? resolvedPreset.cardBodyPaleness
+        : hasExplicitCardBase
+          ? DEFAULT_CARD_BODY_PALENESS
+          : 0
+  );
+  const resolvedCardBodyColor = mixWithWhite(
+    resolvedCardBodyBase,
+    toCardWhiteMix(resolvedCardBodyPaleness)
+  );
   const cardThemeStyle = useMemo(
     () => ({
       ...accentTheme,
@@ -1729,29 +2286,23 @@ function SwipeableCard({
     }),
     [accentTheme, resolvedCardBodyColor]
   );
+  // Canvas sizing: favor using the available host width; adjust height to stay within aspect bounds
   let canvasHeight = BASE_CANVAS_HEIGHT * resolvedCanvasScale;
-  const maxInnerWidthAtBaseHeight = canvasHeight * MAX_CANVAS_ASPECT;
-  const fallbackHostWidth = maxInnerWidthAtBaseHeight;
   const hostWidth =
     typeof canvasHostWidth === 'number' && canvasHostWidth > 0
       ? canvasHostWidth
-      : fallbackHostWidth;
-  const usableWidth = Math.max(
+      : BASE_CANVAS_WIDTH;
+  let canvasInnerWidth = Math.max(
     hostWidth - CARD_CANVAS_HORIZONTAL_CHROME,
     MIN_MODULE_DIMENSION
   );
-  let canvasInnerWidth = Math.min(usableWidth, maxInnerWidthAtBaseHeight);
   let aspectRatio = canvasInnerWidth / canvasHeight;
   if (aspectRatio < MIN_CANVAS_ASPECT) {
-    canvasHeight = Math.max(
-      canvasInnerWidth / MIN_CANVAS_ASPECT,
-      MIN_MODULE_DIMENSION
-    );
+    canvasHeight = Math.max(canvasInnerWidth / MIN_CANVAS_ASPECT, MIN_MODULE_DIMENSION);
     aspectRatio = canvasInnerWidth / canvasHeight;
-  }
-  const maxInnerWidth = canvasHeight * MAX_CANVAS_ASPECT;
-  if (canvasInnerWidth > maxInnerWidth) {
-    canvasInnerWidth = maxInnerWidth;
+  } else if (aspectRatio > MAX_CANVAS_ASPECT) {
+    canvasHeight = Math.max(canvasInnerWidth / MAX_CANVAS_ASPECT, MIN_MODULE_DIMENSION);
+    aspectRatio = canvasInnerWidth / canvasHeight;
   }
   const canvasOuterWidth = canvasInnerWidth + CARD_CANVAS_HORIZONTAL_CHROME;
 
@@ -1778,9 +2329,9 @@ function SwipeableCard({
 
   useEffect(() => {
     if (!layoutMenuOpen) {
-      setCanvasColorMenuOpen(false);
+      closeCanvasStylePanels();
     }
-  }, [layoutMenuOpen]);
+  }, [closeCanvasStylePanels, layoutMenuOpen]);
 
   useEffect(() => {
     if (!interestTooltip || typeof document === 'undefined') return undefined;
@@ -1855,33 +2406,45 @@ function SwipeableCard({
     }
   }, [editable]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const wrapper = canvasWrapperRef.current;
     if (!wrapper) return undefined;
     const host =
       wrapper.closest?.('.card-body') ||
       wrapper.closest?.('.card') ||
+      wrapper.closest?.('.card-wrap') ||
       wrapper.parentElement ||
       wrapper;
-    const parseLength = (value) => {
-      const parsed = Number.parseFloat(value);
-      return Number.isFinite(parsed) ? parsed : 0;
-    };
     const measure = () => {
-      const rect = host.getBoundingClientRect();
-      let width = Math.max(0, rect.width || 0);
-      const styles = window.getComputedStyle(host);
-      if (styles) {
-        width -= parseLength(styles.paddingLeft) + parseLength(styles.paddingRight);
-        width -= parseLength(styles.borderLeftWidth) + parseLength(styles.borderRightWidth);
-      }
-      setCanvasHostWidth(Math.max(width, MIN_MODULE_DIMENSION));
+      const hostRect = host.getBoundingClientRect?.() || { width: 0 };
+      const cardRect = wrapper.closest?.('.card')?.getBoundingClientRect?.() || { width: 0 };
+      const wrapRect = wrapper.closest?.('.card-wrap')?.getBoundingClientRect?.() || { width: 0 };
+      const deckRect = wrapper.closest?.('.deck')?.getBoundingClientRect?.() || { width: 0 };
+      const parentWidth = wrapper.parentElement?.clientWidth || 0;
+      const viewportFallback =
+        typeof window !== 'undefined'
+          ? Math.min(520, Math.max((window.innerWidth || BASE_CANVAS_WIDTH) - 32, BASE_CANVAS_WIDTH))
+          : BASE_CANVAS_WIDTH;
+      const width = Math.max(
+        host.clientWidth || host.offsetWidth || hostRect.width || 0,
+        cardRect.width || 0,
+        wrapRect.width || 0,
+        deckRect.width || 0,
+        parentWidth || 0,
+        viewportFallback,
+        BASE_CANVAS_WIDTH
+      );
+      setCanvasHostWidth(width);
     };
     measure();
+    const frame = window.requestAnimationFrame(measure);
     const observer = new ResizeObserver(measure);
     observer.observe(host);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
   }, [preview]);
 
   const modules = Array.isArray(resolvedPreset?.modules)
@@ -1892,6 +2455,14 @@ function SwipeableCard({
     [modules]
   );
   const hasVisibleModules = visibleModulesCount > 0;
+  const bioStandinText = useMemo(() => {
+    const text = resolvedPreset?.bioStandinText;
+    if (!text || !text.trim()) return '';
+    if (modules.length > 0) return '';
+    if (resolvedLayoutId && resolvedLayoutId !== 'hidden') return '';
+    return text;
+  }, [modules.length, resolvedLayoutId, resolvedPreset?.bioStandinText]);
+  const showBioStandin = Boolean(bioStandinText);
   const dynamicSlotCount = useMemo(() => {
     if (resolvedLayoutId !== 'dynamic') return 0;
     const saved = Number(resolvedPreset?.dynamicSlotCount);
@@ -1903,7 +2474,8 @@ function SwipeableCard({
     return normalized;
   }, [resolvedLayoutId, resolvedPreset?.dynamicSlotCount, modules.length]);
   const shouldShowCanvas =
-    editable || (hasVisibleModules && resolvedLayoutId && resolvedLayoutId !== 'hidden');
+    !showBioStandin &&
+    (editable || (hasVisibleModules && resolvedLayoutId && resolvedLayoutId !== 'hidden'));
   const managedModuleCount =
     typeof moduleCount === 'number' && Number.isFinite(moduleCount)
       ? moduleCount
@@ -2100,6 +2672,54 @@ function SwipeableCard({
     setAccentPickerAnchor(null);
   }, []);
 
+  const handleCanvasStyleButton = useCallback(
+    (event) => {
+      event.stopPropagation();
+      if (!editable) return;
+      const rect =
+        event.currentTarget?.getBoundingClientRect() ||
+        canvasWrapperRef.current?.getBoundingClientRect();
+      setCanvasStyleAnchor(rect);
+      setCanvasStyleMenuOpen((prev) => {
+        const next = !prev;
+        if (!next) {
+          closeCanvasStylePanels();
+        }
+        return next;
+      });
+    },
+    [closeCanvasStylePanels, editable]
+  );
+
+  usePointerOutside(
+    canvasStyleMenuRef,
+    (event) => {
+      const target = event?.target;
+      // When a shape/color tool is active, allow clicks on modules to apply without closing.
+      if ((moduleShapeTool || moduleColorTool) && target?.closest?.('.card-canvas-item')) {
+        return;
+      }
+      setCanvasStyleMenuOpen(false);
+      closeCanvasStylePanels();
+      setModuleShapeTool(null);
+      setModuleColorTool(null);
+    },
+    canvasStyleMenuOpen
+  );
+
+  useEffect(() => {
+    if (!editable || (!moduleShapeTool && !moduleColorTool)) return undefined;
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      if (target?.closest?.('.card-canvas-item')) return;
+      if (target?.closest?.('.canvas-style-menu')) return;
+      setModuleShapeTool(null);
+      setModuleColorTool(null);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [editable, moduleColorTool, moduleShapeTool]);
+
   const handleAccentSelect = useCallback(
     (color) => {
       handleAccentClose();
@@ -2251,7 +2871,7 @@ function SwipeableCard({
     maxWidth: 'var(--canvas-outer-width, 100%)',
     height: `${canvasHeight}px`,
     maxHeight: `${canvasHeight}px`,
-    '--canvas-width': `${canvasInnerWidth}px`,
+    '--canvas-width': `${canvasOuterWidth}px`,
     '--canvas-height': `${canvasHeight}px`,
     '--canvas-scale': resolvedCanvasScale,
     '--canvas-outer-width': `${canvasOuterWidth}px`,
@@ -2269,11 +2889,251 @@ function SwipeableCard({
     };
   }, [autoGridPlan]);
 
+  const animatedCanvas = false;
+
+  useLayoutEffect(() => {
+    if (!canvasStyleAnchor || !canvasStyleMenuOpen) {
+      setCanvasStyleMenuStyle(null);
+      return;
+    }
+    const width = 153; // ~15% narrower
+    const horizontalMargin = 10;
+    const verticalMargin = 10;
+    const verticalGap = 2;
+    const verticalLift = 30;
+    const viewportWidth =
+      typeof window !== 'undefined'
+        ? window.innerWidth || document.documentElement?.clientWidth || 0
+        : 0;
+    const anchorLeft = canvasStyleAnchor.left || 0;
+    const anchorBottom =
+      canvasStyleAnchor.bottom ??
+      (canvasStyleAnchor.top != null && canvasStyleAnchor.height != null
+        ? canvasStyleAnchor.top + canvasStyleAnchor.height
+        : canvasStyleAnchor.top || 0);
+    const left = Math.max(
+      horizontalMargin,
+      Math.min(viewportWidth - width - horizontalMargin, anchorLeft + horizontalMargin)
+    );
+    const updatePosition = () => {
+      const measuredHeight = canvasStyleMenuRef.current?.offsetHeight || 200;
+      const preferredTop = anchorBottom - measuredHeight - verticalGap - verticalLift;
+      const top = Math.max(verticalMargin, preferredTop);
+      setCanvasStyleMenuStyle({
+        position: 'fixed',
+        top,
+        left,
+        width,
+      });
+    };
+    updatePosition();
+    const raf = window.requestAnimationFrame(updatePosition);
+    return () => window.cancelAnimationFrame(raf);
+  }, [canvasStyleAnchor, canvasStyleMenuOpen]);
+
+  const handleModuleShapeTrigger = useCallback(() => {
+    toggleCanvasStylePanel('moduleShape');
+  }, [toggleCanvasStylePanel]);
+
+  const handleModuleColorTrigger = useCallback(() => {
+    toggleCanvasStylePanel('moduleColor');
+  }, [toggleCanvasStylePanel]);
+
+  const handleModuleShapeSelect = useCallback((shapeId) => {
+    setModuleShapeTool((prev) => (prev === shapeId ? null : shapeId));
+    setModuleColorTool(null);
+  }, []);
+
+  const handleModuleColorSelect = useCallback((color) => {
+    setModuleColorTool((prev) => (prev === color ? null : color));
+    setModuleShapeTool(null);
+  }, []);
+
+  const handleResetCanvasStyles = useCallback(() => {
+    onCanvasColorChange?.(DEFAULT_CANVAS_COLOR_ID);
+    onCanvasOpacityChange?.(DEFAULT_CANVAS_OPACITY);
+    if (onModuleResize) {
+      modules.forEach((mod) => {
+        const id = mod?._id || mod?.slotId;
+        if (!id) return;
+        onModuleResize(id, { shape: 'square', moduleColor: null });
+      });
+    }
+    setModuleShapeTool(null);
+    setModuleColorTool(null);
+    closeCanvasStylePanels();
+  }, [closeCanvasStylePanels, modules, onCanvasColorChange, onCanvasOpacityChange, onModuleResize]);
+
+  const canvasStyleMenuWidth = canvasStyleMenuStyle?.width || 153;
+
+  const canvasStyleMenu =
+    editable && canvasStyleMenuOpen && canvasStyleMenuStyle ? (
+      <div
+        className="canvas-style-menu"
+        role="menu"
+        ref={canvasStyleMenuRef}
+        style={
+          canvasStyleMenuStyle
+            ? {
+                ...canvasStyleMenuStyle,
+                '--canvas-style-menu-width': `${canvasStyleMenuWidth}px`,
+              }
+            : canvasStyleMenuStyle
+        }
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <span className="canvas-style-title">Canvas Style</span>
+        <div className="canvas-color-menu">
+          <button
+            type="button"
+            className={`canvas-color-trigger ${canvasColorMenuOpen ? 'open' : ''}`}
+            onClick={() => toggleCanvasStylePanel('canvasColor')}
+          >
+            <span>Canvas Color</span>
+            <span className="canvas-color-preview" style={{ background: resolvedCanvasBackground }} />
+          </button>
+          {canvasColorMenuOpen && (
+            <div
+              className="canvas-color-panel floating"
+              style={{ width: `${canvasStyleMenuWidth}px` }}
+            >
+              <div className="canvas-color-swatches">
+                {CANVAS_COLOR_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={[
+                      'canvas-color-swatch',
+                      option.id === resolvedCanvasColorId ? 'selected' : '',
+                      option.id,
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    style={{ background: buildCanvasBackground(option.id, 1, resolvedCanvasPaleness) }}
+                    onClick={() => {
+                      onCanvasColorChange?.(option.id);
+                    }}
+                    aria-label={`Use ${option.label} canvas`}
+                  />
+                ))}
+              </div>
+              <label className="canvas-color-slider">
+                <span>Transparency: {Math.round((1 - resolvedCanvasAlpha) * 100)}%</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round((1 - resolvedCanvasAlpha) * 100)}
+                  onChange={(event) => {
+                    const value = Math.min(100, Math.max(Number(event.target.value) || 0, 0));
+                    const nextAlpha = clamp01(1 - value / 100);
+                    onCanvasOpacityChange?.(nextAlpha);
+                  }}
+                />
+              </label>
+            </div>
+          )}
+        </div>
+
+        <div className="canvas-color-menu module-style-menu">
+          <button
+            type="button"
+            className={`canvas-color-trigger ${moduleShapeMenuOpen ? 'open' : ''}`}
+            onClick={handleModuleShapeTrigger}
+          >
+            <span>Module Shape</span>
+            <span className="canvas-color-preview module-shape-preview">{moduleShapeTool || 'Off'}</span>
+          </button>
+          {moduleShapeMenuOpen && (
+            <div
+              className="canvas-color-panel floating module-shape-panel"
+              style={{ width: `${canvasStyleMenuWidth}px` }}
+            >
+              <div className="module-shape-grid">
+                {['square', 'circle', 'star', 'heart'].map((shape) => (
+                  <button
+                    key={shape}
+                    type="button"
+                    className={`module-shape-swatch ${shape} ${moduleShapeTool === shape ? 'selected' : ''}`}
+                    onClick={() => handleModuleShapeSelect(shape)}
+                    aria-label={`Apply ${shape} modules`}
+                  >
+                    <span className={`shape-icon shape-${shape}`} aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+              <p className="canvas-apply-hint">
+                Select a shape, then click modules to apply. Click outside modules to exit apply mode.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="canvas-color-menu module-style-menu">
+          <button
+            type="button"
+            className={`canvas-color-trigger ${moduleColorMenuOpen ? 'open' : ''}`}
+            onClick={handleModuleColorTrigger}
+          >
+            <span>Module Color</span>
+            <span
+              className="canvas-color-preview"
+              style={{ background: moduleColorTool || '#ffffff', borderColor: moduleColorTool ? darkenHex(moduleColorTool, 0.4) : undefined }}
+            />
+          </button>
+          {moduleColorMenuOpen && (
+            <div
+              className="canvas-color-panel floating module-color-panel"
+              style={{ width: `${canvasStyleMenuWidth}px` }}
+            >
+              <div className="module-color-swatches">
+                {ACCENT_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`module-color-swatch ${moduleColorTool === color ? 'selected' : ''}`}
+                    style={{ background: color }}
+                    onClick={() => handleModuleColorSelect(color)}
+                    aria-label={`Apply ${color} to modules`}
+                  />
+                ))}
+              </div>
+              <p className="canvas-apply-hint">
+                Pick a color, then click modules to paint them. Click outside modules to exit apply mode.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <button type="button" className="canvas-reset-button" onClick={handleResetCanvasStyles}>
+          Reset to defaults
+        </button>
+      </div>
+    ) : null;
+
   const handleModuleDelete = useCallback(
     (moduleId) => {
       onModuleDelete?.(moduleId);
     },
     [onModuleDelete]
+  );
+
+  const handleApplyModuleShape = useCallback(
+    (moduleId, shape) => {
+      if (!editable || !moduleId || !shape) return;
+      onModuleResize?.(moduleId, { shape });
+    },
+    [editable, onModuleResize]
+  );
+
+  const handleApplyModuleColor = useCallback(
+    (moduleId, color) => {
+      if (!editable || !moduleId) return;
+      const nextColor = typeof color === 'string' ? color : null;
+      onModuleResize?.(moduleId, { moduleColor: nextColor });
+    },
+    [editable, onModuleResize]
   );
 
   const renderModules = () => {
@@ -2298,6 +3158,10 @@ function SwipeableCard({
             onContentChange={editable ? onModuleContentChange : undefined}
             onResize={editable ? onModuleResize : undefined}
             onDelete={editable ? handleModuleDelete : undefined}
+            activeShapeTool={moduleShapeTool}
+            activeColorTool={moduleColorTool}
+            onApplyShape={onModuleResize ? handleApplyModuleShape : undefined}
+            onApplyColor={onModuleResize ? handleApplyModuleColor : undefined}
             gridPlacement={placement}
             autoPlacementActive={false}
             freeformMode
@@ -2326,6 +3190,10 @@ function SwipeableCard({
             onContentChange={editable ? onModuleContentChange : undefined}
             onResize={editable ? onModuleResize : undefined}
             onDelete={editable ? handleModuleDelete : undefined}
+            activeShapeTool={moduleShapeTool}
+            activeColorTool={moduleColorTool}
+            onApplyShape={onModuleResize ? handleApplyModuleShape : undefined}
+            onApplyColor={onModuleResize ? handleApplyModuleColor : undefined}
             gridPlacement={placement}
             autoPlacementActive
             freeformMode={false}
@@ -2352,6 +3220,10 @@ function SwipeableCard({
         onContentChange={editable ? onModuleContentChange : undefined}
         onResize={editable ? onModuleResize : undefined}
         onDelete={editable ? handleModuleDelete : undefined}
+        activeShapeTool={moduleShapeTool}
+        activeColorTool={moduleColorTool}
+        onApplyShape={onModuleResize ? handleApplyModuleShape : undefined}
+        onApplyColor={onModuleResize ? handleApplyModuleColor : undefined}
         autoPlacementActive={false}
         freeformMode={false}
         layoutColumns={getLayoutColumns(resolvedLayoutId || 'single', modules.length)}
@@ -2361,7 +3233,8 @@ function SwipeableCard({
     ));
   };
 
-  const wrapClassName = ['card-wrap', preview ? 'preview' : '']
+  const toolModeActive = editable && (moduleShapeTool || moduleColorTool);
+  const wrapClassName = ['card-wrap', preview ? 'preview' : '', toolModeActive ? 'tool-mode-active' : '']
     .filter(Boolean)
     .join(' ');
   const cardClassName = ['card', stylePreset || 'classic', preview ? 'preview' : '']
@@ -2383,6 +3256,9 @@ function SwipeableCard({
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
     >
+      {editable && (moduleShapeTool || moduleColorTool) ? (
+        <div className="canvas-tool-overlay" aria-hidden="true" />
+      ) : null}
       <div className={cardClassName} style={cardThemeStyle}>
         <div className="card-banner" style={{ backgroundImage: `url(${bannerUrl})` }} />
         <div className="card-body" onClick={handleCardBodyClick}>
@@ -2458,12 +3334,50 @@ function SwipeableCard({
             />
           </div>
 
-          {shouldShowCanvas && (
+          {showBioStandin && (
             <div
-              className={`card-canvas-shell ${editable ? 'editable' : ''} ${layoutMenuOpen ? 'layout-open' : ''}`}
+              className={`card-canvas-shell bio-standin-shell ${preview ? 'preview' : ''} ${editable ? 'editable' : ''} ${managedModuleCount === 0 ? 'empty' : ''}`}
               style={canvasStyle}
               ref={canvasWrapperRef}
               onClick={() => {
+                if (editable) {
+                  onAddModule?.();
+                }
+              }}
+            >
+              <div className="bio-standin" role={editable ? 'button' : undefined}>
+                <p>{bioStandinText}</p>
+              </div>
+              {editable && preview && managedModuleCount === 0 && (
+                <div className="bio-standin-overlay">Click to add a module</div>
+              )}
+              {editable && (
+                <CanvasControls
+                  editable={editable}
+                  moduleCount={managedModuleCount}
+                  maxModules={maxModules}
+                  onAddModule={onAddModule}
+                  onRemoveModule={onRemoveModule}
+                  disableAdd={disableAddModules}
+                  disableRemove={disableRemoveModules}
+                />
+              )}
+            </div>
+          )}
+
+          {shouldShowCanvas && (
+          <div
+            className={[
+              'card-canvas-shell',
+              editable ? 'editable' : '',
+              layoutMenuOpen ? 'layout-open' : '',
+              animatedCanvas ? 'animated-canvas neonwave' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            style={canvasStyle}
+            ref={canvasWrapperRef}
+            onClick={() => {
                 if (editable) onCanvasActivate?.();
               }}
             >
@@ -2482,6 +3396,18 @@ function SwipeableCard({
                 {renderModules()}
               </div>
 
+              {editable && (
+                <button
+                  type="button"
+                  className={`canvas-style-control ${canvasStyleMenuOpen ? 'open' : ''}`}
+                  onClick={handleCanvasStyleButton}
+                  aria-label="Canvas style"
+                  data-floating-control="true"
+                >
+                  <span aria-hidden="true">✦</span>
+                </button>
+              )}
+
               <CanvasControls
                 editable={editable}
                 moduleCount={managedModuleCount}
@@ -2491,6 +3417,11 @@ function SwipeableCard({
                 disableAdd={disableAddModules}
                 disableRemove={disableRemoveModules}
               />
+
+              {canvasStyleMenu &&
+                (typeof document !== 'undefined'
+                  ? createPortal(canvasStyleMenu, document.body)
+                  : canvasStyleMenu)}
 
               {layoutMenuOpen && editable && (
                 <div
@@ -2510,59 +3441,9 @@ function SwipeableCard({
                         onClick={() => onLayoutSelect?.(layout.id)}
                       >
                         {layout.label}
-                        {layout.id === resolvedLayoutId && <span className="check">✓</span>}
+                        {layout.id === resolvedLayoutId && <span className="check">&check;</span>}
                       </button>
                     ))}
-                  </div>
-                  <div className="canvas-color-menu">
-                    <button
-                      type="button"
-                      className={`canvas-color-trigger ${canvasColorMenuOpen ? 'open' : ''}`}
-                      onClick={() => setCanvasColorMenuOpen((prev) => !prev)}
-                    >
-                      <span>Canvas Color</span>
-                      <span
-                        className="canvas-color-preview"
-                        style={{ background: resolvedCanvasBackground }}
-                      />
-                    </button>
-                    {canvasColorMenuOpen && (
-                      <div className="canvas-color-panel">
-                        <div className="canvas-color-swatches">
-                          {CANVAS_COLOR_OPTIONS.map((option) => (
-                            <button
-                              key={option.id}
-                              type="button"
-                              className={`canvas-color-swatch ${option.id === resolvedCanvasColorId ? 'selected' : ''}`}
-                              style={{ background: buildCanvasBackground(option.id, 1) }}
-                              onClick={() => {
-                                onCanvasColorChange?.(option.id);
-                              }}
-                              aria-label={`Use ${option.label} canvas`}
-                            />
-                          ))}
-                        </div>
-                        <label className="canvas-color-slider">
-                          <span>
-                            Transparency: {Math.round((1 - resolvedCanvasAlpha) * 100)}%
-                          </span>
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            value={Math.round((1 - resolvedCanvasAlpha) * 100)}
-                            onChange={(event) => {
-                              const value = Math.min(
-                                100,
-                                Math.max(Number(event.target.value) || 0, 0)
-                              );
-                              const nextAlpha = clamp01(1 - value / 100);
-                              onCanvasOpacityChange?.(nextAlpha);
-                            }}
-                          />
-                        </label>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -2608,8 +3489,10 @@ function SwipeableCard({
         <CardColorPicker
           anchor={cardColorPickerAnchor}
           open={cardColorPickerOpen && Boolean(cardColorPickerAnchor)}
-          value={resolvedCardBodyColor}
+          value={resolvedCardBodyBase}
+          paleness={resolvedCardBodyPaleness}
           onSelect={handleCardColorSelect}
+          onPalenessChange={onCardBodyPalenessChange}
           onClose={handleCardColorPickerClose}
         />
       )}

@@ -38,6 +38,7 @@ import { applyTextLimits } from '../utils/textLimits';
 
 // ---------- Minimal styles (same as your original, kept inline) ----------
 const styles = `
+
 :root {
   --nav-mobile: 58px;
   --topbar-mobile: 56px;
@@ -114,13 +115,13 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   }
   .titantap-header .tag-trigger {
     font-size: 12px;
-    padding: 7px 11px;
+    padding: 6px 11px;
   }
 }
 
 .note { text-align: center; padding: 16px 0; color: #666; }
 
-/* Search results — centered, clamped to viewport */
+/* Search results - centered, clamped to viewport */
 .search-results {
   position: fixed;
   left: 50%;
@@ -163,7 +164,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .badge { background: #f3f4f6; border: 1px solid #e5e8eb; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #111; }
 .badge.title { background: #111; color: #fff; border-color: #111; }
 
-/* Deck & cards — responsive height/width */
+/* Deck & cards - responsive height/width */
 .deck {
   position: relative;
   height: clamp(520px, calc(100vh - 200px), 600px);
@@ -461,8 +462,16 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .meta-chip.match {
   border: 2px solid var(--mutual-accent, #fbbf24);
   background:
-    linear-gradient(#f8fafc, #f8fafc) padding-box,
-    linear-gradient(135deg, color-mix(in srgb, var(--mutual-accent, #fbbf24) 45%, transparent), rgba(37,99,235,0.1)) border-box;
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--mutual-accent, #fbbf24) 48%, #fff),
+      color-mix(in srgb, var(--mutual-accent, #fbbf24) 12%, #fff)
+    ) padding-box,
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--mutual-accent, #fbbf24) 55%, transparent),
+      rgba(37,99,235,0.08)
+    ) border-box;
   box-shadow: 0 10px 24px color-mix(in srgb, var(--mutual-accent, #fbbf24) 28%, transparent);
   color: #111827;
 }
@@ -548,8 +557,14 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 }
 .interest-dot.common {
   border: 2px solid var(--mutual-accent, #fbbf24);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--mutual-accent, #fbbf24) 20%, #fff), rgba(255,255,255,0.98));
-  box-shadow: 0 10px 20px color-mix(in srgb, var(--mutual-accent, #fbbf24) 25%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mutual-accent, #fbbf24) 48%, #fff),
+    color-mix(in srgb, var(--mutual-accent, #fbbf24) 18%, rgba(255,255,255,0.98))
+  );
+  box-shadow:
+    0 14px 32px color-mix(in srgb, var(--mutual-accent, #fbbf24) 45%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--mutual-accent, #fbbf24) 30%, transparent);
 }
 
 .module-resize-elbow {
@@ -702,10 +717,14 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   position: relative;
   display: flex;
   justify-content: center;
+  flex: 0 0 auto;
   width: 100%;
   margin: 0 auto;
-  max-width: var(--canvas-outer-width, var(--canvas-width, 100%));
+  max-width: 100%;
   overflow: visible;
+}
+.card-wrap.preview .card-canvas-shell {
+  max-width: var(--canvas-outer-width, var(--canvas-width, 100%));
 }
 .card-canvas-shell .card-canvas {
   position: relative;
@@ -754,6 +773,8 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   position: relative;
   min-width: 42px;
   min-height: 42px;
+  --module-fill-color: #fff;
+  --module-border-color: rgba(148,163,184,0.48);
 }
 
 .canvas-layout-hint {
@@ -789,19 +810,19 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   bottom: calc(100% + 12px);
   left: 50%;
   transform: translateX(-50%);
-  min-width: 220px;
-  padding: 12px;
-  border-radius: 16px;
+  min-width: 140px;
+  padding: 7px 8px;
+  border-radius: 10px;
   background: rgba(255,255,255,0.98);
   border: 1px solid rgba(148,163,184,0.32);
-  box-shadow: 0 18px 40px rgba(15,23,42,0.18);
+  box-shadow: 0 12px 26px rgba(15,23,42,0.18);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   z-index: 20;
 }
 .canvas-layout-title {
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -810,7 +831,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .canvas-layout-options {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .canvas-layout-option {
   display: flex;
@@ -818,11 +839,11 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   justify-content: space-between;
   width: 100%;
   border: 1px solid rgba(148,163,184,0.35);
-  border-radius: 12px;
-  padding: 8px 12px;
+  border-radius: 10px;
+  padding: 6px 8px;
   background: rgba(248,250,255,0.85);
   color: #0f172a;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
@@ -839,14 +860,15 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   box-shadow: 0 12px 28px rgba(37,99,235,0.2);
 }
 .canvas-layout-option .check {
-  margin-left: 10px;
-  font-size: 14px;
+  margin-left: 8px;
+  font-size: 12px;
   color: #2563eb;
 }
 .canvas-color-menu {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  position: static;
 }
 .canvas-color-trigger {
   display: flex;
@@ -854,10 +876,10 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   justify-content: space-between;
   width: 100%;
   border: 1px solid rgba(148,163,184,0.35);
-  border-radius: 12px;
-  padding: 8px 12px;
+  border-radius: 10px;
+  padding: 5px 7px;
   background: rgba(248,250,255,0.9);
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 600;
   cursor: pointer;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
@@ -870,26 +892,36 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   outline: none;
 }
 .canvas-color-preview {
-  width: 28px;
-  height: 20px;
-  border-radius: 8px;
+  width: 16px;
+  height: 12px;
+  border-radius: 6px;
   border: 1px solid rgba(148,163,184,0.5);
   margin-left: 10px;
 }
 .canvas-color-panel {
   border: 1px solid rgba(148,163,184,0.25);
   border-radius: 14px;
-  padding: 10px;
+  padding: 7px;
   background: rgba(248,250,255,0.95);
   box-shadow: inset 0 1px 2px rgba(15,23,42,0.04);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
+}
+.canvas-color-panel.floating {
+  position: absolute;
+  top: auto;
+  left: calc(100% + 8px);
+  bottom: 0;
+  width: var(--canvas-style-menu-width, 100%);
+  min-width: var(--canvas-style-menu-width, 100%);
+  z-index: 5;
+  box-shadow: 0 10px 24px rgba(15,23,42,0.2), inset 0 1px 2px rgba(15,23,42,0.04);
 }
 .canvas-color-swatches {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: 5px;
 }
 .canvas-color-swatch {
   width: 100%;
@@ -904,20 +936,186 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(37,99,235,0.28);
 }
+.canvas-color-swatch.neonwave {
+  background: linear-gradient(135deg, #ffd8f1, #e7f3ff 60%, #ffe6cf);
+}
+.card-canvas-shell.animated-canvas::before {
+  background-size: 220% 220%;
+  background-position: 0% 50%;
+  background-repeat: no-repeat;
+  animation: canvas-ripple-flow 14s ease-in-out infinite;
+}
+.card-canvas-shell.animated-canvas .card-canvas {
+  background-size: 220% 220%;
+  background-position: 0% 50%;
+  background-repeat: no-repeat;
+  animation: canvas-ripple-flow 14s ease-in-out infinite;
+}
+.card-wrap.preview .card-canvas-shell.animated-canvas.editable:hover .card-canvas,
+.card-wrap.preview .card-canvas-shell.animated-canvas.editable:focus-visible .card-canvas,
+.card-wrap.preview .card-canvas-shell.animated-canvas.layout-open .card-canvas {
+  background-size: 240% 240%;
+  animation: canvas-ripple-flow 12s ease-in-out infinite;
+}
+.card-wrap.preview .card-canvas-shell.animated-canvas.editable:hover::before,
+.card-wrap.preview .card-canvas-shell.animated-canvas.editable:focus-visible::before,
+.card-wrap.preview .card-canvas-shell.animated-canvas.layout-open::before {
+  background-size: 240% 240%;
+  animation: canvas-ripple-flow 12s ease-in-out infinite;
+}
+@keyframes canvas-ripple-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 60% 47%;
+  }
+  50% {
+    background-position: 100% 53%;
+  }
+  75% {
+    background-position: 60% 49%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
 .canvas-color-swatch:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
+}
+.module-shape-preview {
+  min-width: 36px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid rgba(148,163,184,0.5);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #e2e8f0;
+  text-transform: capitalize;
+}
+.module-shape-grid {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 6px;
+  justify-content: center;
+}
+.module-shape-swatch {
+  border: 1px solid rgba(148,163,184,0.45);
+  border-radius: 10px;
+  padding: 2px;
+  width: 48px;
+  justify-self: center;
+  background: rgba(248,250,255,0.9);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  text-align: center;
+  display: grid;
+  place-items: center;
+}
+.module-shape-swatch.selected {
+  border-color: #2563eb;
+  box-shadow: 0 8px 18px rgba(37,99,235,0.22);
+  transform: translateY(-1px);
+}
+.shape-icon {
+  width: 20px;
+  height: 20px;
+  border: none;
+  display: block;
+  background: transparent no-repeat center;
+  background-size: 80% 80%;
+}
+.shape-icon.shape-square {
+  border: 2px solid #475569;
+  border-radius: 4px;
+  width: 18px;
+  height: 18px;
+}
+.shape-icon.shape-circle {
+  border: 2px solid #475569;
+  border-radius: 999px;
+  width: 18px;
+  height: 18px;
+}
+.shape-icon.shape-star {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 5l12 27 29 2-22 18 8 28-27-13-27 13 8-28-22-18 29-2z' fill='none' stroke='%23475569' stroke-width='8' stroke-linejoin='round'/></svg>");
+}
+.shape-icon.shape-heart {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 88C22 70 6 52 6 32 6 16 18 6 32 6c10 0 18 7 18 14 0-7 8-14 18-14 14 0 26 10 26 26 0 20-16 38-44 56z' fill='none' stroke='%23475569' stroke-width='8' stroke-linejoin='round'/></svg>");
+}
+
+.canvas-tool-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.18);
+  pointer-events: none;
+  z-index: 1200;
+}
+
+.card-wrap.tool-mode-active {
+  position: relative;
+  z-index: 2000;
+}
+.module-color-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+}
+.module-color-swatch {
+  width: 80%;
+  max-width: 28px;
+  aspect-ratio: 1 / 1;
+  border-radius: 7px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  justify-self: center;
+}
+.module-color-swatch.selected {
+  border-color: #0f172a;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15,23,42,0.22);
 }
 .canvas-color-slider {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #475569;
 }
 .canvas-color-slider input[type="range"] {
   width: 100%;
+}
+.canvas-apply-hint {
+  margin: 2px 0 0;
+  font-size: 8px;
+  color: #475569;
+  line-height: 1.3;
+}
+.canvas-reset-button {
+  margin-top: 8px;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(148,163,184,0.45);
+  background: #ffffff;
+  padding: 7px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.canvas-reset-button:hover,
+.canvas-reset-button:focus-visible {
+  border-color: rgba(37,99,235,0.65);
+  box-shadow: 0 8px 18px rgba(37,99,235,0.2);
+  background: #f8fafc;
+  outline: none;
 }
 
 .card-canvas {
@@ -931,10 +1129,16 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   );
   display: grid;
   gap: 6px;
-  height: 100%;
-  width: min(100%, var(--canvas-width, 100%));
+  width: 100%;
+  max-width: 100%;
+  height: var(--canvas-height, auto);
+  max-height: var(--canvas-height, auto);
   min-width: 0;
   box-sizing: border-box;
+}
+.card-wrap.preview .card-canvas {
+  width: 100%;
+  max-width: var(--canvas-outer-width, 100%);
 }
 
 .card-canvas.single {
@@ -978,10 +1182,17 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 }
 .card-canvas-item.image {
   padding: 0;
-  border: none;
+  border: 1px solid var(--module-border-color, transparent);
   border-radius: 12px;
-  background: transparent;
+  background: var(--module-fill-color, transparent);
   min-height: 130px;
+}
+.card-canvas-item.image .module-preview {
+  padding: 0;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+  background: var(--module-fill-color, transparent);
 }
 .card-canvas-item h5 {
   margin: 0;
@@ -1031,13 +1242,93 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   height: 100%;
   object-fit: cover;
 }
-.card-canvas-item.image .module-preview {
-  padding: 0;
-  height: 100%;
+.card-canvas-item.image .image-dropzone {
+  border: none;
+  background: transparent;
+  border-radius: inherit;
+}
+.card-canvas-item.image .image-dropzone.has-image {
+  border: none;
+  background: transparent;
+}
+.card-canvas-item.image .image-dropzone img,
+.card-canvas-item.image .image-dropzone video {
+  border-radius: inherit;
+}
+.card-canvas-item.shape-star .image-dropzone img,
+.card-canvas-item.shape-star .image-dropzone video {
+  transform: none;
 }
 .card-canvas-item .caption {
   font-size: 12px;
   color: #475569;
+}
+.card-canvas-shell.bio-standin-shell {
+  border-style: solid;
+  border-color: rgba(148,163,184,0.45);
+  background: rgba(248,250,255,0.9);
+  min-height: 180px;
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  overflow: visible;
+}
+.card-canvas-shell.bio-standin-shell.editable {
+  cursor: pointer;
+}
+.bio-standin {
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(148,163,184,0.35);
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.55;
+  word-break: break-word;
+  white-space: pre-wrap;
+  box-shadow: inset 0 1px 2px rgba(15,23,42,0.05);
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+.card-wrap.preview .card-canvas-shell.bio-standin-shell:hover .bio-standin,
+.card-wrap.preview .card-canvas-shell.bio-standin-shell:focus-visible .bio-standin {
+  border-color: rgba(37,99,235,0.45);
+  box-shadow: 0 12px 28px rgba(37,99,235,0.16);
+}
+.card-wrap.preview .card-canvas-shell.bio-standin-shell.empty .bio-standin {
+  filter: none;
+  opacity: 1;
+  transition: filter 120ms ease, opacity 120ms ease;
+}
+.card-wrap.preview .card-canvas-shell.bio-standin-shell.empty:hover .bio-standin,
+.card-wrap.preview .card-canvas-shell.bio-standin-shell.empty:focus-visible .bio-standin {
+  filter: blur(2px);
+  opacity: 0.85;
+}
+.card-wrap.preview .card-canvas-shell.bio-standin-shell.empty .bio-standin-overlay {
+  display: none;
+}
+.card-wrap.preview .card-canvas-shell.bio-standin-shell.empty:hover .bio-standin-overlay,
+.card-wrap.preview .card-canvas-shell.bio-standin-shell.empty:focus-visible .bio-standin-overlay {
+  display: grid;
+}
+.card-wrap.preview .bio-standin-overlay {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #0f172a;
+  background: rgba(255,255,255,0.25);
+  backdrop-filter: blur(1.5px);
+  pointer-events: none;
+  text-align: center;
+  border-radius: 12px;
+  z-index: 3;
 }
 .card-canvas-empty {
   font-size: 12px;
@@ -1070,8 +1361,12 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .tooltip-bubble.mutual {
   border-color: var(--mutual-accent, #fbbf24);
   color: #0f172a;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--mutual-accent, #fbbf24) 20%, #ffffff), rgba(255,255,255,0.94));
-  box-shadow: 0 16px 28px color-mix(in srgb, var(--mutual-accent, #fbbf24) 30%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mutual-accent, #fbbf24) 38%, #ffffff),
+    rgba(255,255,255,0.94)
+  );
+  box-shadow: 0 16px 28px color-mix(in srgb, var(--mutual-accent, #fbbf24) 34%, transparent);
 }
 .mutual-count {
   margin-top: 0;
@@ -1193,7 +1488,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   height: min(100vh, 900px);
   max-height: min(100dvh, 900px);
   height: min(100dvh, 900px);
-  background: linear-gradient(160deg, rgba(248,250,255,0.98), rgba(237,242,255,0.94));
+  background: linear-gradient(160deg, rgba(248,250,255,1), rgba(237,242,255,1));
   border: 1px solid rgba(148,163,184,0.32);
   box-shadow: 0 30px 60px rgba(15,23,42,0.24);
   border-radius: 22px;
@@ -1224,7 +1519,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 }
 .profile-card-modal header h3 {
   margin: 0;
-  font-size: 20px;
+  font-size: clamp(17px, 4.5vw, 20px);
   color: #0f172a;
 }
 .profile-card-modal header button.close {
@@ -1434,8 +1729,8 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   height: var(--profile-card-height, clamp(520px, calc(100vh - 220px), 580px));
 }
 .card-wrap.preview .card-canvas {
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  max-width: var(--canvas-outer-width, 100%);
 }
 
 @media (max-width: 600px) {
@@ -1458,9 +1753,9 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .card-preview-shell .card-canvas-item:not(.image),
 .card-canvas-shell .card-canvas-item:not(.image),
 .card .card-canvas-item:not(.image) {
-  border: 1px solid rgba(148,163,184,0.48);
+  border: 1px solid var(--module-border-color, rgba(148,163,184,0.48));
   border-radius: 14px;
-  background: #fff;
+  background: var(--module-fill-color, #fff);
   box-shadow: 0 12px 26px rgba(15,23,42,0.12);
   padding: 5px 7px;
   display: flex;
@@ -1472,14 +1767,14 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 .card-preview-shell .card-canvas-item.editable:not(.image):hover,
 .card-canvas-shell .card-canvas-item.editable:not(.image):hover,
 .card .card-canvas-item.editable:not(.image):hover {
-  border-color: rgba(37,99,235,0.45);
+  border-color: var(--module-border-color, rgba(37,99,235,0.45));
   box-shadow: 0 10px 22px rgba(37,99,235,0.14);
 }
 .card-wrap.preview .card-canvas-item.editable:not(.image).active,
 .card-preview-shell .card-canvas-item.editable:not(.image).active,
 .card-canvas-shell .card-canvas-item.editable:not(.image).active,
 .card .card-canvas-item.editable:not(.image).active {
-  border-color: #2563eb;
+  border-color: var(--module-border-color, #2563eb);
   box-shadow: 0 16px 30px rgba(37,99,235,0.2);
 }
 .card-wrap.preview .card-canvas-item:not(.image) .module-preview,
@@ -1526,6 +1821,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   text-align: center;
   white-space: pre-wrap;
   word-break: break-word;
+  color: var(--module-text-color, #0f172a);
 }
 .card-canvas-item.textual .module-inline-editor {
   width: 100%;
@@ -1533,7 +1829,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   border: none;
   outline: none;
   background: transparent;
-  color: inherit;
+  color: var(--module-text-color, #0f172a);
   cursor: text;
   padding: 0;
 }
@@ -1553,6 +1849,248 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   color: #94a3b8;
   pointer-events: none;
 }
+
+.card-canvas-item.shape-circle,
+.card-canvas-item.shape-star,
+.card-canvas-item.shape-heart {
+  overflow: visible;
+}
+.card-canvas-item.shape-star,
+.card-canvas-item.shape-heart {
+  aspect-ratio: 1 / 1;
+  height: 100%;
+  width: auto;
+  justify-self: center;
+}
+.card-canvas-item.shape-circle,
+.card-canvas-item.shape-circle .module-preview {
+  border-radius: 999px;
+}
+.card-canvas-item.shape-circle .module-preview {
+  overflow: hidden;
+}
+.card-canvas-item.shape-star .module-preview,
+.card-canvas-item.shape-heart .module-preview {
+  width: 100%;
+  height: 100%;
+}
+.card-canvas-item.shape-star .image-dropzone img,
+.card-canvas-item.shape-star .image-dropzone video {
+  clip-path: none;
+  -webkit-clip-path: none;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 5c2 0 4 1 5 3l9 22 24 2c2 0 4 2 5 4 1 2 0 5-1 6l-19 16 6 23c0 2 0 5-2 6-2 2-4 2-6 1L50 77 29 88c-2 1-4 1-6-1-2-1-3-4-2-6l6-23-19-16c-1-1-2-4-1-6 1-2 3-4 5-4l24-2 9-22c1-2 3-3 5-3Z'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 5c2 0 4 1 5 3l9 22 24 2c2 0 4 2 5 4 1 2 0 5-1 6l-19 16 6 23c0 2 0 5-2 6-2 2-4 2-6 1L50 77 29 88c-2 1-4 1-6-1-2-1-3-4-2-6l6-23-19-16c-1-1-2-4-1-6 1-2 3-4 5-4l24-2 9-22c1-2 3-3 5-3Z'/></svg>");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.card-canvas-item.shape-heart .image-dropzone img,
+.card-canvas-item.shape-heart .image-dropzone video {
+  clip-path: none;
+  -webkit-clip-path: none;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 90C20 68 0 50 0 32C0 16 14 4 30 4C42 4 50 14 50 22C50 14 58 4 70 4C86 4 100 16 100 32C100 50 82 72 50 90Z'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 90C20 68 0 50 0 32C0 16 14 4 30 4C42 4 50 14 50 22C50 14 58 4 70 4C86 4 100 16 100 32C100 50 82 72 50 90Z'/></svg>");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.card-canvas-item.shape-star,
+.card-canvas-item.shape-heart {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+.card-canvas-item.shape-star.editable:hover,
+.card-canvas-item.shape-star.editable:focus-visible,
+.card-canvas-item.shape-heart.editable:hover,
+.card-canvas-item.shape-heart.editable:focus-visible {
+  box-shadow: 0 0 0 2px var(--module-border-color, rgba(37,99,235,0.5)),
+    0 14px 28px rgba(37,99,235,0.18);
+}
+.card-canvas-item.shape-star .module-preview,
+.card-canvas-item.shape-heart .module-preview {
+  border: none;
+  background: transparent;
+  color: var(--module-text-color, inherit);
+  padding: 0;
+}
+.card-canvas-item.textual.shape-star,
+.card-canvas-item.textual.shape-heart {
+  overflow: hidden;
+  background: var(--module-fill-color, #fff);
+  box-shadow: 0 0 0 1px var(--module-border-color, rgba(37,99,235,0.5)),
+    0 12px 26px rgba(15,23,42,0.12);
+  border: none;
+  padding: 0;
+}
+.card-canvas-item.textual.shape-star {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 5c2 0 4 1 5 3l9 22 24 2c2 0 4 2 5 4 1 2 0 5-1 6l-19 16 6 23c0 2 0 5-2 6-2 2-4 2-6 1L50 77 29 88c-2 1-4 1-6-1-2-1-3-4-2-6l6-23-19-16c-1-1-2-4-1-6 1-2 3-4 5-4l24-2 9-22c1-2 3-3 5-3Z'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 5c2 0 4 1 5 3l9 22 24 2c2 0 4 2 5 4 1 2 0 5-1 6l-19 16 6 23c0 2 0 5-2 6-2 2-4 2-6 1L50 77 29 88c-2 1-4 1-6-1-2-1-3-4-2-6l6-23-19-16c-1-1-2-4-1-6 1-2 3-4 5-4l24-2 9-22c1-2 3-3 5-3Z'/></svg>");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.card-canvas-item.textual.shape-heart {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 90C20 68 0 50 0 32C0 16 14 4 30 4C42 4 50 14 50 22C50 14 58 4 70 4C86 4 100 16 100 32C100 50 82 72 50 90Z'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 90C20 68 0 50 0 32C0 16 14 4 30 4C42 4 50 14 50 22C50 14 58 4 70 4C86 4 100 16 100 32C100 50 82 72 50 90Z'/></svg>");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.card-canvas-item.textual.shape-star .module-preview,
+.card-canvas-item.textual.shape-heart .module-preview {
+  padding: 12px 14px;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+.card-canvas-item.textual.shape-star .module-text-body,
+.card-canvas-item.textual.shape-heart .module-text-body {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  flex: 1 1 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.card-canvas-item.textual.shape-star .module-text-body {
+  padding: 8px 10px;
+}
+.card-canvas-item.textual.shape-star .module-text-body p,
+.card-canvas-item.textual.shape-heart .module-text-body p,
+.card-canvas-item.textual.shape-star .module-text-body .module-inline-editor,
+.card-canvas-item.textual.shape-heart .module-text-body .module-inline-editor {
+  max-height: 100%;
+  overflow: hidden;
+}
+.card-canvas-item.textual.shape-star .module-inline-editor,
+.card-canvas-item.textual.shape-heart .module-inline-editor {
+  height: 100%;
+}
+.card-canvas-item.textual.shape-star .module-text-body,
+.card-canvas-item.textual.shape-heart .module-text-body {
+  min-height: auto;
+}
+.image-dropzone-panel {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  border-radius: 14px;
+  padding: 8px;
+  background: rgba(15,23,42,0.9);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 10px 24px rgba(15,23,42,0.35);
+  font-size: 11px;
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+}
+.image-url-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.85);
+}
+.image-url-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.image-url-input input {
+  flex: 1;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.35);
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(15,23,42,0.65);
+}
+.image-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.image-panel-actions button {
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font-size: 11px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.image-panel-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.image-panel-error {
+  margin: 0;
+  color: #fecaca;
+  font-size: 10px;
+}
+.image-panel-note {
+  margin: 0;
+  color: rgba(255,255,255,0.65);
+  font-size: 10px;
+}
+.image-dropzone video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #fff; color: #111; padding: 10px 14px; border-radius: 999px; }
+
+.card-canvas-item.shape-star .image-dropzone,
+.card-canvas-item.shape-heart .image-dropzone {
+  overflow: visible;
+  background: transparent;
+  clip-path: none;
+  -webkit-clip-path: none;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 5c2 0 4 1 5 3l9 22 24 2c2 0 4 2 5 4 1 2 0 5-1 6l-19 16 6 23c0 2 0 5-2 6-2 2-4 2-6 1L50 77 29 88c-2 1-4 1-6-1-2-1-3-4-2-6l6-23-19-16c-1-1-2-4-1-6 1-2 3-4 5-4l24-2 9-22c1-2 3-3 5-3Z'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 5c2 0 4 1 5 3l9 22 24 2c2 0 4 2 5 4 1 2 0 5-1 6l-19 16 6 23c0 2 0 5-2 6-2 2-4 2-6 1L50 77 29 88c-2 1-4 1-6-1-2-1-3-4-2-6l6-23-19-16c-1-1-2-4-1-6 1-2 3-4 5-4l24-2 9-22c1-2 3-3 5-3Z'/></svg>");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  box-shadow: 0 0 0 1px var(--module-border-color, rgba(37,99,235,0.5)),
+    0 12px 26px rgba(15,23,42,0.12);
+}
+.card-canvas-item.shape-heart .image-dropzone {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 90C20 68 0 50 0 32C0 16 14 4 30 4C42 4 50 14 50 22C50 14 58 4 70 4C86 4 100 16 100 32C100 50 82 72 50 90Z'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill='black' d='M50 90C20 68 0 50 0 32C0 16 14 4 30 4C42 4 50 14 50 22C50 14 58 4 70 4C86 4 100 16 100 32C100 50 82 72 50 90Z'/></svg>");
+}
+.card-canvas-item.shape-heart .image-dropzone img,
+.card-canvas-item.shape-heart .image-dropzone video {
+  transform: none;
+}
 .card-wrap.preview button,
 .card-wrap.preview a {
   pointer-events: auto;
@@ -1570,12 +2108,6 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
     margin: 0;
     gap: 12px;
     z-index: 5;
-  }
-  .profile-card-modal header h3 {
-    font-size: 22px;
-  }
-  .profile-card-modal header button.close {
-    font-size: 26px;
   }
   .customize-body {
     padding: 0 32px 24px;
@@ -1596,6 +2128,9 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   background: rgba(248,250,255,0.96);
   flex-shrink: 0;
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  position: sticky;
+  bottom: 0;
+  z-index: 30; /* sit above the card when it drifts downward */
 }
 .customize-footer button {
   padding: 8px 14px;
@@ -1688,22 +2223,33 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 }
 
 .tag-trigger {
-  padding: 8px 12px;
-  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.4);
   background: rgba(255,255,255,0.12);
   color: #fff;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, transform 0.18s ease;
 }
-.tag-trigger:hover { background: rgba(255,255,255,0.2); }
+.tag-trigger:hover {
+  background: rgba(255,255,255,0.2);
+  transform: translateY(-1px);
+}
+.tag-trigger:active {
+  transform: translateY(0);
+}
+
 .tag-active-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .tag-chip-active { display: inline-flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(37,99,235,0.28); }
 .tag-chip-active span { font-weight: 600; }
+.tag-chip-close { font-weight: 700; font-size: 12px; line-height: 1; }
 
-/* Tag modal — center and clamp on mobile */
+/* Tag modal - center and clamp on mobile */
 .tag-modal {
   position: fixed;
   top: 120px;
@@ -1766,7 +2312,7 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   .titantap-header .customize-trigger,
   .titantap-header .tag-trigger {
     flex: 0 0 auto;
-    transform: scale(0.9); /* subtle shrink — keeps buttons crisp */
+    transform: scale(0.9); /* subtle shrink - keeps buttons crisp */
     padding: 4px 8px;      /* balanced inner spacing */
   }
 }
@@ -1843,6 +2389,62 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   transform: translateY(-60%);
 }
 
+.canvas-style-control {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.45);
+  background: rgba(255,255,255,0.94);
+  box-shadow: 0 10px 22px rgba(15,23,42,0.12);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-80%);
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.18s ease, border-color 0.18s ease;
+  z-index: 60;
+}
+.canvas-style-control.open,
+.canvas-style-control:hover,
+.canvas-style-control:focus-visible {
+  background: #fff;
+  border-color: rgba(148,163,184,0.65);
+}
+.card-canvas-shell.editable:hover .canvas-style-control[data-floating-control="true"],
+.card-canvas-shell.editable:focus-within .canvas-style-control[data-floating-control="true"],
+.card-canvas-shell.editable.layout-open .canvas-style-control[data-floating-control="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-60%);
+}
+
+.canvas-style-menu {
+  position: fixed;
+  --canvas-style-menu-width: 153px;
+  background: rgba(255,255,255,0.98);
+  border: 1px solid rgba(148,163,184,0.3);
+  box-shadow: 0 12px 26px rgba(15,23,42,0.18);
+  border-radius: 12px;
+  padding: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 4200;
+}
+.canvas-style-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
 .accent-badge {
   border: 2px solid #fbbf24;
   border-radius: 999px;
@@ -1855,21 +2457,22 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   position: fixed;
   background: #fff;
   border: 1px solid #e2e8f0;
-  box-shadow: 0 18px 42px rgba(15,23,42,0.2);
-  border-radius: 14px;
-  padding: 10px;
+  box-shadow: 0 14px 32px rgba(15,23,42,0.2);
+  border-radius: 11px;
+  padding: 8px;
   z-index: 3000;
-  width: 170px;
+  width: 136px;
 }
 .accent-picker span {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f172a;
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .accent-grid {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .accent-swatch {
@@ -1943,28 +2546,28 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   position: fixed;
   background: #fff;
   border: 1px solid #e2e8f0;
-  box-shadow: 0 18px 42px rgba(15,23,42,0.2);
-  border-radius: 14px;
-  padding: 12px;
-  width: 210px;
+  box-shadow: 0 16px 36px rgba(15,23,42,0.2);
+  border-radius: 12px;
+  padding: 11px;
+  width: 190px;
   z-index: 3100;
 }
 .card-color-picker span {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   color: #0f172a;
 }
 .card-color-grid {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .card-color-swatch {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 2px solid transparent;
   cursor: pointer;
   transition: transform 0.15s ease, border-color 0.15s ease;
@@ -1988,25 +2591,25 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
 }
 .module-menu-surface {
   background: rgba(255,255,255,0.98);
-  border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(15,23,42,0.18);
+  border-radius: 10px;
+  box-shadow: 0 10px 22px rgba(15,23,42,0.18);
   border: 1px solid rgba(148,163,184,0.3);
-  padding: 6px 8px;
-  min-width: 130px;
-  max-width: 160px;
+  padding: 5px 6px;
+  min-width: 100px;
+  max-width: 130px;
   pointer-events: auto;
 }
 .module-menu-section + .module-menu-section {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 .module-menu-header {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #94a3b8;
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 .module-menu-options {
   display: flex;
@@ -2018,12 +2621,17 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   border-radius: 10px;
   background: #f8fafc;
   color: #0f172a;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 5px 8px;
+  padding: 4px 7px;
   text-align: left;
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease;
+}
+.module-menu-option.ghost {
+  background: #fff;
+  border-style: dashed;
+  color: #0f172a;
 }
 .module-menu-option:not(.disabled):hover {
   background: #fff;
@@ -2037,13 +2645,20 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   width: 100%;
   border: none;
   border-radius: 10px;
-  padding: 7px 9px;
-  font-size: 11px;
+  padding: 6px 8px;
+  font-size: 10px;
   font-weight: 700;
   color: #fff;
   background: linear-gradient(135deg, #f59e0b, #f97316);
   box-shadow: 0 10px 18px rgba(249,115,22,0.3);
   cursor: pointer;
+}
+.module-menu-primary + .module-menu-primary {
+  margin-top: 6px;
+}
+.module-menu-primary.secondary {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  box-shadow: 0 8px 14px rgba(249,115,22,0.25);
 }
 .module-menu-option.danger {
   margin-top: 6px;
@@ -2052,6 +2667,121 @@ body.no-scroll { overflow: hidden; overscroll-behavior: none; touch-action: none
   border: none;
   font-size: 11px;
   padding: 5px 8px;
+}
+
+.image-position-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15,23,42,0.55);
+}
+.image-position-modal {
+  width: min(720px, calc(100vw - 24px));
+  max-width: 720px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(15,23,42,0.25);
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 720px) {
+  .image-position-modal {
+    grid-template-columns: 1.2fr 0.9fr;
+  }
+}
+.image-position-stage {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 240px;
+  background: #0f172a;
+  display: grid;
+  place-items: center;
+}
+.image-position-stage img,
+.image-position-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.16s ease, object-position 0.16s ease;
+}
+.image-position-marker {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 0 0 2px rgba(15,23,42,0.45);
+  pointer-events: none;
+}
+.image-position-help {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  background: rgba(15,23,42,0.7);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.image-position-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.image-position-zoom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #0f172a;
+}
+.image-position-zoom-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+}
+.image-position-zoom input[type="range"] {
+  width: 100%;
+}
+.image-position-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.image-position-actions-right {
+  display: flex;
+  gap: 8px;
+}
+.image-position-actions button {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 700;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.image-position-actions button.reset {
+  background: #fff;
+}
+.image-position-actions button.primary {
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 12px 22px rgba(14,165,233,0.25);
 }
 
 .image-dropzone {
@@ -2196,8 +2926,12 @@ const MIN_MODULE_DIMENSION = 42;
 const ALIGN_TOKENS = ['start', 'center', 'end'];
 const TEXT_CHAR_LIMIT = TEXT_MODULE_CHAR_LIMIT;
 const MAX_MODULE_NEWLINES = MAX_TEXTAREA_NEWLINES;
-const DEFAULT_CANVAS_COLOR_ID = 'classic';
-const DEFAULT_CANVAS_COLOR_ALPHA = 1;
+const DEFAULT_CANVAS_COLOR_ID = 'glass';
+const DEFAULT_CANVAS_COLOR_ALPHA = 0.5;
+const DEFAULT_CANVAS_COLOR_PALENESS = 0.08;
+const DEFAULT_CARD_BODY_PALENESS = 0.45;
+const MIN_CARD_BODY_WHITE_MIX = 0;
+const MAX_CARD_BODY_WHITE_MIX = 0.82;
 
 const clampSlotScale = (value) => {
   const num = Number(value);
@@ -2209,6 +2943,56 @@ const clamp01 = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return 0;
   return Math.min(1, Math.max(0, num));
+};
+
+const MIN_IMAGE_FOCUS_ZOOM = 1;
+const MAX_IMAGE_FOCUS_ZOOM = 3;
+const clampFocusZoom = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return MIN_IMAGE_FOCUS_ZOOM;
+  return Math.min(MAX_IMAGE_FOCUS_ZOOM, Math.max(MIN_IMAGE_FOCUS_ZOOM, num));
+};
+
+const mixWithWhite = (hex, ratio = 0.5) => {
+  if (!hex) return '#ffffff';
+  let normalized = hex.replace('#', '');
+  if (normalized.length === 3) {
+    normalized = normalized
+      .split('')
+      .map((c) => c + c)
+      .join('');
+  }
+  const value = parseInt(normalized, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  const mix = (channel) =>
+    Math.max(0, Math.min(255, Math.round(channel + (255 - channel) * ratio)));
+  const toHex = (channel) => channel.toString(16).padStart(2, '0');
+  return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
+};
+
+const cardBodyWhiteMix = (paleness = DEFAULT_CARD_BODY_PALENESS) =>
+  MIN_CARD_BODY_WHITE_MIX +
+  clamp01(typeof paleness === 'number' ? paleness : DEFAULT_CARD_BODY_PALENESS) *
+    (MAX_CARD_BODY_WHITE_MIX - MIN_CARD_BODY_WHITE_MIX);
+
+const normalizeCardBodyPaleness = (paleness, hasBaseColor = false) =>
+  clamp01(
+    typeof paleness === 'number'
+      ? paleness
+      : hasBaseColor
+        ? DEFAULT_CARD_BODY_PALENESS
+        : 0
+  );
+
+const buildCardBodyColor = (baseColor, paleness = DEFAULT_CARD_BODY_PALENESS) =>
+  mixWithWhite(baseColor || '#ffffff', cardBodyWhiteMix(paleness));
+
+const extractBioText = (userLike) => {
+  if (!userLike || typeof userLike !== 'object') return '';
+  const raw = userLike.bio || userLike.statusMessage || userLike.tagline || '';
+  return typeof raw === 'string' ? raw.trim() : '';
 };
 
 const TitanTap = () => {
@@ -2646,6 +3430,26 @@ const TitanTap = () => {
     [profileCardConfig]
   );
 
+  const previewUser = useMemo(() => {
+    if (viewerProfile && typeof viewerProfile === 'object') return viewerProfile;
+    return {
+      username: 'You',
+      bio: '',
+      profilePicture: '',
+      bannerPicture: DEFAULT_BANNER_URL,
+      hobbies: [],
+      clubs: [],
+      badgesEquipped: [],
+      titleBadge: '',
+      department: '',
+      pronouns: '',
+    };
+  }, [viewerProfile]);
+  const bioFallbackPreset = useMemo(
+    () => createBioFallbackPreset(previewUser),
+    [previewUser]
+  );
+
   const previewPreset = useMemo(() => {
     if (!draftPreset) return null;
     const layout = findLayout(draftPreset.layout || 'single');
@@ -2654,6 +3458,15 @@ const TitanTap = () => {
       layout.id === 'dynamic'
         ? resolveDynamicSlotCount(layout.id, moduleList.length, draftPreset.dynamicSlotCount)
         : 0;
+    const bioStandin = draftPreset.bioStandinText || extractBioText(previewUser);
+    const bioPrefill = draftPreset.bioPrefillText
+      || applyTextLimits(bioStandin, TEXT_MODULE_CHAR_LIMIT, MAX_MODULE_NEWLINES);
+    const cardBodyBase =
+      draftPreset.cardBodyBaseColor || draftPreset.cardBodyColor || '#ffffff';
+    const cardBodyPaleness = normalizeCardBodyPaleness(
+      draftPreset.cardBodyPaleness,
+      Boolean(draftPreset.cardBodyBaseColor)
+    );
     return {
       ...draftPreset,
       layout: layout.id,
@@ -2675,36 +3488,25 @@ const TitanTap = () => {
           ? draftPreset.canvasColorAlpha
           : DEFAULT_CANVAS_COLOR_ALPHA
       ),
+      canvasColorPaleness: clamp01(
+        typeof draftPreset.canvasColorPaleness === 'number'
+          ? draftPreset.canvasColorPaleness
+          : DEFAULT_CANVAS_COLOR_PALENESS
+      ),
       dynamicSlotCount: layout.id === 'dynamic' ? dynamicSlotCount : 0,
-      cardBodyColor: draftPreset.cardBodyColor || '#ffffff',
+      cardBodyBaseColor: cardBodyBase,
+      cardBodyPaleness,
+      cardBodyColor: buildCardBodyColor(cardBodyBase, cardBodyPaleness),
+      bioStandinText: bioStandin,
+      bioPrefillText: bioPrefill,
     };
-  }, [draftPreset]);
+  }, [draftPreset, previewUser]);
 
   useEffect(() => {
     if (draftPreset?.layout && draftPreset.layout !== 'hidden') {
       lastVisibleLayoutRef.current = draftPreset.layout;
     }
   }, [draftPreset?.layout]);
-
-  const previewUser = useMemo(() => {
-    if (viewerProfile && typeof viewerProfile === 'object') return viewerProfile;
-    return {
-      username: 'You',
-      bio: '',
-      profilePicture: '',
-      bannerPicture: DEFAULT_BANNER_URL,
-      hobbies: [],
-      clubs: [],
-      badgesEquipped: [],
-      titleBadge: '',
-      department: '',
-      pronouns: '',
-    };
-  }, [viewerProfile]);
-  const bioFallbackPreset = useMemo(
-    () => createBioFallbackPreset(previewUser),
-    [previewUser]
-  );
 
   // when customize opens, hydrate draft
   useEffect(() => {
@@ -2722,13 +3524,25 @@ const TitanTap = () => {
           canvasScale: 1,
           canvasColorId: DEFAULT_CANVAS_COLOR_ID,
           canvasColorAlpha: DEFAULT_CANVAS_COLOR_ALPHA,
+          canvasColorPaleness: DEFAULT_CANVAS_COLOR_PALENESS,
           modules: ordered,
           dynamicSlotCount: 0,
           cardBodyColor: bioFallbackPreset.cardBodyColor || '#ffffff',
+          cardBodyBaseColor: bioFallbackPreset.cardBodyBaseColor || bioFallbackPreset.cardBodyColor || '#ffffff',
+          cardBodyPaleness: DEFAULT_CARD_BODY_PALENESS,
+          bioStandinText: bioFallbackPreset.bioStandinText || extractBioText(previewUser),
+          bioPrefillText:
+            bioFallbackPreset.bioPrefillText ||
+            applyTextLimits(
+              bioFallbackPreset.bioStandinText || extractBioText(previewUser),
+              TEXT_MODULE_CHAR_LIMIT,
+              MAX_MODULE_NEWLINES
+            ),
         });
       } else {
         const viewerId =
           previewUser?._id || previewUser?.id || userId || 'viewer';
+        const bioText = extractBioText(previewUser);
         setDraftPreset({
           _id: `hidden-${viewerId}`,
           layout: 'hidden',
@@ -2739,8 +3553,13 @@ const TitanTap = () => {
           canvasScale: 1,
           canvasColorId: DEFAULT_CANVAS_COLOR_ID,
           canvasColorAlpha: DEFAULT_CANVAS_COLOR_ALPHA,
+          canvasColorPaleness: DEFAULT_CANVAS_COLOR_PALENESS,
           dynamicSlotCount: 0,
           cardBodyColor: '#ffffff',
+          cardBodyBaseColor: '#ffffff',
+          cardBodyPaleness: DEFAULT_CARD_BODY_PALENESS,
+          bioStandinText: bioText,
+          bioPrefillText: applyTextLimits(bioText, TEXT_MODULE_CHAR_LIMIT, MAX_MODULE_NEWLINES),
         });
       }
       setActiveModuleId(null);
@@ -2782,6 +3601,14 @@ const TitanTap = () => {
             preserveEmpty: true,
           })
         : applyDefaultSlotOrdering(nextModules);
+    const cardBodyBase =
+      activeProfilePreset.cardBodyBaseColor ||
+      activeProfilePreset.cardBodyColor ||
+      '#ffffff';
+    const cardBodyPaleness = normalizeCardBodyPaleness(
+      activeProfilePreset.cardBodyPaleness,
+      Boolean(activeProfilePreset.cardBodyBaseColor)
+    );
     const clonedPreset = {
       ...activeProfilePreset,
       layout: layout.id,
@@ -2801,17 +3628,33 @@ const TitanTap = () => {
           ? activeProfilePreset.canvasColorAlpha
           : DEFAULT_CANVAS_COLOR_ALPHA
       ),
+      canvasColorPaleness: clamp01(
+        typeof activeProfilePreset.canvasColorPaleness === 'number'
+          ? activeProfilePreset.canvasColorPaleness
+          : DEFAULT_CANVAS_COLOR_PALENESS
+      ),
       dynamicSlotCount: layout.id === 'dynamic' ? slotCount : 0,
-      cardBodyColor: activeProfilePreset.cardBodyColor || '#ffffff',
+      cardBodyBaseColor: cardBodyBase,
+      cardBodyPaleness,
+      cardBodyColor: buildCardBodyColor(cardBodyBase, cardBodyPaleness),
+      bioStandinText:
+        activeProfilePreset.bioStandinText || bioFallbackPreset?.bioStandinText || extractBioText(previewUser),
+      bioPrefillText:
+        activeProfilePreset.bioPrefillText ||
+        bioFallbackPreset?.bioPrefillText ||
+        applyTextLimits(
+          activeProfilePreset.bioStandinText ||
+            bioFallbackPreset?.bioStandinText ||
+            extractBioText(previewUser),
+          TEXT_MODULE_CHAR_LIMIT,
+          MAX_MODULE_NEWLINES
+        ),
     };
     setDraftPreset(clonedPreset);
     setActiveModuleId(null);
     setLayoutMenuOpen(false);
     setSaveStatus('');
   }, [customizeOpen, activeProfilePreset, bioFallbackPreset, previewUser, userId]);
-
-  const showCompactControls =
-    filteredDeck.length > 0 && isShortViewport && !controlsVisible;
 
   const handleOpenCustomize = useCallback(() => {
     if (profileCardLoading) return;
@@ -2895,9 +3738,34 @@ const TitanTap = () => {
     setDraftPreset((prev) => (prev ? { ...prev, canvasColorAlpha: clamped } : prev));
   }, []);
 
-  const handleCardBodyColorChange = useCallback((color) => {
-    if (!color) return;
-    setDraftPreset((prev) => (prev ? { ...prev, cardBodyColor: color } : prev));
+  const handleCardBodyColorChange = useCallback((baseColor) => {
+    if (!baseColor) return;
+    setDraftPreset((prev) => {
+      if (!prev) return prev;
+      const paleness = normalizeCardBodyPaleness(
+        prev.cardBodyPaleness,
+        true
+      );
+      return {
+        ...prev,
+        cardBodyBaseColor: baseColor,
+        cardBodyPaleness: paleness,
+        cardBodyColor: buildCardBodyColor(baseColor, paleness),
+      };
+    });
+  }, []);
+
+  const handleCardBodyPalenessChange = useCallback((paleness) => {
+    const clamped = clamp01(typeof paleness === 'number' ? paleness : 0);
+    setDraftPreset((prev) => {
+      if (!prev) return prev;
+      const base = prev.cardBodyBaseColor || prev.cardBodyColor || '#ffffff';
+      return {
+        ...prev,
+        cardBodyPaleness: clamped,
+        cardBodyColor: buildCardBodyColor(base, clamped),
+      };
+    });
   }, []);
 
   const handleAccentColorChange = useCallback(
@@ -2933,9 +3801,15 @@ const TitanTap = () => {
       if (!prev) return prev;
       const currentModules = Array.isArray(prev.modules) ? prev.modules : [];
       if (currentModules.length >= MAX_CANVAS_MODULES) return prev;
-      let nextLayoutId = prev.layout || 'dynamic';
+      const shouldPrefillFromBio =
+        currentModules.length === 0 &&
+        typeof prev.bioPrefillText === 'string' &&
+        prev.bioPrefillText.trim().length > 0;
+      // For the first module, always use the dynamic grid so it behaves like other modules.
+      let nextLayoutId =
+        currentModules.length === 0 ? 'dynamic' : prev.layout || 'dynamic';
       if (nextLayoutId === 'hidden') {
-        nextLayoutId = lastVisibleLayoutRef.current || 'single';
+        nextLayoutId = lastVisibleLayoutRef.current || 'dynamic';
       }
       let layout = findLayout(nextLayoutId);
       const slotLimit = Array.isArray(layout.slots) ? layout.slots.length : 0;
@@ -2961,9 +3835,15 @@ const TitanTap = () => {
           nextSlotBudget = Math.min(MAX_CANVAS_MODULES, nextSlotBudget + 1);
           targetSlotId = findFirstOpenDynamicSlotId(nextSlotBudget, currentModules);
         }
-        const newModule = createBlankModule(
+        let newModule = createBlankModule(
           targetSlotId || `slot-${currentModules.length + 1}`
         );
+        if (shouldPrefillFromBio) {
+          newModule = {
+            ...newModule,
+            content: { ...(newModule.content || {}), text: prev.bioPrefillText },
+          };
+        }
         const orderedModules = applyDefaultSlotOrdering(
           [...currentModules, newModule],
           {
@@ -2981,7 +3861,13 @@ const TitanTap = () => {
       const slots = layout.slots && layout.slots.length ? layout.slots : [];
       const nextSlotId =
         slots[currentModules.length] || `slot-${currentModules.length + 1}`;
-      const newModule = createBlankModule(nextSlotId);
+      let newModule = createBlankModule(nextSlotId);
+      if (shouldPrefillFromBio) {
+        newModule = {
+          ...newModule,
+          content: { ...(newModule.content || {}), text: prev.bioPrefillText },
+        };
+      }
       const orderedModules = applyDefaultSlotOrdering([
         ...currentModules,
         newModule,
@@ -2991,6 +3877,7 @@ const TitanTap = () => {
         layout: orderedModules.length ? nextLayoutId : 'hidden',
         modules: orderedModules,
         dynamicSlotCount: nextLayoutId === 'dynamic' ? orderedModules.length : 0,
+        bioStandinText: orderedModules.length ? '' : prev.bioStandinText,
       };
     });
   }, [lastVisibleLayoutRef]);
@@ -3038,14 +3925,22 @@ const TitanTap = () => {
           : prev.layout === 'hidden'
           ? lastVisibleLayoutRef.current || 'single'
           : prev.layout;
+      const bioStandin = extractBioText(previewUser);
+      const bioPrefill = applyTextLimits(
+        bioStandin,
+        TEXT_MODULE_CHAR_LIMIT,
+        MAX_MODULE_NEWLINES
+      );
       return {
         ...prev,
         layout: nextLayout,
         modules: orderedModules,
         dynamicSlotCount: nextLayout === 'dynamic' ? orderedModules.length : 0,
+        bioStandinText: orderedModules.length === 0 ? bioStandin : prev.bioStandinText,
+        bioPrefillText: orderedModules.length === 0 ? bioPrefill : prev.bioPrefillText,
       };
     });
-  }, [lastVisibleLayoutRef]);
+  }, [lastVisibleLayoutRef, previewUser]);
 
   const handleModuleDelete = useCallback(
     (moduleId) => {
@@ -3166,6 +4061,18 @@ const TitanTap = () => {
             url: typeof mod.content?.url === 'string' ? mod.content.url : '',
             poster: typeof mod.content?.poster === 'string' ? mod.content.poster : '',
             videoUrl: typeof mod.content?.videoUrl === 'string' ? mod.content.videoUrl : '',
+            focusX:
+              typeof mod.content?.focusX === 'number'
+                ? clamp01(mod.content.focusX)
+                : 0.5,
+            focusY:
+              typeof mod.content?.focusY === 'number'
+                ? clamp01(mod.content.focusY)
+                : 0.5,
+            focusZoom:
+              typeof mod.content?.focusZoom === 'number'
+                ? clampFocusZoom(mod.content.focusZoom)
+                : 1,
           };
         } else if (nextType === 'club') {
           content = { clubId: typeof mod.content?.clubId === 'string' ? mod.content.clubId : '' };
@@ -3195,6 +4102,9 @@ const TitanTap = () => {
           if (field === 'url') content.url = (value || '').slice(0, 1024);
           if (field === 'poster') content.poster = (value || '').slice(0, 1024);
           if (field === 'videoUrl') content.videoUrl = (value || '').slice(0, 1024);
+          if (field === 'focusX') content.focusX = clamp01(value);
+          if (field === 'focusY') content.focusY = clamp01(value);
+          if (field === 'focusZoom') content.focusZoom = clampFocusZoom(value);
         } else if (mod.type === 'club' && field === 'clubId') {
           content.clubId = value;
         } else if (mod.type === 'prompt') {
@@ -3212,11 +4122,11 @@ const TitanTap = () => {
   }, []);
 
   const handleSavePreset = useCallback(async () => {
-    if (!draftPreset || !userId) return;
-    setSavingPreset(true);
-    setLayoutMenuOpen(false);
-    try {
-      const layout = findLayout(draftPreset.layout);
+      if (!draftPreset || !userId) return;
+      setSavingPreset(true);
+      setLayoutMenuOpen(false);
+      try {
+        const layout = findLayout(draftPreset.layout);
       const sourceModules = Array.isArray(draftPreset.modules)
         ? draftPreset.modules
         : [];
@@ -3262,6 +4172,20 @@ const TitanTap = () => {
               draftPreset.dynamicSlotCount
             )
           : 0;
+      const standinBio =
+        draftPreset.bioStandinText && draftPreset.bioStandinText.trim()
+          ? draftPreset.bioStandinText
+          : extractBioText(previewUser);
+      const standinPrefill = draftPreset.bioPrefillText
+        ? draftPreset.bioPrefillText
+        : applyTextLimits(standinBio, TEXT_MODULE_CHAR_LIMIT, MAX_MODULE_NEWLINES);
+      const cardBodyBase =
+        draftPreset.cardBodyBaseColor || draftPreset.cardBodyColor || '#ffffff';
+      const cardBodyPaleness = normalizeCardBodyPaleness(
+        draftPreset.cardBodyPaleness,
+        Boolean(draftPreset.cardBodyBaseColor)
+      );
+      const cardBodyColor = buildCardBodyColor(cardBodyBase, cardBodyPaleness);
       const sanitizedDraft = {
         ...draftPreset,
         layout: resolvedLayoutId,
@@ -3273,8 +4197,17 @@ const TitanTap = () => {
             ? draftPreset.canvasColorAlpha
             : DEFAULT_CANVAS_COLOR_ALPHA
         ),
+        canvasColorPaleness: clamp01(
+          typeof draftPreset.canvasColorPaleness === 'number'
+            ? draftPreset.canvasColorPaleness
+            : DEFAULT_CANVAS_COLOR_PALENESS
+        ),
         dynamicSlotCount: resolvedLayoutId === 'dynamic' ? resolvedSlotCount : 0,
-        cardBodyColor: draftPreset.cardBodyColor || '#ffffff',
+        cardBodyBaseColor: cardBodyBase,
+        cardBodyPaleness,
+        cardBodyColor,
+        bioStandinText: normalizedModules.length === 0 ? standinBio : draftPreset.bioStandinText,
+        bioPrefillText: normalizedModules.length === 0 ? standinPrefill : draftPreset.bioPrefillText,
       };
       const basePresets = Array.isArray(profileCardConfig?.presets)
         ? profileCardConfig.presets
@@ -3325,6 +4258,14 @@ const TitanTap = () => {
             slotCount: savedSlotCount || undefined,
           }
         );
+        const savedCardBodyBase =
+          savedActive.cardBodyBaseColor ||
+          savedActive.cardBodyColor ||
+          '#ffffff';
+        const savedCardBodyPaleness = normalizeCardBodyPaleness(
+          savedActive.cardBodyPaleness,
+          Boolean(savedActive.cardBodyBaseColor)
+        );
         const refreshedPreset = {
           ...savedActive,
           layout: savedLayout.id,
@@ -3344,8 +4285,23 @@ const TitanTap = () => {
               ? savedActive.canvasColorAlpha
               : DEFAULT_CANVAS_COLOR_ALPHA
           ),
+          canvasColorPaleness: clamp01(
+            typeof savedActive.canvasColorPaleness === 'number'
+              ? savedActive.canvasColorPaleness
+              : DEFAULT_CANVAS_COLOR_PALENESS
+          ),
           dynamicSlotCount: savedLayout.id === 'dynamic' ? savedSlotCount : 0,
-          cardBodyColor: savedActive.cardBodyColor || '#ffffff',
+          cardBodyBaseColor: savedCardBodyBase,
+          cardBodyPaleness: savedCardBodyPaleness,
+          cardBodyColor: buildCardBodyColor(savedCardBodyBase, savedCardBodyPaleness),
+          bioStandinText: savedActive.bioStandinText || extractBioText(previewUser),
+          bioPrefillText:
+            savedActive.bioPrefillText ||
+            applyTextLimits(
+              savedActive.bioStandinText || extractBioText(previewUser),
+              TEXT_MODULE_CHAR_LIMIT,
+              MAX_MODULE_NEWLINES
+            ),
         };
         setDraftPreset(refreshedPreset);
         setActiveModuleId(null);
@@ -3460,7 +4416,7 @@ const TitanTap = () => {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by username, department, or hobbies…"
+          placeholder="Search by username, department, or hobbies..."
         />
         <div className="titantap-actions">
           <button
@@ -3478,9 +4434,6 @@ const TitanTap = () => {
             disabled={profileCardLoading}
             aria-haspopup="dialog"
           >
-            <span className="icon" aria-hidden="true">
-              🎴
-            </span>
             <span>Preview</span>
           </button>
         </div>
@@ -3496,7 +4449,7 @@ const TitanTap = () => {
               onClick={() => toggleTag(tag)}
             >
               <span>{tag.label}</span>
-              ×
+              <span className="tag-chip-close" aria-hidden="true">&times;</span>
             </button>
           ))}
         </div>
@@ -3512,13 +4465,13 @@ const TitanTap = () => {
               onClick={() => setShowTagPicker(false)}
               aria-label="Close tag picker"
             >
-              ×
+              &times;
             </button>
           </header>
           {tagError && <div className="tag-error">{tagError}</div>}
           {tagLoading ? (
             <div className="note" style={{ padding: '8px 0' }}>
-              Loading tags…
+              Loading tags...
             </div>
           ) : tagsCatalog.length > 0 ? (
             tagsCatalog.map((section) => (
@@ -3611,7 +4564,7 @@ const TitanTap = () => {
       )}
 
       <div className="deck" ref={deckRef}>
-        {loading && <div className="note">Loading suggestions…</div>}
+        {loading && <div className="note">Loading suggestions...</div>}
         {!loading && filteredDeck.length === 0 && (
           <div className="note">
             {activeTags.length
@@ -3676,19 +4629,19 @@ const TitanTap = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <header>
-                <h3 id="profile-card-editor-title">Customize Profile Card</h3>
+                <h3 id="profile-card-editor-title">Preview & Customize Profile Card</h3>
                 <button
                   type="button"
                   className="close"
                   onClick={handleCloseCustomize}
                   aria-label="Close editor"
                 >
-                  ×
+                  x
                 </button>
               </header>
               <div className="customize-body">
                 {profileCardLoading ? (
-                  <div className="customize-spinner">Loading your card…</div>
+                  <div className="customize-spinner">Loading your card...</div>
                 ) : !draftPreset ? (
                   <div className="customize-spinner">
                     {profileCardError || 'Unable to load your profile card yet.'}
@@ -3749,11 +4702,25 @@ const TitanTap = () => {
                               ? draftPreset.canvasColorAlpha
                               : undefined
                           }
+                          canvasColorPaleness={
+                            typeof draftPreset?.canvasColorPaleness === 'number'
+                              ? draftPreset.canvasColorPaleness
+                              : undefined
+                          }
                           onCanvasScaleChange={handleCanvasScaleChange}
                           onCanvasColorChange={handleCanvasColorChange}
                           onCanvasOpacityChange={handleCanvasOpacityChange}
                           onAccentColorChange={handleAccentColorChange}
                           onCardBodyColorChange={handleCardBodyColorChange}
+                          cardBodyBaseColor={
+                            draftPreset?.cardBodyBaseColor || draftPreset?.cardBodyColor
+                          }
+                          cardBodyPaleness={
+                            typeof draftPreset?.cardBodyPaleness === 'number'
+                              ? draftPreset.cardBodyPaleness
+                              : undefined
+                          }
+                          onCardBodyPalenessChange={handleCardBodyPalenessChange}
                           canvasLayoutId={
                             previewPreset ? previewPreset.layout : null
                           }
@@ -3772,7 +4739,7 @@ const TitanTap = () => {
                   Sticker dock coming soon
                 </div>
                 <span className="customize-status">
-                  {saveStatus || (savingPreset ? 'Saving…' : '')}
+                  {saveStatus || (savingPreset ? 'Saving...' : '')}
                 </span>
                 <button
                   type="button"
@@ -3787,7 +4754,7 @@ const TitanTap = () => {
                   onClick={handleSavePreset}
                   disabled={savingPreset || !draftPreset}
                 >
-                  {savingPreset ? 'Saving…' : 'Save'}
+                  {savingPreset ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </div>

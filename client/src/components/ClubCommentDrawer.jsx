@@ -161,9 +161,12 @@ const Text = styled.textarea`
   resize:none;
   min-height:64px;
   width:100%;
+  box-sizing:border-box;
 `;
 const TextWrap = styled.div`
   position: relative;
+  width: 100%;
+  min-width: 0;
 `;
 const ButtonColumn = styled.div`
   display:flex;

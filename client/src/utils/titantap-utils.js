@@ -15,6 +15,8 @@ export const AUTO_LAYOUT_DEFAULTS = {
   slotScaleX: 1,
   slotScaleY: 1,
   autoPlaced: true,
+  shape: 'square',
+  moduleColor: null,
 };
 
 const DYNAMIC_SLOTS = Array.from({ length: MAX_CANVAS_MODULES }, (_, idx) => `slot-${idx + 1}`);
@@ -119,6 +121,7 @@ export function getLayoutColumns(layoutId, moduleCount = 1) {
 
 export function ensureLayoutDefaults(settings = {}) {
   if (!settings || typeof settings !== 'object') return { ...AUTO_LAYOUT_DEFAULTS };
+  const allowedShapes = new Set(['square', 'circle', 'star', 'heart']);
   return {
     ...AUTO_LAYOUT_DEFAULTS,
     ...settings,
@@ -131,6 +134,8 @@ export function ensureLayoutDefaults(settings = {}) {
       typeof settings.minHeight === 'number' && Number.isFinite(settings.minHeight)
         ? Math.max(settings.minHeight, MIN_MODULE_DIMENSION)
         : null,
+    shape: allowedShapes.has(settings.shape) ? settings.shape : 'square',
+    moduleColor: typeof settings.moduleColor === 'string' ? settings.moduleColor : null,
   };
 }
 
@@ -198,36 +203,45 @@ function moduleHasVisibleContent(module) {
 export function createBioFallbackPreset(user) {
   if (!user || typeof user !== 'object') return null;
   const rawBio = user.bio || user.statusMessage || user.tagline || '';
-  const bioSnippet = typeof rawBio === 'string' ? rawBio.trim() : '';
-  if (!bioSnippet) return null;
+  const cleanBio = typeof rawBio === 'string' ? rawBio.trim() : '';
+  if (!cleanBio) return null;
   const moduleText = applyTextLimits(
-    bioSnippet,
+    cleanBio,
     TEXT_MODULE_CHAR_LIMIT,
     MAX_TEXTAREA_NEWLINES
   );
   if (!moduleText) return null;
-  const layout = findLayout('single');
-  const modules = alignModulesWithLayout(
-    [
-      {
-        _id: `fallback-${user._id || user.id || 'viewer'}`,
-        slotId: 'slot-1',
-        type: 'text',
-        content: { text: moduleText },
-        layoutSettings: AUTO_LAYOUT_DEFAULTS,
-      },
-    ],
-    layout.id
-  );
+  const isLongBio = cleanBio.length > TEXT_MODULE_CHAR_LIMIT;
+  const layout = findLayout('dynamic');
+  const modules = isLongBio
+    ? []
+    : alignModulesWithLayout(
+        [
+          {
+            _id: `fallback-${user._id || user.id || 'viewer'}`,
+            slotId: 'slot-1',
+            type: 'text',
+            content: { text: moduleText },
+            layoutSettings: AUTO_LAYOUT_DEFAULTS,
+          },
+        ],
+        layout.id
+      );
   return {
     _id: `bio-fallback-${user._id || user.id || 'viewer'}`,
-    layout: layout.id,
+    layout: isLongBio ? 'hidden' : layout.id,
     modules,
+    dynamicSlotCount: isLongBio ? 0 : modules.length,
     stickers: [],
     isBioFallback: true,
-    canvasColorId: 'classic',
+    bioStandinText: isLongBio ? cleanBio : undefined,
+    bioPrefillText: moduleText,
+    canvasColorId: 'glass',
     canvasColorAlpha: 1,
+    canvasColorPaleness: 0.08,
     cardBodyColor: '#ffffff',
+    cardBodyBaseColor: '#ffffff',
+    cardBodyPaleness: 0.45,
   };
 }
 

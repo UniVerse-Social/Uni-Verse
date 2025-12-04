@@ -159,9 +159,12 @@ const Text = styled.textarea`
   border:1px solid #ddd;
   min-height:64px;
   width:100%;
+  box-sizing:border-box;
 `;
 const TextWrap = styled.div`
   position: relative;
+  width: 100%;
+  min-width: 0;
 `;
 const ReplyContext = styled.div`
   padding:8px 12px;
