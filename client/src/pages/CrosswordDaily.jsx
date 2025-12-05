@@ -11,7 +11,7 @@ import { dailySeed, rngFromSeed } from '../utils/dailyChallenges';
 
 /* ---------- Layout + styling ---------- */
 
-const TOP_NAV_HEIGHT = 72; // adjust if your top nav height differs
+const TOP_NAV_HEIGHT = 100; // adjust if your top nav height differs
 
 const Page = styled.div`
   height: calc(100vh - ${TOP_NAV_HEIGHT}px);

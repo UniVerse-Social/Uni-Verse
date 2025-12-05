@@ -146,6 +146,7 @@ const RightRailTopBar = styled.div`
   justify-content: flex-end;
   align-items: center;
   padding: 0 8px;
+  padding-bottom: 45px;
   height: 56px;
   margin-bottom: 12px;
 `;

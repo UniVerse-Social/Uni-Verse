@@ -66,6 +66,7 @@ const RightRailTopBar = styled.div`
   justify-content: flex-end;     /* button flush right */
   align-items: center;
   padding: 0 8px;
+  padding-bottom: 35px;
   height: 56px;
   margin-bottom: 12px;
 `;
@@ -113,7 +114,7 @@ const BoardPanel = styled(Panel)`
     /* Also constrain the panel height on phones */
     max-height: calc(100vh - ${HEADER_H}px - ${MOBILE_NAV_H}px);
 
-    align-items: stretch;        /* <-- NEW: children can use full width */
+    align-items: stretch;
   }
 `;
 
@@ -305,7 +306,6 @@ const MobileStatsRow = styled.div`
 const BOT_PRESETS = {
   tutorial:  { label: 'Tutorial', status: 'Tutorial bot: explains moves clearly.', useSF: true,  sf: { movetime: 280, depth: 12, multipv: 1 }, explain:true, thinkMs: 150 },
 
-  // New player: shallow search, some randomness, will blunder sometimes
   easy:   { label: 'Easy (700)',    useSF: false, timeMs: 320, maxDepth: 2, randomness: 0.35, blunder: 0.12,
             inaccuracyCp: 140, safeDropCp: 220, thinkMs: 110 },
 
@@ -1700,7 +1700,6 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
                 }}
               />
 
-              {/* New: Return to Games button on mobile, under Rules */}
               <ReturnButton
                 onClick={() => (typeof onExit === 'function' ? onExit() : null)}
                 title="Return to Games"

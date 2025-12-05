@@ -6,7 +6,7 @@ import { dailySeed } from '../utils/dailyChallenges';
 const Page = styled.div`
   height: 100vh;
   width: 100%;
-  padding: 8px 12px 12px;      /* smaller top padding */
+  padding: 8px;
   box-sizing: border-box;
   color: var(--text-color);
   display: flex;
