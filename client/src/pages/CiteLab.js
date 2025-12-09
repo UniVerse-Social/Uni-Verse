@@ -9,105 +9,241 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 
-/* ================= Layout ================= */
+/* ================= Layout (UniVerse Dark Theme) ================= */
+
 const Shell = styled.div`
   position: fixed;
   top: var(--nav-height, 64px);
-  right: 0; left: 0; bottom: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
   display: grid;
   grid-template-columns: 260px 1fr;
-  background: #fff;
-  @media (max-width: 900px){ grid-template-columns: 1fr; }
+  background: #0b0f1a;
+  color: #e8ecff;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const Sidebar = styled.aside`
-  border-right: 1px solid #eee; background: #fafafa; padding: 18px 16px;
-  @media (max-width: 900px){ display: none; }
+  border-right: 1px solid rgba(100, 100, 150, 0.25);
+  background: rgba(25, 30, 48, 0.9);
+  padding: 20px 16px;
+  backdrop-filter: blur(6px);
+
+  @media (max-width: 900px) {
+    display: none;
+  }
 `;
 
 const SideTitle = styled.div`
-  font-weight: 900; font-size: 20px; margin-bottom: 14px;
+  font-weight: 900;
+  font-size: 22px;
+  margin-bottom: 16px;
+  background: linear-gradient(90deg, #9ab6ff, #c8afff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 `;
 
 const Side = styled.nav`
-  display: grid; gap: 12px;
+  display: grid;
+  gap: 10px;
 `;
 
 const SideItem = styled.button`
-  appearance: none; border: 0; background: transparent; text-align: left;
-  display: grid; grid-auto-flow: column; gap: 8px; align-items: center; justify-content: start;
-  padding: 10px 12px; border-radius: 10px; font-weight: 800; cursor: pointer; color: #222;
-  &:hover{ background: #f0f3ff; }
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  color: #d9e1ff;
+  transition: 0.15s ease;
+
+  &:hover {
+    background: rgba(140, 130, 255, 0.18);
+    color: #ffffff;
+  }
+
+  &[aria-current='true'] {
+    background: rgba(140, 130, 255, 0.3);
+    color: #ffffff;
+  }
 `;
 
 const Main = styled.main`
-  overflow: auto; padding: clamp(14px, 2.4vw, 28px);
+  overflow: auto;
+  padding: clamp(18px, 2.4vw, 32px);
 `;
 
 const H1 = styled.h1`
-  margin: 0 0 8px; font-weight: 900; font-size: clamp(28px, 4.6vw, 48px);
-`;
-const Sub = styled.p`
-  margin: 0 0 20px; color: #6b7280;
+  margin: 0 0 8px;
+  font-weight: 900;
+  font-size: clamp(30px, 4.6vw, 48px);
+  background: linear-gradient(90deg, #8ea8ff, #a879ff, #59d0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 `;
 
-/* ================= Cards & Controls ================= */
+const Sub = styled.p`
+  margin: 0 0 20px;
+  color: #9af0ff;
+  opacity: 0.8;
+`;
+
+/* ================= Cards & Controls (Dark) ================= */
+
 const Card = styled.section`
-  background: #fff; border: 1px solid #eee; border-radius: 16px;
-  padding: clamp(16px, 2.2vw, 22px); box-shadow: 0 10px 24px rgba(0,0,0,0.06);
+  background: rgba(20, 24, 40, 0.96);
+  border: 1px solid rgba(120, 120, 170, 0.3);
+  border-radius: 18px;
+  padding: clamp(18px, 2.2vw, 24px);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
 `;
 
 const Grid = styled.div`
-  display: grid; gap: 12px;
+  display: grid;
+  gap: 12px;
   grid-template-columns: repeat(12, 1fr);
 `;
 
 const Row = styled.div`
-  display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(12, 1fr);
 `;
 
 const Field = styled.label`
-  grid-column: span ${p=>p.span || 12}; display: grid; gap: 8px;
-`;
-const Label = styled.div` font-weight: 900; `;
-const Input = styled.input`
-  height: 44px; border: 1px solid #e6e6e6; border-radius: 10px; padding: 0 12px; font-weight: 700;
-`;
-const Select = styled.select`
-  height: 44px; border: 1px solid #e6e6e6; border-radius: 10px; padding: 0 12px; font-weight: 700;
+  grid-column: span ${p => p.span || 12};
+  display: grid;
+  gap: 8px;
 `;
 
-const RowActions = (props) => (
-  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }} {...props} />
+const Label = styled.div`
+  font-weight: 900;
+  color: #cfd8ff;
+`;
+
+const Input = styled.input`
+  height: 44px;
+  border: 1px solid rgba(150, 150, 200, 0.4);
+  border-radius: 10px;
+  padding: 0 12px;
+  font-weight: 700;
+  background: rgba(25, 28, 45, 0.9);
+  color: #e8ecff;
+`;
+
+const Select = styled.select`
+  height: 44px;
+  border: 1px solid rgba(150, 150, 200, 0.4);
+  border-radius: 10px;
+  padding: 0 12px;
+  font-weight: 700;
+  background: rgba(25, 28, 45, 0.9);
+  color: #e8ecff;
+`;
+
+const RowActions = props => (
+  <div
+    style={{
+      display: 'flex',
+      gap: 10,
+      justifyContent: 'flex-end',
+      marginTop: 8
+    }}
+    {...props}
+  />
 );
 
 const Button = styled.button`
-  height: 44px; padding: 0 16px; border: 0; border-radius: 10px; font-weight: 900; cursor: pointer;
-  color: #fff; background: ${p => p.secondary ? '#9aa4b2' : '#0d2d7d'};
-  box-shadow: 0 10px 22px rgba(13,45,125,0.25);
-  &:disabled { opacity: .6; cursor: not-allowed; box-shadow: none; }
+  height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  color: #fff;
+  background: ${p =>
+    p.secondary
+      ? 'rgba(145,170,200,0.45)'
+      : 'linear-gradient(90deg, #6b7bff, #9c57ff)'};
+  box-shadow: 0 12px 32px rgba(100, 80, 255, 0.35);
+  transition: 0.15s ease;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
 `;
 
 const Ghost = styled.button`
-  height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #e6e6e6; background: #fff; font-weight: 800; cursor: pointer;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(140, 140, 200, 0.45);
+  background: rgba(35, 40, 70, 0.95);
+  font-weight: 800;
+  cursor: pointer;
+  color: #dbe5ff;
+  transition: 0.15s ease;
+
+  &:hover {
+    background: rgba(55, 65, 100, 0.98);
+  }
 `;
 
-const Kicker = styled.div` font-size: 12px; font-weight: 900; opacity: .7; `;
+const Kicker = styled.div`
+  font-size: 12px;
+  font-weight: 900;
+  opacity: 0.7;
+  color: #9bb5ff;
+`;
 
 const Tag = styled.span`
-  display: inline-flex; align-items: center; height: 22px; padding: 0 8px; font-size: 12px; font-weight: 900;
-  color: #0d2d7d; background: #e9f0ff; border: 1px solid #d6e4ff; border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #a9bcff;
+  background: rgba(95, 115, 255, 0.25);
+  border: 1px solid rgba(145, 165, 255, 0.45);
+  border-radius: 999px;
 `;
 
 const Toolbar = styled.div`
-  display: flex; gap: 8px; flex-wrap: wrap;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 `;
 
 const Columns = styled.div`
-  display: grid; gap: 12px; grid-template-columns: 1fr 1fr; @media (max-width: 880px){ grid-template-columns: 1fr; }
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+
+  @media (max-width: 880px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
-const ResultCard = styled(Card)` margin-top: 14px; `;
+const ResultCard = styled(Card)`
+  margin-top: 14px;
+`;
 
 /* =============== Helpers =============== */
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];

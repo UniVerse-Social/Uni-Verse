@@ -23,6 +23,12 @@ const RAIL_PAD = 12;
 const COLS = 10;
 const ROWS = 20;
 const SIZE = 18;
+// Each board cell is subdivided into SUB×SUB sand "pixels".
+// SIZE=18, SUB=6 => each grain is a 3×3 square.
+const SUB = 6;
+const HR_COLS = COLS * SUB;
+const HR_ROWS = ROWS * SUB;
+const GRAIN_SIZE = SIZE / SUB; // 3
 
 /**
  * Sand clump shapes:
@@ -166,7 +172,8 @@ function createTetris(ctx, baseX, seed, hooks = {}) {
   const nextQ = [];
 
   const G = {
-    grid: [...Array(ROWS)].map(() => Array(COLS).fill(0)), // sand grains
+    grid: [...Array(ROWS)].map(() => Array(COLS).fill(0)), // coarse cells (for collision / logic)
+    hgrid: [...Array(HR_ROWS)].map(() => Array(HR_COLS).fill(0)), // pixel sand
     piece: null, // {t, m}
     px: 3,
     py: 0,
@@ -181,6 +188,33 @@ function createTetris(ctx, baseX, seed, hooks = {}) {
   while (nextQ.length < 5) {
     if (!bag.length) bag = makeBag(rng);
     nextQ.push(bag.pop());
+  }
+
+  // Recompute the coarse grid G.grid from the high-res sand grid.
+  // A coarse cell is considered filled if *any* sand grains occupy it;
+  // we take the first grain's type as the color.
+  function rebuildCoarseFromHighRes() {
+    for (let ty = 0; ty < ROWS; ty++) {
+      for (let tx = 0; tx < COLS; tx++) {
+        let any = false;
+        let type = 0;
+        const startY = ty * SUB;
+        const startX = tx * SUB;
+
+        for (let yy = 0; yy < SUB && !any; yy++) {
+          for (let xx = 0; xx < SUB; xx++) {
+            const v = G.hgrid[startY + yy][startX + xx];
+            if (v) {
+              any = true;
+              type = v;
+              break;
+            }
+          }
+        }
+
+        G.grid[ty][tx] = any ? type : 0;
+      }
+    }
   }
 
   function spawn() {
@@ -211,39 +245,51 @@ function createTetris(ctx, baseX, seed, hooks = {}) {
     const { t, m } = G.piece;
     for (let y = 0; y < m.length; y++) {
       for (let x = 0; x < m[0].length; x++) {
-        if (m[y][x] && G.py + y >= 0) {
-          // each block becomes individual sand grains of that color
-          G.grid[G.py + y][G.px + x] = t;
+        if (!m[y][x]) continue;
+
+        const cellX = G.px + x;
+        const cellY = G.py + y;
+        if (cellY < 0 || cellY >= ROWS || cellX < 0 || cellX >= COLS) continue;
+
+        const baseHRY = cellY * SUB;
+        const baseHRX = cellX * SUB;
+
+        // fill the cell area with individual sand "pixels"
+        for (let yy = 0; yy < SUB; yy++) {
+          for (let xx = 0; xx < SUB; xx++) {
+            G.hgrid[baseHRY + yy][baseHRX + xx] = t;
+          }
         }
       }
     }
+    rebuildCoarseFromHighRes();
   }
 
-  // one sand-physics sweep: grains fall straight down, then diagonally
+  // High-res sand physics: each grain is a tiny square that can fall / slide.
   function sandStep() {
-    for (let y = ROWS - 2; y >= 0; y--) {
-      for (let x = 0; x < COLS; x++) {
-        const v = G.grid[y][x];
+    for (let y = HR_ROWS - 2; y >= 0; y--) {
+      for (let x = 0; x < HR_COLS; x++) {
+        const v = G.hgrid[y][x];
         if (!v) continue;
 
-        // straight down first
-        if (!G.grid[y + 1][x]) {
-          G.grid[y + 1][x] = v;
-          G.grid[y][x] = 0;
+        // straight down
+        if (!G.hgrid[y + 1][x]) {
+          G.hgrid[y + 1][x] = v;
+          G.hgrid[y][x] = 0;
           continue;
         }
 
-        // then diagonals, randomized
+        // diagonals
         const firstDir = rng.next() < 0.5 ? -1 : 1;
         const secondDir = -firstDir;
 
         const tryDiag = (dx) => {
           const nx = x + dx;
           const ny = y + 1;
-          if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
-          if (!G.grid[ny][nx]) {
-            G.grid[ny][nx] = v;
-            G.grid[y][x] = 0;
+          if (nx < 0 || nx >= HR_COLS || ny >= HR_ROWS) return false;
+          if (!G.hgrid[ny][nx]) {
+            G.hgrid[ny][nx] = v;
+            G.hgrid[y][x] = 0;
             return true;
           }
           return false;
@@ -255,23 +301,50 @@ function createTetris(ctx, baseX, seed, hooks = {}) {
     }
   }
 
-  // standard line clearing
   function clearLines() {
     let cleared = 0;
-    for (let y = ROWS - 1; y >= 0; y--) {
-      if (G.grid[y].every((v) => v)) {
-        G.grid.splice(y, 1);
-        G.grid.unshift(Array(COLS).fill(0));
+
+    for (let ty = ROWS - 1; ty >= 0; ty--) {
+      const startY = ty * SUB;
+      const endY = startY + SUB;
+
+      let firstType = null;
+      let full = true;
+
+      outer: for (let y = startY; y < endY; y++) {
+        for (let x = 0; x < HR_COLS; x++) {
+          const v = G.hgrid[y][x];
+          if (!v) {
+            full = false;
+            break outer;
+          }
+          if (firstType === null) firstType = v;
+          else if (v !== firstType) {
+            full = false;
+            break outer;
+          }
+        }
+      }
+
+      if (full && firstType) {
+        // remove this SUB-high band from the high-res grid
+        G.hgrid.splice(startY, SUB);
+        for (let i = 0; i < SUB; i++) {
+          G.hgrid.unshift(Array(HR_COLS).fill(0));
+        }
         cleared++;
-        y++;
+        ty++; // re-check same tile index after shift
       }
     }
+
     if (cleared > 0) {
       G.lines += cleared;
       const base = SCORES[cleared] || cleared * 100;
       G.score += base;
       H.onScore?.(G.score);
+      rebuildCoarseFromHighRes();
     }
+
     return cleared;
   }
 
@@ -284,6 +357,7 @@ function createTetris(ctx, baseX, seed, hooks = {}) {
 
     // let the pile crumble a bit extra right after a piece locks
     for (let i = 0; i < 3; i++) sandStep();
+    rebuildCoarseFromHighRes();
 
     clearLines();
     speedUp();
@@ -324,28 +398,31 @@ function createTetris(ctx, baseX, seed, hooks = {}) {
     ctx.save();
     ctx.clearRect(baseX, 0, COLS * SIZE, ROWS * SIZE);
 
-    // grid + settled sand
+    // draw coarse grid lines
     ctx.strokeStyle = BG_GRID;
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         ctx.strokeRect(baseX + x * SIZE, y * SIZE, SIZE, SIZE);
-        const cell = G.grid[y][x];
-        if (cell) {
-          const [c, cl, cd] = COLORS[cell];
-          drawTile(
-            ctx,
-            baseX + x * SIZE,
-            y * SIZE,
-            c,
-            cl,
-            cd,
-            false
-          );
-        }
       }
     }
 
-    // active piece
+    // settled sand as many tiny grains
+    for (let y = 0; y < HR_ROWS; y++) {
+      for (let x = 0; x < HR_COLS; x++) {
+        const cell = G.hgrid[y][x];
+        if (!cell) continue;
+        const [cMain] = COLORS[cell];
+        ctx.fillStyle = cMain;
+        ctx.fillRect(
+          baseX + x * GRAIN_SIZE,
+          y * GRAIN_SIZE,
+          GRAIN_SIZE,
+          GRAIN_SIZE
+        );
+      }
+    }
+
+    // active piece: still drawn as big chunky blocks
     if (G.piece && !G.over) {
       const [c, cl, cd] = COLORS[G.piece.t];
       for (let y = 0; y < G.piece.m.length; y++) {
@@ -427,6 +504,7 @@ function createTetris(ctx, baseX, seed, hooks = {}) {
     G.sandStepTick++;
     if (G.sandStepTick % 2 === 0) {
       sandStep();
+      rebuildCoarseFromHighRes();
     }
 
     G.fallCount--;
@@ -1457,9 +1535,6 @@ export default function TetrisArena({ onExit }) {
               color: "rgba(230,233,255,0.65)",
             }}
           >
-            Clear full <b>sand rows</b> to score. Settled blocks
-            crumble into individual grains, forming dunes like in the
-            screenshot.
           </div>
 
           <MobileStack>

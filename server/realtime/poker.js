@@ -111,6 +111,7 @@ module.exports = function attachPoker(io) {
       sbSeat:null, bbSeat:null,
       ready:null, // { deadline:number, accepted:Set<number>, timer:any }
       lastWin:null, // { seat:number, amount:number } for client win animation
+      handId: 0,
       chat:[]
     };
   }
@@ -263,11 +264,23 @@ module.exports = function attachPoker(io) {
     await saveTable(t);
     io.to(t.id).emit('poker:state', {
       id:t.id, name:t.name, stake:t.stakeKey, min:t.min, max:MAX,
-      seats:t.seats.map(s=> s? { id:s.id, userId:s.userId, username:s.username, stack:s.stack, seat:s.seat, waiting:!!s.waiting } : null),
+      seats:t.seats.map(s=> s ? {
+        id: s.id,
+        userId: s.userId,
+        username: s.username,
+        stack: s.stack,
+        seat: s.seat,
+        waiting: !!s.waiting,
+        leaving: !!s.leaving,
+        disconnected: !!s.disconnected,
+        folded: !!s.folded,
+        allin: !!s.allin,
+      } : null),
       board:t.board, pot:t.pot, turn:t.turn, toCall:t.toCall, bet:t.bet, round:t.round,
       dealer:t.dealer, sb:t.sbSeat, bb:t.bbSeat,
       lastWin: t.lastWin || null,
-      ready: toReadyPayload(t)
+      ready: toReadyPayload(t),
+      handId: t.handId ?? 0
     });
   }
   async function processPendingLeaves(t){
@@ -284,11 +297,31 @@ module.exports = function attachPoker(io) {
     if (changed){ await broadcastState(t); await enforceMinimumPlayers(t); await broadcastLobbyCount(t); }
   }
 
-  async function adjustCoins(userId, delta){
-    const gp = await GameProfile.findOne({ userId });
-    if (!gp) return false;
-    if (delta < 0 && (gp.coins||0) + delta < 0) return false;
-    gp.coins = (gp.coins||0) + delta;
+  async function adjustCoins(userId, delta) {
+    if (!userId) {
+      console.warn('[Poker] adjustCoins called with no userId');
+      return false;
+    }
+
+    let gp = await GameProfile.findOne({ userId });
+    if (!gp) {
+      // Auto-create a profile so new players can sit
+      gp = new GameProfile({ userId, coins: 0 });
+    }
+
+    const current = Number(gp.coins || 0);
+    const next = current + Number(delta || 0);
+
+    if (delta < 0 && next < 0) {
+      console.warn(
+        '[Poker] insufficient coins for user',
+        String(userId),
+        'have', current, 'need', -delta
+      );
+      return false;
+    }
+
+    gp.coins = next;
     await gp.save();
     return true;
   }
@@ -303,24 +336,53 @@ module.exports = function attachPoker(io) {
     return alive.includes(id);
   }
 
-  async function enforceMinimumPlayers(t) {
-    const aliveIdxs = participantIndices(t);
-    if (aliveIdxs.length >= 2) return false;
+async function enforceMinimumPlayers(t) {
+  const aliveIdxs = participantIndices(t);
+  if (aliveIdxs.length >= 2) return false;
 
-    if (t.round !== 'idle') {
-      if (aliveIdxs.length === 1 && t.pot > 0) {
-        const p = t.seats[aliveIdxs[0]];
-        if (p) p.stack += t.pot;
-      }
-      t.pot = 0; t.round = 'idle';
-      t.sbSeat = null; t.bbSeat = null;
-      t.bet = 0; t.toCall = 0; t.betPaid = {};
-      t.board = []; t.turn = null; t.ready = null;
-      await broadcastState(t);
-      await broadcastLobbyCount(t); // NEW
-    }
+  // No live hand – nothing to do other than keep lobby count fresh.
+  if (t.round === 'idle') {
+    await broadcastLobbyCount(t);
     return true;
   }
+
+  // Hand is in progress but we now have <2 active players.
+  clearTurnTimer(t);
+
+  // If exactly one player still in, they get the pot.
+  if (aliveIdxs.length === 1 && t.pot > 0) {
+    const p = t.seats[aliveIdxs[0]];
+    if (p) {
+      p.stack += t.pot;
+      t.lastWin = { seat: p.seat, amount: t.pot };
+    }
+  }
+
+  // Finalise the hand – no more streets.
+  t.pot = 0;
+  t.round = 'idle';
+  t.sbSeat = null;
+  t.bbSeat = null;
+  t.bet = 0;
+  t.toCall = 0;
+  t.betPaid = {};
+  t.board = [];
+  t.turn = null;
+  t.ready = null;
+
+  await broadcastState(t);
+  await broadcastLobbyCount(t);
+
+  // After the short win animation, clean up and start the ready phase.
+  setTimeout(async () => {
+    t.lastWin = null;
+    await broadcastState(t);
+    await processPendingLeaves(t);
+    await beginReadyPhase(t);
+  }, 900);
+
+  return true;
+}
 
   // joinInfo is either null or { userId: string|number, socketId: string }
   async function pruneStaleSeats(t, joinInfo = null) {
@@ -456,11 +518,11 @@ module.exports = function attachPoker(io) {
     clearTurnTimer(t);
     if (!t || t.round === 'idle') return;
     t.turnDeadline = Date.now() + TURN_MS;
-
+    const myHandId = t.handId; 
     t.turnTimer = setTimeout(async () => {
       try {
         // If the hand ended or turn moved meanwhile, do nothing
-        if (t.round === 'idle') return;
+        if (t.round === 'idle' || t.handId !== myHandId) return;
 
         const seatIdx = t.turn;
         const p = t.seats[seatIdx];
@@ -486,7 +548,7 @@ module.exports = function attachPoker(io) {
     clearTurnTimer(t);
     await processPendingLeaves(t); 
     await pruneStaleSeats(t, null);
-
+    if (t.round !== 'idle') return;
     // NEW: everyone seated should be eligible for the next hand
     let changed = false;
     for (let i = 0; i < t.seats.length; i++) {
@@ -502,7 +564,9 @@ module.exports = function attachPoker(io) {
     t.ready = { deadline: Date.now() + READY_MS, accepted: new Set(), timer: null };
     await broadcastState(t);
 
+    const myHandId = (t.handId || 0);   // ready tied to this cycle
     t.ready.timer = setInterval(async () => {
+      if (t.handId !== myHandId) { clearReadyTimer(t); return; }
       await pruneStaleSeats(t, null);
       if (participantIndices(t).length < 2) {
         clearReadyTimer(t); t.round='idle'; t.ready=null; await broadcastState(t); return;
@@ -529,8 +593,9 @@ module.exports = function attachPoker(io) {
 
   async function startHand(t){
     if (!canStart(t)) { t.round='idle'; t.ready=null; await broadcastState(t); return; }
+    t.handId = (t.handId || 0) + 1;
+    t.lastWin = null;
 
-    // NEW: remove any stale/disconnected seats BEFORE we deal
     await pruneStaleSeats(t);
     if (!canStart(t)) { t.round='idle'; t.ready=null; await broadcastState(t); return; }
 
@@ -574,6 +639,7 @@ module.exports = function attachPoker(io) {
   }
 
   async function advanceRound(t){
+    if (!t || t.round === 'idle' || t.round === 'ready') return;
     const order = participantIndices(t);
     const alive = order.map(i=>t.seats[i]).filter(s=>s && !s.folded);
     if (alive.length<=1){ return showdown(t); }
@@ -590,6 +656,17 @@ module.exports = function attachPoker(io) {
   }
 
   async function showdown(t){
+    if (!t || t.round === 'idle') return;
+    // If pot is already gone, someone else already paid it out
+    if (!t.pot || t.pot <= 0) {
+      clearTurnTimer(t);
+      t.round = 'idle';
+      t.sbSeat = null;
+      t.bbSeat = null;
+      await broadcastState(t);
+      return;
+    }
+
     clearTurnTimer(t); 
     const order = participantIndices(t);
     const contenders = order.map(i=>t.seats[i]).filter(s=>s && !s.folded);
@@ -749,7 +826,15 @@ module.exports = function attachPoker(io) {
       if (sIdx < 0) return socket.emit('poker:error', { message:'Table full' });
 
       const ok = await adjustCoins(userId, -t.min);
-      if (!ok) return socket.emit('poker:error', { message:'Not enough coins' });
+      if (!ok) {
+        console.warn(
+          '[Poker] join rejected for user',
+          String(userId),
+          'at table', t.id,
+          '– insufficient coins or adjustCoins failed'
+        );
+        return socket.emit('poker:error', { message:'Not enough coins to join this table.' });
+      }
 
       // Only mark as "waiting to be dealt in" if a hand is actively in progress (not idle, not ready)
       const waiting = (t.round !== 'idle' && t.round !== 'ready');
@@ -767,6 +852,7 @@ module.exports = function attachPoker(io) {
         joinedAt: Date.now(),
         lastSeen: Date.now()
       };
+      console.log('[Poker] user', String(userId), 'joined', t.id, 'seat', sIdx, 'stack', t.min);
       await saveTable(t);
 
       tableId = tid; seat = sIdx;
@@ -845,28 +931,31 @@ module.exports = function attachPoker(io) {
       io.to(t.id).emit('poker:chat', msg);
     });
 
-    socket.on('disconnect', async ()=>{
-      const t = await loadTable(tableId); if (!t) return;
-      if (seat>=0 && t.seats[seat]){
-        const p = t.seats[seat];
+    socket.on('disconnect', async () => {
+      const t = await loadTable(tableId);
+      if (!t) return;
+      if (seat < 0 || !t.seats[seat]) return;
 
-        const liveHand = (t.round !== 'idle' && t.round !== 'ready');
-        if (liveHand && !p.waiting){
-          p.disconnected = true;
-          if (!p.folded) p.folded = true;
+      const p = t.seats[seat];
+      const liveHand = (t.round !== 'idle' && t.round !== 'ready');
 
-          if (t.turn === seat) {
-            await act(t, seat, 'fold');
-          } else {
-            await stepTurnExternal(t);
-          }
+      if (liveHand && !p.waiting) {
+        // In-hand: fold them and let the hand finish normally
+        p.disconnected = true;
+        if (!p.folded) p.folded = true;
+
+        if (t.turn === seat) {
+          await act(t, seat, 'fold');
         } else {
-          await adjustCoins(p.userId, p.stack);
-          t.seats[seat]=null;
-          await broadcastState(t);
-          await enforceMinimumPlayers(t);
-          await broadcastLobbyCount(t); // NEW: update lobby tiles immediately
+          await stepTurnExternal(t);
         }
+      } else {
+        // Out of hand or waiting: keep the seat warm,
+        // sweeper / pruneStaleSeats will cash out after STALE_SEAT_MS.
+        p.disconnected = true;
+        p.lastSeen = Date.now();
+        await saveTable(t);
+        await broadcastState(t);
       }
     });
   });

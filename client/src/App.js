@@ -18,6 +18,8 @@ import NotedAI from './pages/NotedAI';
 import DraftlyAI from './pages/DraftlyAI';
 import CiteLab from './pages/CiteLab';
 import Resumate from './pages/Resumate';
+import TestLab from './pages/TestLab';
+import LingoLab from './pages/LingoLab';
 import { StickerProvider } from './context/StickersContext';
 import { CustomStickerProvider } from './context/CustomStickerContext';
 import { StickerInteractionsProvider } from './context/StickerInteractionsContext';
@@ -141,6 +143,8 @@ function App() {
                     <Route path="/ai/draftly" element={<DraftlyAI />} />
                     <Route path="/ai/citelab" element={<CiteLab />} />
                     <Route path="/ai/resumate" element={<Resumate />} />
+                    <Route path="/ai/testlab" element={<TestLab />} />
+                    <Route path="/ai/lingolab" element={<LingoLab />} />
                     {/* Legal pages available while logged in */}
                     <Route
                       path="/terms"

@@ -508,7 +508,7 @@ const GAMES = [
   { key:'reversi',  name:'Reversi',     icon: '◐ ' },
   { key:'jump',     name:'Jump Game',   icon: '🦘' },
   { key:'meteor',   name:'Meteor',      icon: '☄️' },
-  { key:'tetris',   name:'Tetris VS',   icon: '🧱' },
+  { key:'tetris',   name:'SandFall',   icon: '🧱' },
 ];
 
 const DAILY_CHALLENGES = [
@@ -983,7 +983,16 @@ export default function Games() {
   useLayoutEffect(() => {
     const compute = () => {
       if (!pageRef.current) return;
-      const rect = pageRef.current.getBoundingClientRect();
+
+      // Get the element's top relative to the *document*, not the viewport,
+      // so this value does NOT change when the window is scrolled.
+      let docTop = 0;
+      let el = pageRef.current;
+      while (el) {
+        docTop += el.offsetTop || 0;
+        el = el.offsetParent;
+      }
+
       const styles = getComputedStyle(pageRef.current);
       const padBottom = parseFloat(styles.paddingBottom || '0');
 
@@ -1005,12 +1014,15 @@ export default function Games() {
       }
 
       const epsilon = 14; // fills to bottom, avoids overflow
+
       const h = Math.max(
         360,
-        Math.floor(window.innerHeight - rect.top - padBottom - bottomInset - epsilon)
+        Math.floor(window.innerHeight - docTop - padBottom - bottomInset - epsilon)
       );
+
       setGridHeight(h);
     };
+
     compute();
     window.addEventListener('resize', compute);
     return () => window.removeEventListener('resize', compute);

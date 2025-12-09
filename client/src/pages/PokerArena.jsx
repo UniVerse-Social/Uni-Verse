@@ -673,6 +673,7 @@ export default function PokerArena({ onResult, onExit }) {
 
   const socketRef = useRef(null);
   const tableIdRef = useRef(null);
+  const handIdRef = useRef(0);
   useEffect(() => {
     tableIdRef.current = tableId;
   }, [tableId]);
@@ -693,12 +694,12 @@ export default function PokerArena({ onResult, onExit }) {
 
   const liveRound =
     state?.round && !['idle', 'ready'].includes(state.round);
+  const showBoard =
+    liveRound || (!!state?.lastWin && state?.round === 'idle');
   const canAct =
     mySeat >= 0 &&
     state?.turn === mySeat &&
-    !iAmSpectating &&
-    liveRound &&
-    activeCount >= 2;
+    liveRound;
 
   const canLeave =
     state?.round === 'idle' ||
@@ -891,6 +892,12 @@ export default function PokerArena({ onResult, onExit }) {
     });
 
     socket.on('poker:state', s => {
+      const incomingHandId = s?.handId ?? 0;
+      // Ignore any state from an older hand – this kills ghost replays.
+      if (incomingHandId < handIdRef.current) {
+        return;
+      }
+      handIdRef.current = incomingHandId;
       const nextPot = Number(s?.pot || 0);
       const prevPot = Number(lastPotRef.current || 0);
       if (nextPot !== prevPot) {
@@ -1166,15 +1173,19 @@ export default function PokerArena({ onResult, onExit }) {
                 <TableWrap>
                   <Felt>
                     <Pot $pulse={potPulse}>
-                      {activeCount >= 2
+                      {liveRound
                         ? `Pot: ${state?.pot ?? 0}`
-                        : 'Waiting for opponent…'}
+                        : activeCount >= 2
+                          ? 'Waiting for next hand…'
+                          : 'Waiting for opponent…'}
                     </Pot>
-                    <Comm>
-                      {(state?.board || []).map((c, i) => (
-                        <CardGlyph key={i} c={c} />
-                      ))}
-                    </Comm>
+                    {showBoard && (
+                      <Comm>
+                        {(state?.board || []).map((c, i) => (
+                          <CardGlyph key={i} c={c} />
+                        ))}
+                      </Comm>
+                    )}
 
                     {['sb', 'bb'].map(kind => {
                       const seatIdx = state?.[kind];
@@ -1208,11 +1219,22 @@ export default function PokerArena({ onResult, onExit }) {
                       const pos = SEAT_POS[idx];
                       const isMe = mySeat === idx;
                       const waiting = !!seat?.waiting;
-                      const turn =
-                        state?.turn === idx;
+                      const leaving = !!seat?.leaving;
+                      const disconnected = !!seat?.disconnected;
+                      const turn = state?.turn === idx;
                       const isWinner =
                         state?.lastWin &&
                         state.lastWin.seat === idx;
+
+                      const statusSuffix =
+                        waiting
+                          ? ' (waiting to be dealt in)'
+                          : leaving
+                          ? ' (leaving after hand)'
+                          : disconnected
+                          ? ' (disconnected)'
+                          : '';
+
                       return (
                         <Seat
                           key={idx}
@@ -1225,12 +1247,8 @@ export default function PokerArena({ onResult, onExit }) {
                           <SeatName>
                             <NameWrap>
                               <NamePulse $on={turn}>
-                                {seat
-                                  ? seat.username
-                                  : 'Empty'}
-                                {waiting
-                                  ? ' (waiting to be dealt in)'
-                                  : ''}
+                                {seat ? seat.username : 'Empty'}
+                                {statusSuffix}
                               </NamePulse>
                             </NameWrap>
                           </SeatName>

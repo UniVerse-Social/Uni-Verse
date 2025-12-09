@@ -72,11 +72,17 @@ const Title = styled.h1`
 const Grid = styled.div`
   height: 100%;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));  /* Desktop: 3 columns */
+  grid-auto-rows: 1fr;
   gap: clamp(14px, 2vw, 22px);
   padding: clamp(8px, 1.6vw, 16px);
   box-sizing: border-box;
+
+  /* Mobile: 2 columns, 3 rows */
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: auto;
+  }
 `;
 
 const Tile = styled(Link)`
@@ -150,20 +156,33 @@ export default function AI() {
         <Title>Welcome to Student tools</Title>
         <Grid>
           <Tile to="/ai/noted">
-            <TileTitle>Noted.Ai</TileTitle>
+            <TileTitle>NoteLab</TileTitle>
             <TileSubtitle>Convert files to notes</TileSubtitle>
           </Tile>
+
           <Tile to="/ai/draftly">
-            <TileTitle>Draftly.Ai</TileTitle>
+            <TileTitle>DraftLab</TileTitle>
             <TileSubtitle>Essay editing</TileSubtitle>
           </Tile>
+
           <Tile to="/ai/citelab">
             <TileTitle>CiteLab</TileTitle>
-            <TileSubtitle>Create & edit citations</TileSubtitle>
+            <TileSubtitle>Create &amp; edit citations</TileSubtitle>
           </Tile>
+
           <Tile to="/ai/resumate">
-            <TileTitle>Resumate</TileTitle>
-            <TileSubtitle>Resumes & cover letters</TileSubtitle>
+            <TileTitle>CareerLab</TileTitle>
+            <TileSubtitle>Resumes &amp; cover letters</TileSubtitle>
+          </Tile>
+
+          <Tile to="/ai/testlab">
+            <TileTitle>TestLab</TileTitle>
+            <TileSubtitle>Grade Caluclator</TileSubtitle>
+          </Tile>
+
+          <Tile to="/ai/lingolab">
+            <TileTitle>LingoLab</TileTitle>
+            <TileSubtitle>Language learning assistant</TileSubtitle>
           </Tile>
         </Grid>
       </Card>

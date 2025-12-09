@@ -2,129 +2,283 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-/* ==========================================================
-   Resumate — Resume/Cover Letter Builder • Reviewer • Interview Prep
-   - ATS-friendly templates (3 per type)
-   - Copy & Download (TXT/MD) for generated docs
-   - Upload & rate existing resume/cover letter (0–100) + feedback
-   - Interview Prep chatbot with voice (TTS + STT) and JD-tailored questions
-   ========================================================== */
-
-/* ===================== Layout & Shared UI ===================== */
+/* ===================== Layout & Shared UI (Dark UniVerse Theme) ===================== */
 const Shell = styled.div`
   position: fixed;
   top: var(--nav-height, 64px);
   right: 0;
   bottom: 0;
   left: 0;
-  background: #fff;
+  background: #0b0f1a;
+  color: #e8ecff;
   display: grid;
   grid-template-columns: 240px 1fr;
-  @media (max-width: 900px) { grid-template-columns: 1fr; }
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const Sidebar = styled.aside`
-  border-right: 1px solid #eee;
-  padding: 18px 16px;
-  background: #fafafa;
-  @media (max-width: 900px) { display: none; }
+  border-right: 1px solid rgba(100, 100, 150, 0.25);
+  padding: 20px 16px;
+  background: rgba(25, 30, 48, 0.9);
+  backdrop-filter: blur(6px);
+
+  @media (max-width: 900px) {
+    display: none;
+  }
 `;
 
 const SideTitle = styled.div`
   font-weight: 900;
-  font-size: 20px;
-  margin-bottom: 16px;
+  font-size: 22px;
+  margin-bottom: 18px;
+  background: linear-gradient(90deg, #9ab6ff, #c8afff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 `;
 
 const SideNav = styled.nav`
-  display: grid; gap: 10px;
+  display: grid;
+  gap: 10px;
 `;
 
 const SideLink = styled(Link)`
-  display: grid; grid-auto-flow: column; align-items: center; gap: 8px; justify-content: start;
-  text-decoration: none; color: #222; padding: 10px 12px; border-radius: 10px; font-weight: 700;
-  &:hover { background: #f0f3ff; }
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  text-decoration: none;
+  color: #d9e1ff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  transition: 0.15s ease;
+
+  &:hover {
+    background: rgba(140, 130, 255, 0.2);
+    color: #ffffff;
+  }
 `;
 
 const Main = styled.main`
   overflow: auto;
-  padding: clamp(14px, 2.4vw, 28px);
+  padding: clamp(18px, 2.4vw, 32px);
 `;
 
 const H1 = styled.h1`
-  margin: 0 0 6px; font-weight: 900; font-size: clamp(28px, 4.6vw, 48px);
+  margin: 0 0 6px;
+  font-weight: 900;
+  font-size: clamp(30px, 4.6vw, 48px);
+  background: linear-gradient(90deg, #8ea8ff, #a879ff, #59d0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 `;
 
 const Sub = styled.p`
-  margin: 0 0 20px; color: #6b7280;
+  margin: 0 0 20px;
+  color: #9af0ff;
+  opacity: 0.8;
 `;
 
 const Tabs = styled.div`
-  display: inline-flex; gap: 8px; background: #f3f4f6; padding: 6px; border-radius: 12px; border: 1px solid #e5e7eb;
+  display: inline-flex;
+  gap: 8px;
+  background: rgba(24, 28, 48, 0.9);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(110, 120, 190, 0.5);
 `;
 
 const TabBtn = styled.button`
-  height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid #e5e7eb; font-weight: 900; cursor: pointer;
-  background: ${p=>p.active ? '#fff' : 'transparent'};
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-weight: 900;
+  cursor: pointer;
+  background: ${p =>
+    p.active ? 'rgba(120, 120, 255, 0.35)' : 'transparent'};
+  color: #e8ecff;
+  transition: 0.15s ease;
+
+  &:hover {
+    background: rgba(110, 120, 220, 0.4);
+  }
 `;
 
 const Card = styled.section`
-  background: #fff; border: 1px solid #eee; border-radius: 16px; padding: clamp(16px, 2.2vw, 22px);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.06); margin-bottom: 18px;
+  background: rgba(20, 24, 40, 0.96);
+  border: 1px solid rgba(120, 120, 170, 0.3);
+  border-radius: 18px;
+  padding: clamp(18px, 2.2vw, 24px);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  margin-bottom: 18px;
 `;
 
 const Row = styled.div`
-  display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px;
-  @media (max-width: 760px) { grid-template-columns: 1fr; }
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
-const Field = styled.div` display: grid; gap: 8px; `;
-const Label = styled.label` font-weight: 800; `;
+const Field = styled.div`
+  display: grid;
+  gap: 8px;
+`;
+
+const Label = styled.label`
+  font-weight: 800;
+  color: #cfd8ff;
+`;
+
 const Input = styled.input`
-  height: 40px; border: 1px solid #e6e6e6; border-radius: 10px; padding: 0 10px; font-weight: 600;
-`;
-const TextArea = styled.textarea`
-  min-height: 110px; border: 1px solid #e6e6e6; border-radius: 12px; padding: 10px; font-weight: 600;
-`;
-const Select = styled.select`
-  height: 40px; border: 1px solid #e6e6e6; border-radius: 10px; padding: 0 10px; font-weight: 700;
-`;
-const Button = styled.button`
-  height: 44px; padding: 0 16px; border: 0; border-radius: 10px; font-weight: 900; cursor: pointer; color: #fff;
-  background: ${p => p.secondary ? '#9aa4b2' : '#0d2d7d'}; opacity: ${p => p.disabled ? .6 : 1}; pointer-events: ${p => p.disabled ? 'none' : 'auto'};
-  box-shadow: 0 10px 22px rgba(13,45,125,0.25);
-`;
-const ButtonGhost = styled.button`
-  height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid #e6e6e6; background: #fff; font-weight: 800; cursor: pointer;
+  height: 40px;
+  border: 1px solid rgba(150, 150, 200, 0.4);
+  border-radius: 10px;
+  padding: 0 10px;
+  font-weight: 600;
+  background: rgba(25, 28, 45, 0.9);
+  color: #e8ecff;
 `;
 
-const Small = styled.small` color: #6b7280; `;
+const TextArea = styled.textarea`
+  min-height: 110px;
+  border: 1px solid rgba(150, 150, 200, 0.4);
+  border-radius: 12px;
+  padding: 10px;
+  font-weight: 600;
+  background: rgba(25, 28, 45, 0.9);
+  color: #e8ecff;
+`;
+
+const Select = styled.select`
+  height: 40px;
+  border: 1px solid rgba(150, 150, 200, 0.4);
+  border-radius: 10px;
+  padding: 0 10px;
+  font-weight: 700;
+  background: rgba(25, 28, 45, 0.9);
+  color: #e8ecff;
+`;
+
+const Button = styled.button`
+  height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  color: #fff;
+  background: ${p =>
+    p.secondary
+      ? 'rgba(145,170,200,0.45)'
+      : 'linear-gradient(90deg, #6b7bff, #9c57ff)'};
+  opacity: ${p => (p.disabled ? 0.6 : 1)};
+  pointer-events: ${p => (p.disabled ? 'none' : 'auto')};
+  box-shadow: 0 12px 32px rgba(100, 80, 255, 0.35);
+`;
+
+const ButtonGhost = styled.button`
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(140, 140, 200, 0.45);
+  background: rgba(35, 40, 70, 0.95);
+  font-weight: 800;
+  cursor: pointer;
+  color: #dbe5ff;
+  transition: 0.15s ease;
+
+  &:hover {
+    background: rgba(55, 65, 100, 0.98);
+  }
+`;
+
+const Small = styled.small`
+  color: #9bb5ff;
+  opacity: 0.8;
+`;
 
 const Tag = styled.span`
-  display: inline-flex; height: 22px; align-items: center; padding: 0 8px; font-size: 12px; font-weight: 900; border-radius: 999px;
-  color: #0d2d7d; background: #e9f0ff; border: 1px solid #d6e4ff;
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 900;
+  border-radius: 999px;
+  color: #a9bcff;
+  background: rgba(95, 115, 255, 0.25);
+  border: 1px solid rgba(145, 165, 255, 0.45);
 `;
 
 const UploadZone = styled.label`
-  display: grid; place-items: center; min-height: 160px; border: 2px dashed #c7ccd8; border-radius: 12px; cursor: pointer; color: #7a8398;
-  font-weight: 700; transition: background .15s ease, border-color .15s ease; background: #fbfdff;
-  &:hover { background: #f5f8ff; border-color: #a8b4d7; }
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  border: 2px dashed rgba(150, 160, 255, 0.4);
+  border-radius: 12px;
+  cursor: pointer;
+  color: #d1ddff;
+  font-weight: 700;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  background: rgba(45, 55, 95, 0.35);
+
+  &:hover {
+    background: rgba(65, 75, 115, 0.5);
+    border-color: #9bb3ff;
+  }
 `;
 
 const TemplateGrid = styled.div`
-  display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 10px;
-  @media (max-width: 900px) { grid-template-columns: 1fr; }
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const TemplateCard = styled.div`
-  border: 1px solid #e6e6e6; border-radius: 12px; padding: 10px; background: #fff; display: grid; gap: 8px;
+  border: 1px solid rgba(150, 150, 200, 0.4);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(22, 26, 44, 0.98);
+  display: grid;
+  gap: 8px;
 `;
 
 const PreviewBox = styled.pre`
-  white-space: pre-wrap; line-height: 1.4; border: 1px solid #e6e6e6; border-radius: 12px; padding: 12px; max-height: 380px; overflow: auto; background: #fcfcff;
+  white-space: pre-wrap;
+  line-height: 1.4;
+  border: 1px solid rgba(140, 140, 200, 0.5);
+  border-radius: 12px;
+  padding: 12px;
+  max-height: 380px;
+  overflow: auto;
+  background: radial-gradient(circle at 0% 0%, rgba(140, 130, 255, 0.18), transparent 55%),
+              radial-gradient(circle at 100% 100%, rgba(89, 208, 255, 0.18), transparent 55%),
+              #14182a;
+  color: #e8ecff;
 `;
 
-const Toolbar = styled.div` display: flex; gap: 10px; justify-content: end; margin-top: 12px; `;
+const Toolbar = styled.div`
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+`;
 
 /* ===================== Utilities & Extractors (client) ===================== */
 const STOPWORDS = new Set(("a,about,above,after,again,against,all,am,an,and,any,are,as,at,be," +
@@ -395,7 +549,7 @@ export default function Resumate() {
   return (
     <Shell>
       <Sidebar>
-        <SideTitle>Resumate</SideTitle>
+        <SideTitle>CareerLab</SideTitle>
         <SideNav>
           <SideLink to="/ai">🏠 Home</SideLink>
           <SideLink to="/ai/resumate">📄 Builder</SideLink>
@@ -405,7 +559,7 @@ export default function Resumate() {
       </Sidebar>
 
       <Main>
-        <H1>Resumate</H1>
+        <H1>CareerLab</H1>
         <Sub>Build ATS‑friendly resumes & cover letters, get instant feedback, and practice interviews with voice.</Sub>
 
         <Tabs role="tablist" aria-label="Resumate tabs">
@@ -762,10 +916,41 @@ function InterviewPrep() {
 
       <Card>
         <Label>Chat</Label>
-        <div style={{border:'1px solid #e6e6e6', borderRadius:12, height:360, overflow:'auto', padding:10, background:'#fbfdff'}} aria-live="polite">
-          {chat.map((m,i)=> (
-            <div key={i} style={{display:'grid', justifyContent: m.by==='you'?'end':'start', margin:'8px 0'}}>
-              <div style={{maxWidth: '92%', background: m.by==='you'?'#e9f0ff':'#f5f5f5', border:'1px solid #e6e6e6', borderRadius: 10, padding: '8px 10px'}}>
+          <div
+            style={{
+              border: '1px solid rgba(140,140,200,0.5)',
+              borderRadius: 12,
+              height: 360,
+              overflow: 'auto',
+              padding: 10,
+              background:
+                'radial-gradient(circle at 0% 0%, rgba(140,130,255,0.15), transparent 55%), ' +
+                'radial-gradient(circle at 100% 100%, rgba(89,208,255,0.18), transparent 55%), ' +
+                '#14182a'
+            }}
+            aria-live="polite"
+          >
+            {chat.map((m, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'grid',
+                  justifyContent: m.by === 'you' ? 'end' : 'start',
+                  margin: '8px 0'
+                }}
+              >
+                <div
+                  style={{
+                    maxWidth: '92%',
+                    background:
+                      m.by === 'you'
+                        ? 'rgba(120,140,255,0.28)'
+                        : 'rgba(35,40,70,0.95)',
+                    border: '1px solid rgba(140,140,200,0.6)',
+                    borderRadius: 10,
+                    padding: '8px 10px'
+                  }}
+                >
                 <strong style={{opacity:.7}}>{m.by==='you'?'You':'Bot'}</strong><br/>
                 <span>{m.text}</span>
               </div>

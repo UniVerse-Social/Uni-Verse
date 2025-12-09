@@ -3,14 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-/**
- * Draftly.AI (Noted-style UI)
- * - Keeps all Draftly features (rewrite, tokens/underlines, score, suggestions)
- * - Adopts Noted.AI shell: fixed two-column layout with Sidebar + Main
- * - Uses shared Card, Button, Tag, Toolbar patterns for consistent look
- */
-
-/* ============ Layout (mirrors Noted.AI) ============ */
+/* ============ Layout (UniVerse dark purple) ============ */
 
 const Shell = styled.div`
   position: fixed;
@@ -19,23 +12,25 @@ const Shell = styled.div`
   bottom: 0;
   left: 0;
 
-  @media (max-width: 768px) {
-    bottom: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom));
-  }
-
   display: grid;
   grid-template-columns: 240px 1fr;
-  background: #fff;
+  background: #0b0f1a;
+  color: #e8ecff;
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
   }
+
+  @media (max-width: 768px) {
+    bottom: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom));
+  }
 `;
 
 const Sidebar = styled.aside`
-  border-right: 1px solid #eee;
-  padding: 18px 16px;
-  background: #fafafa;
+  border-right: 1px solid rgba(100, 100, 150, 0.25);
+  padding: 22px 16px;
+  background: rgba(25, 30, 48, 0.9);
+  backdrop-filter: blur(6px);
 
   @media (max-width: 900px) {
     display: none;
@@ -44,8 +39,12 @@ const Sidebar = styled.aside`
 
 const SideTitle = styled.div`
   font-weight: 900;
-  font-size: 20px;
-  margin-bottom: 16px;
+  font-size: 22px;
+  margin-bottom: 18px;
+  background: linear-gradient(90deg, #9ab6ff, #c8afff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 `;
 
 const SideNav = styled.nav`
@@ -54,43 +53,53 @@ const SideNav = styled.nav`
 `;
 
 const SideLink = styled(Link)`
-  display: grid;
-  grid-auto-flow: column;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  justify-content: start;
+  gap: 10px;
+  justify-content: flex-start;
   text-decoration: none;
-  color: #222;
+  color: #d9e1ff;
   padding: 10px 12px;
   border-radius: 10px;
   font-weight: 700;
-  &:hover { background: #f0f3ff; }
+  transition: 0.15s ease;
+
+  &:hover {
+    background: rgba(140, 130, 255, 0.18);
+    color: #ffffff;
+  }
 `;
 
 const Main = styled.main`
   overflow: auto;
-  padding: clamp(14px, 2.4vw, 28px);
+  padding: clamp(18px, 2.4vw, 32px);
 `;
 
 const H1 = styled.h1`
   margin: 0 0 6px;
   font-weight: 900;
-  font-size: clamp(28px, 4.6vw, 48px);
+  font-size: clamp(30px, 4.5vw, 48px);
+  background: linear-gradient(90deg, #8ea8ff, #a879ff, #59d0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 `;
 
 const Sub = styled.p`
-  margin: 0 0 20px;
-  color: #6b7280;
+  margin: 4px 0 22px;
+  color: #9af0ff;
+  opacity: 0.8;
 `;
 
 /* ============ Shared Cards / Buttons / Inputs ============ */
 
 const Card = styled.section`
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 16px;
-  padding: clamp(16px, 2.2vw, 22px);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.06);
+  background: rgba(20, 24, 40, 0.96);
+  border: 1px solid rgba(120, 120, 170, 0.3);
+  border-radius: 18px;
+  padding: clamp(18px, 2.2vw, 24px);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
   margin-bottom: 18px;
   display: grid;
   gap: 14px;
@@ -104,39 +113,54 @@ const Row = styled.div`
 
   @media (max-width: 760px) {
     grid-template-columns: 1fr;
-    align-items: start;
+    align-items: flex-start;
+    row-gap: 16px;
   }
 `;
 
 const Actions = styled.div`
   display: flex;
   gap: 10px;
-  justify-content: end;
+  justify-content: flex-end;
   flex-wrap: wrap;
 `;
 
 const Button = styled.button`
   height: 44px;
-  padding: 0 16px;
+  padding: 0 18px;
   border: 0;
   border-radius: 10px;
   font-weight: 900;
   cursor: pointer;
-  color: #fff;
-  background: ${p => p.secondary ? '#9aa4b2' : '#0d2d7d'};
-  opacity: ${p => p.disabled ? .6 : 1};
-  pointer-events: ${p => p.disabled ? 'none' : 'auto'};
-  box-shadow: 0 10px 22px rgba(13,45,125,0.25);
+  color: #ffffff;
+  background: ${p =>
+    p.secondary
+      ? 'rgba(145,170,200,0.45)'
+      : 'linear-gradient(90deg, #6b7bff, #9c57ff)'};
+  opacity: ${p => (p.disabled ? 0.6 : 1)};
+  pointer-events: ${p => (p.disabled ? 'none' : 'auto')};
+  box-shadow: 0 12px 32px rgba(100, 80, 255, 0.35);
 `;
 
 const SmallBtn = styled.button`
   height: 36px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid rgba(140, 140, 200, 0.45);
+  background: rgba(35, 40, 70, 0.95);
   font-weight: 800;
   cursor: pointer;
+  color: #dbe5ff;
+  transition: 0.15s ease;
+
+  &:hover {
+    background: rgba(55, 65, 100, 0.98);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
 `;
 
 const Tag = styled.span`
@@ -147,39 +171,42 @@ const Tag = styled.span`
   font-size: 12px;
   font-weight: 900;
   border-radius: 999px;
-  color: #0d2d7d;
-  background: #e9f0ff;
-  border: 1px solid #d6e4ff;
+  color: #a9bcff;
+  background: rgba(95, 115, 255, 0.25);
+  border: 1px solid rgba(145, 165, 255, 0.45);
 `;
 
 const Select = styled.select`
   height: 40px;
-  border: 1px solid #e6e6e6;
   border-radius: 10px;
-  padding: 0 10px;
+  padding: 0 12px;
   font-weight: 700;
+  border: 1px solid rgba(150, 150, 200, 0.4);
+  background: rgba(25, 28, 45, 0.9);
+  color: #e8ecff;
 `;
 
 const Label = styled.label`
   font-weight: 800;
+  color: #cfd8ff;
 `;
 
-/* ============ Draftly-Specific Visuals (adapted) ============ */
+/* ============ Draftly-Specific Visuals (dark) ============ */
 
 const Meter = styled.div`
   font-weight: 900;
   font-size: 14px;
   padding: 6px 10px;
   border-radius: 999px;
-  background: ${({val}) =>
-    val >= 90 ? 'rgba(46,214,161,.16)'
-    : val >= 75 ? 'rgba(255,186,0,.16)'
-    : 'rgba(220,53,69,.16)'};
-  color: ${({val}) =>
-    val >= 90 ? '#169f73'
-    : val >= 75 ? '#b07100'
-    : '#b3261e'};
-  border: 1px solid rgba(0,0,0,.06);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: ${({ val }) =>
+    val >= 90
+      ? 'rgba(46,214,161,.18)'
+      : val >= 75
+      ? 'rgba(255,186,0,.20)'
+      : 'rgba(220,53,69,.26)'};
+  color: ${({ val }) =>
+    val >= 90 ? '#5ef2bf' : val >= 75 ? '#ffd26a' : '#ff8b8b'};
 `;
 
 const Split = styled.section`
@@ -195,13 +222,13 @@ const Split = styled.section`
 
 const Pane = styled.section`
   position: relative;
-  background: #fff;
-  border: 1px solid #e9ebf5;
-  border-radius: 14px;
-  box-shadow: 0 14px 34px rgba(0,0,0,0.06);
+  background: rgba(18, 22, 38, 0.98);
+  border: 1px solid rgba(120, 120, 170, 0.35);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
   padding: 12px;
   display: grid;
-  grid-template-rows: auto minmax(0,1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
 `;
@@ -213,31 +240,50 @@ const PaneHead = styled.div`
   align-items: center;
   margin-bottom: 6px;
 
-  .title { font-weight: 900; }
-  .right { display: flex; align-items: center; gap: 8px; }
+  .title {
+    font-weight: 900;
+    color: #dde6ff;
+  }
+
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 `;
 
 const ReadArea = styled.div`
   min-height: 0;
   overflow: auto;
   padding: 10px;
-  background: linear-gradient(180deg,#f7f8ff,#fff);
-  border-radius: 10px;
-  border: 1px solid #eceefe;
+  background: radial-gradient(circle at 0% 0%, rgba(140, 130, 255, 0.18), transparent 55%),
+              radial-gradient(circle at 100% 100%, rgba(89, 208, 255, 0.18), transparent 55%),
+              #14182a;
+  border-radius: 12px;
+  border: 1px solid rgba(140, 140, 210, 0.35);
+  color: #e8ecff;
 
-  p { margin: 0 0 12px; }
-  sup a { color: #0d2d7d; text-decoration: none; }
+  p {
+    margin: 0 0 12px;
+  }
+
+  sup a {
+    color: #8cc5ff;
+    text-decoration: none;
+  }
 `;
 
 const Editor = styled.textarea`
   width: 100%;
   height: 100%;
   resize: none;
-  border: none; outline: none;
+  border: 1px solid rgba(120, 120, 180, 0.4);
+  outline: none;
   font: 16px/1.55 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-  background: #fafafa;
-  border-radius: 10px;
+  background: rgba(19, 22, 37, 0.96);
+  border-radius: 12px;
   padding: 12px;
+  color: #e8ecff;
 `;
 
 const Toolbar = styled.div`
@@ -246,34 +292,48 @@ const Toolbar = styled.div`
   flex-wrap: wrap;
   margin-top: 8px;
 
-  ${SmallBtn} { background: #f7f8ff; }
+  ${SmallBtn} {
+    background: rgba(39, 44, 74, 0.96);
+  }
 `;
 
-/* Underlines (kept) */
+/* Underlines */
+
 const Changed = styled.span`
   text-decoration: underline 2px
-    ${({type}) => (type==='insert' ? 'rgba(46,214,161,1)' : '#0d2d7d')};
+    ${({ type }) => (type === 'insert' ? 'rgba(46,214,161,1)' : '#9fb4ff')};
   text-underline-offset: 3px;
-  background: ${({active})=> active ? 'rgba(13,45,125,.08)' : 'transparent'};
+  background: ${({ active }) =>
+    active ? 'rgba(111, 130, 255, 0.22)' : 'transparent'};
   border-radius: 6px;
   cursor: pointer;
 `;
 
-/* Popovers / Floating UI (kept, restyled) */
+/* Popovers / Floating UI */
+
 const FloatCard = styled.div`
   position: fixed;
   z-index: 1000;
   min-width: 260px;
   max-width: min(92vw, 520px);
-  background: #ffffff;
-  border: 1px solid #e6e6e6;
+  background: rgba(19, 22, 37, 0.98);
+  border: 1px solid rgba(140, 140, 200, 0.45);
   border-radius: 14px;
-  box-shadow: 0 16px 36px rgba(0,0,0,.14);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.6);
   padding: 12px;
+  color: #e8ecff;
 `;
 
-const FloatTitle = styled.div` font-weight: 900; margin-bottom: 6px; `;
-const FloatNote = styled.div` font-size: 13px; opacity: .8; margin-bottom: 8px; `;
+const FloatTitle = styled.div`
+  font-weight: 900;
+  margin-bottom: 6px;
+`;
+
+const FloatNote = styled.div`
+  font-size: 13px;
+  opacity: 0.85;
+  margin-bottom: 8px;
+`;
 
 const MenuRow = styled.div`
   display: grid;
@@ -282,19 +342,39 @@ const MenuRow = styled.div`
 `;
 
 const GhostButton = styled.button`
-  padding: 8px 10px; border-radius: 10px;
-  background: #f6f7fb; border: 1px solid #e5e8f3;
-  cursor: pointer; font-weight: 800;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(35, 40, 70, 0.96);
+  border: 1px solid rgba(140, 140, 200, 0.5);
+  cursor: pointer;
+  font-weight: 800;
+  color: #e8ecff;
+  transition: 0.15s ease;
+
+  &:hover {
+    background: rgba(55, 65, 100, 0.98);
+  }
 `;
 
 const SelectBubble = styled.div`
-  position: fixed; z-index: 1000; background: #0e3aa2; color: #fff;
-  border-radius: 999px; display: flex; gap: 8px; padding: 8px 10px;
-  box-shadow: 0 12px 28px rgba(14,58,162,.32);
-  ${GhostButton}{ background:#fff;color:#0e3aa2;border-color:#fff; }
+  position: fixed;
+  z-index: 1000;
+  background: #0e3aa2;
+  color: #fff;
+  border-radius: 999px;
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 14px 36px rgba(14, 58, 162, 0.5);
+
+  ${GhostButton} {
+    background: #ffffff;
+    color: #0e3aa2;
+    border-color: #ffffff;
+  }
 `;
 
-/* ===================== Engine Data (unchanged) ===================== */
+/* ===================== Engine Data ===================== */
 
 const HEDGES = [
   'very','really','basically','generally','sort of','kind of','quite','somewhat',
@@ -342,7 +422,7 @@ const PUNCT_FIXES = [
   [/\s+\n/g, '\n'],
 ];
 
-/* ===================== Helpers (unchanged) ===================== */
+/* ===================== Helpers ===================== */
 
 function preserveCase(out, orig){
   if(!orig) return out;
@@ -520,7 +600,7 @@ function buildDiff(original, improved) {
   return { tokens, changes };
 }
 
-/* ===================== Rewrite Pipeline (unchanged) ===================== */
+/* ===================== Rewrite Pipeline ===================== */
 
 function normalize(text){
   let t = text;
@@ -792,7 +872,7 @@ export default function DraftlyAI(){
   return (
     <Shell>
       <Sidebar>
-        <SideTitle>Draftly.AI</SideTitle>
+        <SideTitle>DraftLab</SideTitle>
         <SideNav>
           <SideLink to="/ai">🏠 Home</SideLink>
           <SideLink to="/ai/draftly">🧹 Editor</SideLink>

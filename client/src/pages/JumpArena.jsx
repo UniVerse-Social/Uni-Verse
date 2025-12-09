@@ -5,11 +5,13 @@ import React, {
   useState,
   useCallback,
   useLayoutEffect,
+  useContext,
 } from "react";
 import styled from "styled-components";
 import { io } from "socket.io-client";
 import axios from "axios";
 import { API_BASE_URL } from "../config";
+import { AuthContext } from "../App";
 import GameSidebar from "../components/GameSidebar";
 
 /** ----- layout constants to mirror ChessArena ----- */
@@ -230,7 +232,6 @@ function drawResult(ctx, text) {
   ctx.fillText(text, W / 2, H / 2);
 }
 
-/** ----- engine ----- */
 function createEngine(ctx, hooks = {}) {
   let HOOKS = {
     online: false,
@@ -260,6 +261,7 @@ function createEngine(ctx, hooks = {}) {
     cooldownTop: 0,
     cooldownBottom: 0,
     startPerf: 0, // perf.now()-aligned start time (computed from server epoch)
+    selfSide: "bottom", // "top" | "bottom" from server POV
   };
 
   function speed(t) {
@@ -323,6 +325,20 @@ function createEngine(ctx, hooks = {}) {
     }
   }
 
+  // server "top"/"bottom" lanes always map to the same
+  // visual top(0)/bottom(1) for everyone
+  function laneIdxFor(laneName) {
+    return laneName === "top" ? 0 : 1;
+  }
+
+  function myLaneIdx() {
+    return state.selfSide === "top" ? 0 : 1;
+  }
+
+  function oppLaneIdx() {
+    return myLaneIdx() === 0 ? 1 : 0;
+  }
+
   // online deterministic spawner: same ticks, same PRNG -> same obstacles
   function onlineSpawn(now) {
     // Convert to online timeline via startPerf (both in performance.now() domain)
@@ -338,7 +354,7 @@ function createEngine(ctx, hooks = {}) {
       if (state.cooldownBottom > 0)
         state.cooldownBottom--;
 
-      // decide per lane
+      // decide per lane (logical "top"/"bottom")
       for (const lane of ["top", "bottom"]) {
         const cdKey =
           lane === "top"
@@ -350,28 +366,18 @@ function createEngine(ctx, hooks = {}) {
         if (r < 0.58) {
           // spawn
           const cactus = state.rng.next() < 0.75;
-          if (lane === "top")
-            spawn(
-              0,
-              cactus ? "cactus" : "bird",
-              cactus
-                ? undefined
-                : HEADER +
-                    GROUND_Y -
-                    26 +
-                    lanes[0].top
-            );
-          else
-            spawn(
-              1,
-              cactus ? "cactus" : "bird",
-              cactus
-                ? undefined
-                : HEADER +
-                    GROUND_Y -
-                    26 +
-                    lanes[1].top
-            );
+          const laneIdx = laneIdxFor(lane);
+
+          if (cactus) {
+            spawn(laneIdx, "cactus");
+          } else {
+            const birdY =
+              HEADER +
+              GROUND_Y -
+              26 +
+              lanes[laneIdx].top;
+            spawn(laneIdx, "bird", birdY);
+          }
 
           // set cooldown in ticks (shorter as time goes)
           const t = Math.max(
@@ -392,26 +398,16 @@ function createEngine(ctx, hooks = {}) {
             cactus &&
             state.rng.next() < 0.18
           ) {
-            if (lane === "top")
-              lanesState[0].obs.push({
-                type: "cactus",
-                x: W + 46,
-                y:
-                  HEADER +
-                  GROUND_Y +
-                  lanes[0].top,
-                scale: 2,
-              });
-            else
-              lanesState[1].obs.push({
-                type: "cactus",
-                x: W + 46,
-                y:
-                  HEADER +
-                  GROUND_Y +
-                  lanes[1].top,
-                scale: 2,
-              });
+            const laneIdx2 = laneIdx;
+            lanesState[laneIdx2].obs.push({
+              type: "cactus",
+              x: W + 46,
+              y:
+                HEADER +
+                GROUND_Y +
+                lanes[laneIdx2].top,
+              scale: 2,
+            });
           }
         }
       }
@@ -419,7 +415,7 @@ function createEngine(ctx, hooks = {}) {
     state.lastTick = tick;
   }
 
-  function setOnline(startAt, seed) {
+  function setOnline(startAt, seed, selfSide = "bottom") {
     state.online = true;
     state.startAt = startAt;
     state.seed = seed || 1;
@@ -427,6 +423,8 @@ function createEngine(ctx, hooks = {}) {
     state.lastTick = -1;
     state.cooldownTop = 0;
     state.cooldownBottom = 0;
+    state.selfSide =
+      selfSide === "top" ? "top" : "bottom";
     // Align server epoch (Date.now) to performance clock locally
     state.startPerf =
       performance.now() +
@@ -434,7 +432,7 @@ function createEngine(ctx, hooks = {}) {
   }
 
   function opponentAct(action, atMs) {
-    const r = runners[0];
+    const r = runners[oppLaneIdx()];
     const now = performance.now();
     const when = atMs
       ? atMs - Date.now() + now
@@ -467,8 +465,15 @@ function createEngine(ctx, hooks = {}) {
     ctx.font =
       "bold 14px system-ui,-apple-system,Segoe UI,Roboto";
     ctx.textAlign = "center";
-    ctx.fillText("Opponent Lane", W / 2, 16);
-    ctx.fillText("Your Lane", W / 2, HALF + 16);
+
+    const yourLane = myLaneIdx();
+    const topLabel =
+      yourLane === 0 ? "Your Lane" : "Opponent Lane";
+    const bottomLabel =
+      yourLane === 1 ? "Your Lane" : "Opponent Lane";
+
+    ctx.fillText(topLabel, W / 2, 16);
+    ctx.fillText(bottomLabel, W / 2, HALF + 16);
 
     const live =
       HOOKS.getLives?.() || {
@@ -628,8 +633,9 @@ function createEngine(ctx, hooks = {}) {
         ctx.fillStyle = JUMP_COLORS.label;
         ctx.font = "bold 10px system-ui";
         ctx.textAlign = "center";
+        const isYou = i === myLaneIdx();
         ctx.fillText(
-          i === 0 ? "RIVAL" : "YOU",
+          isYou ? "YOU" : "RIVAL",
           r.x,
           hb.y + hb.h - 4
         );
@@ -705,7 +711,7 @@ function createEngine(ctx, hooks = {}) {
       draw ? draw(ctx) : drawIdleBoard(ctx);
     },
     keyDown(e) {
-      const me = runners[1];
+      const me = runners[myLaneIdx()];
       if (!state.running) return;
       if (
         (e.key === "ArrowUp" ||
@@ -727,7 +733,7 @@ function createEngine(ctx, hooks = {}) {
       }
     },
     keyUp(e) {
-      const me = runners[1];
+      const me = runners[myLaneIdx()];
       if (e.key === "ArrowDown") me.duck = false;
     },
   };
@@ -1014,10 +1020,40 @@ const MobileStack = styled.div`
   }
 `;
 
+const Overlay = styled.div`
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 50;
+`;
+
+const Modal = styled.div`
+  width: 520px;
+  max-width: 94vw;
+  background: var(--container-white);
+  color: var(--text-color);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-color);
+  padding: 16px;
+`;
+
+const ModalGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+`;
+
 /** ----- React wrapper ----- */
 export default function JumpArena({ onExit }) {
   const canvasRef = useRef(null),
     engineRef = useRef(null);
+
+  const { user } = useContext(AuthContext);
+
   const [status, setStatus] = useState(
     "Pick a mode to start."
   );
@@ -1039,7 +1075,9 @@ export default function JumpArena({ onExit }) {
     top: "Opponent",
     bottom: "Opponent",
   });
+
   const awardedRef = useRef(false);
+  const [resultModal, setResultModal] = useState(null);
 
   const panelRef = useRef(null);
   const [boardSize, setBoardSize] =
@@ -1200,23 +1238,100 @@ export default function JumpArena({ onExit }) {
     );
   };
 
-  const award = useCallback(
-    async (didWin) => {
-      if (awardedRef.current) return;
+  // ----- trophies / modal helpers (mirroring Checkers) -----
+  const perGameRank = (n) =>
+    n >= 1500
+      ? "Champion"
+      : n >= 900
+      ? "Diamond"
+      : n >= 600
+      ? "Platinum"
+      : n >= 400
+      ? "Gold"
+      : n >= 250
+      ? "Silver"
+      : n >= 100
+      ? "Bronze"
+      : "Wood";
+
+  const fetchMyJumpTrophies = useCallback(async () => {
+    if (!user?._id) return 0;
+    try {
+      const { data } = await axios.get(
+        `${API_BASE_URL}/api/games/stats/${user._id}`
+      );
+      return data?.trophiesByGame?.jump || 0;
+    } catch {
+      return 0;
+    }
+  }, [user?._id]);
+
+  const fetchMyOverallPlace = useCallback(async () => {
+    if (!user?._id) return null;
+    try {
+      const q = new URLSearchParams({
+        userId: user._id,
+      });
+      const { data } = await axios.get(
+        `${API_BASE_URL}/api/games/leaderboard/overall?${q.toString()}`
+      );
+      return data?.me?.rank ?? null;
+    } catch {
+      return null;
+    }
+  }, [user?._id]);
+
+  const openResultModal = useCallback(
+    async (resultText, didWin, trophiesOverride = null) => {
+      const trophies =
+        trophiesOverride ??
+        (await fetchMyJumpTrophies());
+      const place = await fetchMyOverallPlace();
+      setResultModal({
+        didWin,
+        resultText,
+        trophies,
+        rank: perGameRank(trophies),
+        place,
+      });
+    },
+    [fetchMyJumpTrophies, fetchMyOverallPlace]
+  );
+
+  const awardOutcome = useCallback(
+    async (kind) => {
+      // kind: 'win' | 'loss' | 'draw'
+      if (!user?._id || awardedRef.current) return null;
       try {
+        const delta =
+          kind === "win" ? 4 : kind === "loss" ? -3 : 0;
         await axios.post(
           `${API_BASE_URL}/api/games/result`,
           {
-            userId: window.__USER__?._id,
+            userId: user._id,
             gameKey: "jump",
-            delta: didWin ? 4 : -3,
-            didWin,
+            delta,
+            didWin: kind === "win",
           }
         );
         awardedRef.current = true;
-      } catch {}
+
+        // let sidebar / home refresh trophies
+        try {
+          window.dispatchEvent(
+            new CustomEvent("games:statsUpdated", {
+              detail: { gameKey: "jump" },
+            })
+          );
+        } catch {}
+
+        const t = await fetchMyJumpTrophies();
+        return t;
+      } catch {
+        return null;
+      }
     },
-    []
+    [user?._id, fetchMyJumpTrophies]
   );
 
   const connectSocket = useCallback(() => {
@@ -1322,6 +1437,7 @@ export default function JumpArena({ onExit }) {
 
         engineRef.current?.setHooks({
           online: true,
+          // server lives are always { top, bottom } = {top lane, bottom lane}
           getLives: () => livesRef.current,
           onInput: (action) =>
             s.emit("jump:input", {
@@ -1330,21 +1446,26 @@ export default function JumpArena({ onExit }) {
               at: Date.now(),
             }),
           onHit: (lane) => {
-            if (lane === 1) {
-              setLives((prev) => ({
-                ...prev,
-                bottom: Math.max(
-                  0,
-                  prev.bottom - 1
-                ),
-              }));
-              s.emit("jump:hit", { roomId });
-            }
+            // lane: 0 = visual top, 1 = visual bottom
+            const isMyLane =
+              (you === "top" && lane === 0) ||
+              (you === "bottom" && lane === 1);
+            if (!isMyLane) return;
+
+            setLives((prev) => {
+              const side = you; // "top" or "bottom"
+              const next = { ...prev };
+              next[side] = Math.max(0, next[side] - 1);
+              return next;
+            });
+
+            s.emit("jump:hit", { roomId });
           },
         });
         engineRef.current?.setOnline(
           startAt,
-          seed
+          seed,
+          you
         );
 
         const delay = Math.max(
@@ -1381,23 +1502,31 @@ export default function JumpArena({ onExit }) {
 
     s.on(
       "jump:gameover",
-      async ({ winner }) => {
-        const meWin =
-          winner &&
-          winner === mySideRef.current;
+      async ({ winner, reason }) => {
+        const meSide = mySideRef.current;
+        const meWin = winner && winner === meSide;
+
+        const reasonText = reason ? ` (${reason})` : "";
+        const resultText = `Game over: ${
+          meWin ? "You win" : "You lose"
+        }${reasonText}.`;
+
+        // dim the board with YOU WIN / YOU LOSE like before
         engineRef.current?.stop((ctx) =>
-          drawResult(
-            ctx,
-            meWin ? "YOU WIN" : "YOU LOSE"
-          )
+          drawResult(ctx, meWin ? "YOU WIN" : "YOU LOSE")
         );
+
         setMode(null);
         setStatus(
           meWin
             ? "You win! (+4 trophies)"
             : "You lose. (-3 trophies)"
         );
-        await award(!!meWin);
+
+        const kind = meWin ? "win" : "loss";
+        const trophiesOverride = await awardOutcome(kind);
+
+        await openResultModal(resultText, meWin, trophiesOverride);
       }
     );
 
@@ -1405,7 +1534,7 @@ export default function JumpArena({ onExit }) {
       setStatus("Disconnected.")
     );
     return s;
-  }, [award]);
+  }, [awardOutcome, openResultModal]);
 
   const rightTouches = useRef(new Set());
 
@@ -1514,14 +1643,19 @@ export default function JumpArena({ onExit }) {
     setStatus("Stopped.");
   };
 
+  // lives are always in server order: { top, bottom }
+  const perspectiveLives = lives;
+
   const opponentName =
     mode === "online"
-      ? names.top
+      ? mySideRef.current === "top"
+        ? names.bottom
+        : names.top
       : "Opponent";
 
   const heartsString =
     mode === "online"
-      ? `♥${lives.top}/3 · You ♥${lives.bottom}/3`
+      ? `${names.top} ♥${perspectiveLives.top}/3 · ${names.bottom} ♥${perspectiveLives.bottom}/3`
       : "Tap left to jump, right to duck";
 
   return (
@@ -1663,8 +1797,10 @@ export default function JumpArena({ onExit }) {
                   </div>
                   <div>
                     <b>Hearts:</b> Top{" "}
-                    {lives.top}/3 · Bottom{" "}
-                    {lives.bottom}/3
+                    {perspectiveLives.top}/3 ·
+                    Bottom{" "}
+                    {perspectiveLives.bottom}
+                    /3
                   </div>
                 </div>
               )}
@@ -1765,8 +1901,10 @@ export default function JumpArena({ onExit }) {
                 </div>
                 <div>
                   <b>Hearts:</b> Top{" "}
-                  {lives.top}/3 · Bottom{" "}
-                  {lives.bottom}/3
+                  {perspectiveLives.top}/3 ·
+                  Bottom{" "}
+                  {perspectiveLives.bottom}
+                  /3
                 </div>
               </div>
             )}
@@ -1846,6 +1984,115 @@ export default function JumpArena({ onExit }) {
           showOnMobile
         />
       </Drawer>
+            {/* end-of-game modal (mirrors Checkers) */}
+      {resultModal && (
+        <Overlay onClick={() => setResultModal(null)}>
+          <Modal onClick={(e) => e.stopPropagation()}>
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 800,
+                marginBottom: 6,
+              }}
+            >
+              {resultModal.didWin
+                ? "You win! 🎉"
+                : /draw/i.test(resultModal.resultText)
+                ? "Draw"
+                : "You lose"}
+            </div>
+
+            <div
+              style={{
+                fontSize: 13,
+                color: "rgba(230,233,255,0.65)",
+              }}
+            >
+              {resultModal.resultText}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+                marginTop: 10,
+              }}
+            >
+              <span style={{ fontWeight: 800 }}>
+                🏆 {resultModal.trophies}
+              </span>
+              <span
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 9999,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  background: "var(--primary-orange)",
+                  color: "#000",
+                }}
+              >
+                {resultModal.rank}
+              </span>
+            </div>
+
+            {resultModal.place && (
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: "rgba(230,233,255,0.65)",
+                }}
+              >
+                Overall leaderboard position: #
+                {resultModal.place}
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: 12,
+                fontSize: 12,
+                color: "rgba(230,233,255,0.65)",
+              }}
+            >
+              Tip: Only wins in live online Jump
+              matches award trophies. Practice is
+              unranked.
+            </div>
+
+            <ModalGrid>
+              <Button
+                onClick={() => {
+                  setMode(null);
+                  roomIdRef.current = null;
+                  setResultModal(null);
+                  setStatus("Pick a mode to start.");
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                onClick={() => {
+                  setResultModal(null);
+                  practice();
+                }}
+              >
+                Play Bot
+              </Button>
+              <Button
+                $primary
+                onClick={() => {
+                  setResultModal(null);
+                  online();
+                }}
+              >
+                Find Online Match
+              </Button>
+            </ModalGrid>
+          </Modal>
+        </Overlay>
+      )}
     </>
   );
 }

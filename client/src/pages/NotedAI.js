@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-/* ============ Layout ============ */
+/* ============ Layout (Dark Purple Theme) ============ */
 
 const Shell = styled.div`
   position: fixed;
@@ -11,34 +11,34 @@ const Shell = styled.div`
   bottom: 0;
   left: 0;
 
-  @media (max-width: 768px) {
-    bottom: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom));
-  }
-
   display: grid;
   grid-template-columns: 240px 1fr;
-  gap: 0;
-  background: #fff;
+  background: #0b0f1a; /* deep navy-purple */
+  color: #e8ecff;
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
   }
+
+  @media (max-width: 768px) {
+    bottom: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom));
+  }
 `;
 
 const Sidebar = styled.aside`
-  border-right: 1px solid #eee;
-  padding: 18px 16px;
-  background: #fafafa;
-
-  @media (max-width: 900px) {
-    display: none;
-  }
+  background: rgba(25, 30, 48, 0.85);
+  border-right: 1px solid rgba(100,100,150,0.25);
+  padding: 22px 16px;
+  backdrop-filter: blur(6px);
 `;
 
 const SideTitle = styled.div`
   font-weight: 900;
-  font-size: 20px;
-  margin-bottom: 16px;
+  font-size: 22px;
+  background: linear-gradient(90deg, #9ab6ff, #c8afff);
+  -webkit-background-clip: text;
+  color: transparent;
+  margin-bottom: 18px;
 `;
 
 const SideNav = styled.nav`
@@ -47,70 +47,76 @@ const SideNav = styled.nav`
 `;
 
 const SideLink = styled(Link)`
-  display: grid;
-  grid-auto-flow: column;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  justify-content: start;
+  gap: 10px;
+  padding: 12px 14px;
   text-decoration: none;
-  color: #222;
-  padding: 10px 12px;
-  border-radius: 10px;
   font-weight: 700;
+  color: #d9e1ff;
+  border-radius: 12px;
+  transition: 0.15s ease;
 
-  &:hover { background: #f0f3ff; }
+  &:hover {
+    background: rgba(140, 130, 255, 0.15);
+    color: #fff;
+  }
 `;
 
 const Main = styled.main`
-  overflow: auto;
-  padding: clamp(14px, 2.4vw, 28px);
+  overflow-y: auto;
+  padding: clamp(18px, 2.4vw, 32px);
 `;
 
 const H1 = styled.h1`
-  margin: 0 0 6px;
+  margin: 0;
   font-weight: 900;
-  font-size: clamp(28px, 4.6vw, 48px);
+  font-size: clamp(30px, 4.5vw, 48px);
+  background: linear-gradient(90deg, #8ea8ff, #a879ff, #59d0ff);
+  -webkit-background-clip: text;
+  color: transparent;
 `;
 
 const Sub = styled.p`
-  margin: 0 0 20px;
-  color: #6b7280;
+  margin: 6px 0 20px;
+  color: #9af0ff;
+  opacity: 0.75;
 `;
 
-/* ============ Upload Card ============ */
+/* ============ Cards (Dark Mode) ============ */
 
 const Card = styled.section`
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 16px;
-  padding: clamp(16px, 2.2vw, 22px);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.06);
+  background: rgba(20, 24, 40, 0.9);
+  border: 1px solid rgba(120, 120, 170, 0.25);
+  border-radius: 18px;
+  padding: clamp(18px, 2vw, 26px);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.45);
+  backdrop-filter: blur(6px);
   margin-bottom: 18px;
 `;
 
 const UploadZone = styled.label`
   display: grid;
   place-items: center;
-  min-height: 180px;
-  border: 2px dashed #c7ccd8;
-  border-radius: 12px;
+  min-height: 190px;
+  border: 2px dashed rgba(150,160,255,0.35);
+  border-radius: 14px;
   cursor: pointer;
-  color: #7a8398;
-  font-weight: 700;
-  transition: background .15s ease, border-color .15s ease;
-  background: #fbfdff;
+  transition: 0.15s ease;
+  background: rgba(45, 55, 95, 0.35);
+  color: #dbe5ff;
 
   &:hover {
-    background: #f5f8ff;
-    border-color: #a8b4d7;
+    background: rgba(65, 75, 115, 0.5);
+    border-color: #9bb3ff;
   }
 `;
 
 const InlineControls = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 16px;
+  grid-template-columns: repeat(2,1fr);
+  gap: 16px;
+  margin-top: 20px;
 
   @media (max-width: 760px) {
     grid-template-columns: 1fr;
@@ -119,70 +125,81 @@ const InlineControls = styled.div`
 
 const Field = styled.div`
   display: grid;
-  gap: 8px;
+  gap: 10px;
 `;
 
 const Label = styled.label`
   font-weight: 800;
+  color: #cfd8ff;
 `;
 
 const Select = styled.select`
   height: 40px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid rgba(150,150,200,0.3);
   border-radius: 10px;
-  padding: 0 10px;
+  padding: 0 12px;
   font-weight: 700;
+  background: rgba(25,28,45,0.8);
+  color: #e8ecff;
 `;
 
 const Opts = styled.div`
   display: grid;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 12px;
 `;
 
 const Check = styled.label`
-  display: grid;
-  grid-auto-flow: column;
-  gap: 10px;
+  display: flex;
   align-items: center;
-  justify-content: start;
+  gap: 10px;
   user-select: none;
 
-  input { width: 18px; height: 18px; }
-  span { font-weight: 700; }
+  input {
+    width: 18px;
+    height: 18px;
+    accent-color: #bba6ff;
+  }
+
+  span {
+    font-weight: 700;
+    color: #dbe3ff;
+  }
 `;
 
 const Actions = styled.div`
   display: flex;
-  gap: 10px;
   justify-content: end;
-  margin-top: 16px;
+  gap: 12px;
+  margin-top: 12px;
 `;
 
 const Button = styled.button`
   height: 44px;
-  padding: 0 16px;
+  padding: 0 20px;
   border: 0;
   border-radius: 10px;
   font-weight: 900;
   cursor: pointer;
   color: #fff;
-  background: ${p => p.secondary ? '#9aa4b2' : '#0d2d7d'};
-  opacity: ${p => p.disabled ? .6 : 1};
+  background: ${p => p.secondary
+    ? 'rgba(145,170,200,0.45)'
+    : 'linear-gradient(90deg, #6b7bff, #9c57ff)'};
+  opacity: ${p => p.disabled ? 0.6 : 1};
   pointer-events: ${p => p.disabled ? 'none' : 'auto'};
-  box-shadow: 0 10px 22px rgba(13,45,125,0.25);
+  box-shadow: 0 12px 32px rgba(100,80,255,0.35);
 `;
 
 const Small = styled.small`
-  color: #6b7280;
+  color: #9bb5ff;
+  opacity: 0.7;
 `;
 
 /* ============ Results ============ */
 
 const Results = styled.section`
-  margin-top: 18px;
+  margin-top: 24px;
   display: grid;
-  gap: 14px;
+  gap: 18px;
 `;
 
 const ResultCard = styled(Card)`
@@ -193,42 +210,48 @@ const ResultHeader = styled.div`
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 
   h3 {
     margin: 0;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 900;
+    color: #dce4ff;
   }
 `;
 
 const ResultToolbar = styled.div`
   display: flex;
-  gap: 8px;
+  gap: 10px;
 
   button {
-    height: 36px;
+    height: 34px;
     padding: 0 12px;
-    border-radius: 8px;
-    border: 1px solid #e6e6e6;
-    background: #fff;
+    color: #dce4ff;
     font-weight: 800;
+    border-radius: 8px;
+    background: rgba(40,45,70,0.85);
+    border: 1px solid rgba(120,120,180,0.35);
     cursor: pointer;
+    transition: 0.15s ease;
+
+    &:hover {
+      background: rgba(60,70,100,0.9);
+    }
   }
 `;
 
 const Tag = styled.span`
   display: inline-flex;
-  height: 22px;
   align-items: center;
+  height: 22px;
   padding: 0 8px;
   font-size: 12px;
   font-weight: 900;
   border-radius: 999px;
-  color: #0d2d7d;
-  background: #e9f0ff;
-  border: 1px solid #d6e4ff;
+  background: rgba(95,115,255,0.25);
+  border: 1px solid rgba(145,165,255,0.4);
+  color: #a9bcff;
 `;
 
 /* ============ Structured Notes UI ============ */
@@ -619,7 +642,7 @@ export default function NotedAI() {
   return (
     <Shell>
       <Sidebar>
-        <SideTitle>Noted.AI</SideTitle>
+        <SideTitle>NoteLab</SideTitle>
         <SideNav>
           <SideLink to="/ai">🏠 Home</SideLink>
           <SideLink to="/ai/noted">📝 My Notes</SideLink>

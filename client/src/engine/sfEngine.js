@@ -240,7 +240,15 @@ export function createStockfish() {
     }
   }
 
-  const bestMove = async ({ fen, movetime = 260, depth, hardLimitMs } = {}) => {
+  const bestMove = async ({
+    fen,
+    movetime = 260,
+    depth,
+    hardLimitMs,
+    // NEW: allow per-call strength control
+    limitStrength,
+    uciElo,
+  } = {}) => {
     if (!ready) throw new Error("Stockfish not initialized");
     const limit = hardLimitMs ?? Math.max(700, (movetime || 0) + 320);
 
@@ -248,12 +256,26 @@ export function createStockfish() {
       () =>
         new Promise((resolve, reject) => {
           tryStop();
+
           const unhook = onceMatch("bestmove", (line) => {
             const parts = line.split(/\s+/);
             const bm = parts[1] || "(none)";
             resolve(bm === "(none)" ? null : bm);
           });
+
           try {
+            // ⬅️ per-call playing strength
+            if (typeof limitStrength === "boolean") {
+              send(
+                `setoption name UCI_LimitStrength value ${
+                  limitStrength ? "true" : "false"
+                }`
+              );
+            }
+            if (typeof uciElo === "number") {
+              send(`setoption name UCI_Elo value ${uciElo}`);
+            }
+
             send("ucinewgame");
             send("setoption name MultiPV value 1");
             send(`position fen ${fen}`);
@@ -275,6 +297,9 @@ export function createStockfish() {
     depth,
     multipv = 1,
     hardLimitMs,
+    // NEW: per-call analysis strength; we’ll usually pass limitStrength:false
+    limitStrength,
+    uciElo,
   } = {}) => {
     if (!ready) throw new Error("Stockfish not initialized");
     const limit = hardLimitMs ?? Math.max(650, (movetime || 0) + 320);
@@ -292,18 +317,22 @@ export function createStockfish() {
             const scMate = / score mate (-?\d+)/.exec(msg);
             const scCp = / score cp (-?\d+)/.exec(msg);
             if (!mpv || !pv) return;
+
             const k = parseInt(mpv[1], 10);
-            const score = scMate
-              ? 100000 * Math.sign(parseInt(scMate[1], 10))
-              : scCp
-              ? parseInt(scCp[1], 10)
-              : 0;
-            lines.set(k, { scoreCp: score, pv: pv[1] });
+            const mateVal = scMate ? parseInt(scMate[1], 10) : null;
+            const cpVal = scCp ? parseInt(scCp[1], 10) : 0;
+
+            lines.set(k, {
+              scoreCp: cpVal,
+              scoreMate: mateVal,
+              mate: mateVal,
+              pv: pv[1],
+            });
           };
 
           const unInfo = () => {
-            const i = listeners.indexOf(onInfo);
-            if (i >= 0) listeners.splice(i, 1);
+            const idx = listeners.indexOf(onInfo);
+            if (idx !== -1) listeners.splice(idx, 1);
           };
 
           const unBest = onceMatch("bestmove", () => {
@@ -318,6 +347,18 @@ export function createStockfish() {
           listeners.push(onInfo);
 
           try {
+            // ⬅️ per-call strength here too
+            if (typeof limitStrength === "boolean") {
+              send(
+                `setoption name UCI_LimitStrength value ${
+                  limitStrength ? "true" : "false"
+                }`
+              );
+            }
+            if (typeof uciElo === "number") {
+              send(`setoption name UCI_Elo value ${uciElo}`);
+            }
+
             send("ucinewgame");
             send(`setoption name MultiPV value ${multipv}`);
             send(`position fen ${fen}`);

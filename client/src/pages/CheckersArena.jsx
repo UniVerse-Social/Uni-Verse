@@ -44,7 +44,6 @@ const Panel = styled.div`
   background: var(--container-white);
   color: var(--text-color);
   border-radius: 12px;
-  padding: 12px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
 `;
 

@@ -57,7 +57,6 @@ const Panel = styled.div`
   background:var(--container-white);
   color: var(--text-color);
   border-radius:12px;
-  padding:12px;
   box-shadow: 0 12px 28px rgba(0,0,0,.28);
 `;
 const RightRailTopBar = styled.div`
@@ -67,7 +66,7 @@ const RightRailTopBar = styled.div`
   align-items: center;
   padding: 0 8px;
   padding-bottom: 35px;
-  height: 56px;
+  height: 10px;
   margin-bottom: 12px;
 `;
 
@@ -124,7 +123,8 @@ const BoardViewport = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden; /* no scrollbars */
+  /* Let promotion dialog and tutorial tip use the full board area */
+  overflow: visible;
   min-height: 0;
   position: relative;
 `;
@@ -233,6 +233,17 @@ const DrawerButton = styled.button`
   }
   @media (min-width: 861px) { display: none; }
 `;
+const DesktopBotControls = styled.div`
+  display: none;
+  width: 100%;
+  margin-top: 12px;
+
+  @media (min-width: 861px) {
+    display: grid;
+    gap: 8px;
+    max-width: 340px;
+  }
+`;
 
 /* Left-side drawer for the sidebar on phones */
 const Drawer = styled.aside`
@@ -302,29 +313,129 @@ const MobileStatsRow = styled.div`
   @media (min-width: 861px) { display: none; }
 `;
 
-/* Bot presets — strengths & personalities */
 const BOT_PRESETS = {
-  tutorial:  { label: 'Tutorial', status: 'Tutorial bot: explains moves clearly.', useSF: true,  sf: { movetime: 280, depth: 12, multipv: 1 }, explain:true, thinkMs: 150 },
+  // Tutorial now also plays via Stockfish (like Elite/GM) but with
+  // softer parameters and more variety. Explanations still come from SF.
+  tutorial: {
+    label: 'Tutorial',
+    status: 'Tutorial bot: explains moves clearly.',
+    useSF: true,
+    sf: { movetime: 450, multipv: 4 }, // more lines so teaching has options
+    safetyCp: 80,        // will happily play slightly worse moves
+    inaccuracyCp: 140,   // up to ~1.4 pawns worse than best allowed
+    randomness: 0.4,     // picks among several decent / okay moves
+    thinkMs: 200,
+    explain: true,
+  },
 
-  easy:   { label: 'Easy (700)',    useSF: false, timeMs: 320, maxDepth: 2, randomness: 0.35, blunder: 0.12,
-            inaccuracyCp: 140, safeDropCp: 220, thinkMs: 110 },
+  // Easy: SF-backed, but with big allowed eval drops and high randomness.
+  easy: {
+    label: 'Easy (~800)',
+    status: 'Beginner bot: blunders often and misses tactics.',
+    useSF: true,
+    sf: { movetime: 350, multipv: 6 }, // more candidate moves to choose bad ones from
+    safetyCp: 160,
+    inaccuracyCp: 260,   // can play quite bad moves sometimes
+    randomness: 0.85,    // very swingy / random within that bad pool
+    thinkMs: 220,
+    explain: false,
+  },
 
-  // ~1000 Elo: deeper than easy, still allows small inaccuracies but avoids big drops
-  medium: { label: 'Medium (1000)', useSF: false, timeMs: 650, maxDepth: 3, randomness: 0.14, blunder: 0.02,
-            inaccuracyCp: 90, safeDropCp: 130, thinkMs: 140 },
+  // Medium: still clearly weaker than Elite, but closer to a club player.
+  medium: {
+    label: 'Medium (~1200)',
+    status: 'Club player bot: plays decent moves but still slips.',
+    useSF: true,
+    sf: { movetime: 500, multipv: 5 },
+    safetyCp: 90,
+    inaccuracyCp: 150,
+    randomness: 0.55,
+    thinkMs: 240,
+    explain: false,
+  },
 
-  // Tough for most: deeper search, tiny inaccuracies only; no blunders
-  hard:   { label: 'Hard (1500)',   useSF: false, timeMs: 1200, maxDepth: 5, randomness: 0.04, blunder: 0,
-            inaccuracyCp: 35, safeDropCp: 50, pruneAggressive: false, thinkMs: 160 },
+  // Hard: strong club level, mostly solid, occasional inaccuracies.
+  hard: {
+    label: 'Hard (~1600)',
+    status: 'Strong club bot: mostly solid, occasional inaccuracies.',
+    useSF: true,
+    sf: { movetime: 650, multipv: 4 },
+    safetyCp: 45,
+    inaccuracyCp: 80,
+    randomness: 0.25,
+    thinkMs: 260,
+    explain: false,
+  },
 
-  // Engine-backed: extremely strong; slight inaccuracies allowed, never blunders
-  elite:  { label: 'Elite (2000)',  useSF: true,  sf: { movetime: 1500, depth: 20, multipv: 4 },
-            safetyCp: 6, inaccuracyCp: 12, randomness: 0 },
+  // Elite & GM stay EXACTLY like the “fast” chess.com-style SF presets
+  // you already had before.
 
-  // Top strength: always pick a line within 3 cp of best (i.e., best); never blunders
-  gm:     { label: 'Grandmaster (2200+)', useSF: true, sf: { movetime: 2000, depth: 22, multipv: 4 },
-            safetyCp: 0, inaccuracyCp: 0, randomness: 0 },
+  elite: {
+    label: 'Elite (2000)',
+    status: 'Fast engine bot around 2000 level.',
+    useSF: true,
+    sf: { movetime: 600, multipv: 2 },
+    safetyCp: 8,
+    inaccuracyCp: 15,
+    randomness: 0, // still a tiny bit of variation via pool logic in fastBestMove
+    thinkMs: 240,
+  },
+
+  gm: {
+    label: 'Grandmaster (2200+)',
+    status: 'Fast engine bot ~2200+ with best-move behavior.',
+    useSF: true,
+    sf: { movetime: 900, multipv: 2 },
+    safetyCp: 0,
+    inaccuracyCp: 0,
+    randomness: 0, // always pure best move from the pool
+    thinkMs: 260,
+  },
 };
+
+// Build a tutorial profile that scales strength based on an Elo slider.
+// 100  ≈ very weak / beginner
+// 1000 ≈ casual club player
+// 2000 ≈ strong trainer
+function buildTutorialProfileFromElo(rawElo = 1000) {
+  // Clamp to the supported range
+  const elo = Math.max(100, Math.min(2000, rawElo));
+
+  // Normalized 0..1 for interpolation
+  const t = (elo - 100) / (2000 - 100);
+
+  // JS search parameters — scaled with elo
+  // More time & depth at higher ratings, less randomness and fewer blunders.
+  const timeMs       = 220 + t * 580;                 // ~220ms → ~800ms
+  const maxDepth     = 2 + Math.round(t * 3);         // 2 → 5 plies
+  const randomness   = 0.9 - t * 0.6;                 // 0.9 → 0.3
+  const safeDropCp   = 260 - t * 210;                 // 260 → 50 (max eval drop vs best)
+  const inaccuracyCp = 280 - t * 210;                 // 280 → 70 (allowable inaccuracy)
+  const blunder      = Math.max(0, 0.25 - t * 0.22);  // 25% → ~3% deliberate blunder
+
+  // Simple text description buckets
+  let bandLabel;
+  if (elo < 500) bandLabel = 'beginner';
+  else if (elo < 900) bandLabel = 'improving';
+  else if (elo < 1400) bandLabel = 'intermediate';
+  else if (elo < 1800) bandLabel = 'advanced';
+  else bandLabel = 'strong';
+
+  return {
+    label: `Tutorial (~${elo})`,
+    status: `Tutorial bot (~${elo} Elo): ${bandLabel} level, explains moves clearly.`,
+    // Use the lightweight JS engine (searchBestMove) instead of SF for move choice.
+    useSF: false,
+    timeMs,
+    maxDepth,
+    randomness,
+    pruneAggressive: t > 0.6, // slightly sharper pruning at higher levels
+    safeDropCp,
+    inaccuracyCp,
+    blunder,
+    explain: true,            // keep all the tutorial explanations enabled
+  };
+}
 
 /* Rank helper used for modal badge (mirror Games page thresholds) */
 const perGameRank = (n) => {
@@ -450,6 +561,72 @@ const pieceGlyph = (t, color='w') => {
   return map[color][t] || '';
 };
 
+// Material advantage from one side's perspective (in centipawns)
+function materialAdvantageFor(chess, color = 'w') {
+  const delta = materialDelta(chess); // + if white is ahead
+  return color === 'w' ? delta : -delta;
+}
+
+// Very lightweight, rule-based tactical / strategic explanation for a single move
+function describeMoveMotifs(fenBefore, uci, evalCp = null) {
+  const gameBefore = new Chess(fenBefore);
+  const side = gameBefore.turn?.() || 'w';
+
+  const from = uci.slice(0, 2);
+  const to = uci.slice(2, 4);
+  const promo = uci.slice(4) || 'q';
+
+  const matBefore = materialAdvantageFor(gameBefore, side);
+  const moved = gameBefore.move({ from, to, promotion: promo });
+  if (!moved) {
+    return '';
+  }
+  const matAfter = materialAdvantageFor(gameBefore, side);
+  const matGain = matAfter - matBefore; // >0 means we gained stuff
+
+  const motifs = [];
+
+  // 1) Simple material narrative
+  if (moved.captured) {
+    const val = MAT[moved.captured] || 100;
+    if (val <= 120) motifs.push('wins a pawn');
+    else if (val <= 350) motifs.push('wins a minor piece');
+    else if (val <= 550) motifs.push('wins a rook');
+    else motifs.push('wins the queen');
+  } else if (matGain > 80) {
+    motifs.push('gains material');
+  }
+
+  // 2) Check / king safety
+  const checkNow =
+    (typeof gameBefore.inCheck === 'function' && gameBefore.inCheck()) ||
+    (typeof gameBefore.isCheck === 'function' && gameBefore.isCheck()) ||
+    (typeof gameBefore.in_check === 'function' && gameBefore.in_check()) ||
+    (typeof gameBefore.is_check === 'function' && gameBefore.is_check()) || false;
+
+  if (checkNow) {
+    motifs.push('gives check');
+  } else {
+    // Did we move our king to safety or block a check line?
+    if (moved.piece === 'k') {
+      motifs.push('improves king safety');
+    }
+  }
+
+  // 3) Simple “activity” story using eval
+  if (evalCp != null && motifs.length === 0) {
+    if (evalCp > 80) motifs.push('improves your position');
+    else if (evalCp > 15) motifs.push('keeps a small edge');
+    else if (evalCp > -15) motifs.push('keeps the balance');
+    else if (evalCp > -80) motifs.push('drifts slightly worse');
+    else motifs.push('seriously worsens your position');
+  }
+
+  if (!motifs.length) return '';
+  // Use the nicest / most instructive-sounding clause first
+  return motifs[0];
+}
+
 /* mm:ss clock formatter */
 function fmtClock(ms) {
   ms = Math.max(0, Math.floor(ms / 1000));
@@ -459,18 +636,41 @@ function fmtClock(ms) {
 }
 
 /* --- JS search with anti-rook-shuffle --- */
-function searchBestMove(chess,
-  { timeMs=250, maxDepth=3, randomness=0, pruneAggressive=false, safeDropCp=9999, inaccuracyCp=0, blunder=0 }
+function searchBestMove(
+  chess,
+  { timeMs = 250, maxDepth = 3, randomness = 0, pruneAggressive = false, safeDropCp = 9999, inaccuracyCp = 0, blunder = 0 }
 ) {
   const deadline = Date.now() + timeMs;
-  const killers = Array.from({length:128}, ()=>({a:null,b:null}));
+  const killers = Array.from({ length: 128 }, () => ({ a: null, b: null }));
   const history = new Map();
-  const shouldStop = ()=> Date.now() > deadline;
+  const shouldStop = () => Date.now() > deadline;
 
-  const recentFENs = new Set(); {
-    const h = chess.history();
+  // 🔧 FIXED: build recentFENs by cloning the *actual* game via PGN,
+  // then walking backwards with undo(). No SAN re-play from a wrong startpos.
+  const recentFENs = new Set();
+  try {
     const clone = new Chess();
-    for (const san of h) { clone.move(san); recentFENs.add(clone.fen()); if (recentFENs.size > 10) break; }
+    const pgn = chess.pgn({ max_width: 0, newline_char: '\n' });
+
+    if (pgn && pgn.trim()) {
+      // This recreates the game including a custom start FEN if there is one.
+      clone.load_pgn(pgn);
+    } else {
+      // No moves yet – just record current FEN.
+      clone.load(chess.fen());
+    }
+
+    // Collect current + up to 9 previous positions.
+    recentFENs.add(clone.fen());
+    for (let i = 0; i < 9; i++) {
+      const undone = clone.undo();
+      if (!undone) break;
+      recentFENs.add(clone.fen());
+    }
+  } catch (e) {
+    // If anything goes wrong, we just skip repetition penalties
+    // and leave recentFENs empty.
+    console.warn('recentFENs reconstruction failed:', e);
   }
 
   function orderMoves(moves) {
@@ -482,7 +682,18 @@ function searchBestMove(chess,
       const h = history.get(mv.san) || 0; score += h;
       if (isBacktrackMove(chess, mv)) score -= 260; // stronger anti-backtrack
       const corners = new Set(['a1','h1','a8','h8']);
-      if (mv.piece === 'r' && corners.has(mv.to) && !mv.flags.includes('c')) score -= 140; // stop corner rook dance
+      if (mv.piece === 'r' && corners.has(mv.to) && !mv.flags.includes('c')) score -= 260;
+
+      // extra: discourage pointless rook shuffles on the back rank
+      const backRank = (sq) => sq[1] === '1' || sq[1] === '8';
+      if (
+        mv.piece === 'r' &&
+        backRank(mv.from) &&
+        backRank(mv.to) &&
+        !mv.flags.includes('c')
+      ) {
+        score -= 120;
+      }
       mv.__o = score;
     }
     moves.sort((a,b)=> (b.__o|0) - (a.__o|0));
@@ -656,45 +867,321 @@ function useStockfish() {
   return { sfRef, readyRef, withSFLock, sfStatus };
 }
 
-/* Fast grading for tutorial */
-async function gradeWithStockfish(sfRef, readyRef, withSFLock, fen, uciPlayed) {
+async function analyzeMoveWithStockfish(sfRef, readyRef, withSFLock, fen, uciPlayed) {
+  const motifFallback = () => {
+    try {
+      const gameBefore = new Chess(fen);
+      const from = uciPlayed.slice(0, 2);
+      const to = uciPlayed.slice(2, 4);
+      const promo = uciPlayed.slice(4) || 'q';
+      const moved = gameBefore.move({ from, to, promotion: promo });
+      const san = moved?.san || '';
+
+      const motif = (describeMoveMotifs(fen, uciPlayed, null) || '').toLowerCase();
+
+      const fullmoveNumber = parseInt(fen.split(' ')[5] || '1', 10) || 1;
+      const inOpening = fullmoveNumber <= 10;
+
+      // in roughly equal positions
+      let nearEqual = true;
+      try {
+        const cp = evaluate(gameBefore); // from the JS engine above
+        nearEqual = Math.abs(cp) <= 80;
+      } catch {
+        nearEqual = true;
+      }
+
+      let label;
+
+      if (
+        inOpening &&
+        nearEqual &&
+        !motif.includes('worsens') &&
+        !motif.includes('seriously worsens') &&
+        !motif.includes('losing')
+      ) {
+        // Treat early, normal moves (like 1.e4, 1.d4, 1.Nf3…) as “Book”
+        label = 'Book';
+      } else if (
+        motif.includes('wins a pawn') ||
+        motif.includes('wins a minor piece') ||
+        motif.includes('wins a rook') ||
+        motif.includes('wins the queen') ||
+        motif.includes('gains material') ||
+        motif.includes('gives check') ||
+        motif.includes('improves king safety') ||
+        motif.includes('improves your position') ||
+        motif.includes('keeps a small edge') ||
+        motif.includes('keeps the balance')
+      ) {
+        label = 'Good';
+      } else if (
+        motif.includes('seriously worsens') ||
+        motif.includes('worsens your position') ||
+        motif.includes('losing') ||
+        motif.includes('drifts slightly worse')
+      ) {
+        label = 'Mistake';
+      } else {
+        label = 'Info';
+      }
+
+      let text = `${label}: ${san}. `;
+      if (label === 'Book') {
+        text += 'A standard opening move; detailed engine analysis is not available yet.';
+      } else if (motif) {
+        text += `Idea: ${motif}.`;
+      } else {
+        text += 'A normal developing move; engine details are unavailable here.';
+      }
+
+      return {
+        label,
+        text,
+        bestUci: null,
+        bestSan: null,
+        beforeScore: null,
+        afterScore: null,
+        delta: null,
+        san,
+      };
+    } catch {
+      return {
+        label: 'Info',
+        text: 'Move played. Explanation is temporarily unavailable, but the game continues normally.',
+        bestUci: null,
+        bestSan: null,
+        beforeScore: null,
+        afterScore: null,
+        delta: null,
+        san: '',
+      };
+    }
+  };
+
   try {
     const sf = sfRef.current;
-    if (!sf || !readyRef.current) return '';
+    if (!sf || !readyRef.current) {
+      // Engine not ready → still give *something*.
+      return motifFallback();
+    }
 
+    // --- 1. Analyze BEFORE the move (get eval + best move) ---
     const linesBefore = await withSFLock(() =>
-      sf.analyze({ fen, movetime: 160, depth: 10, multipv: 1, hardLimitMs: 500 })
+      sf.analyze({
+        fen,
+        movetime: 200,
+        depth: 12,
+        multipv: 3,
+        hardLimitMs: 700,
+      })
     );
-    const beforeScore = linesBefore?.[0]?.scoreCp ?? 0;
+    const primaryBefore = linesBefore?.[0];
+    if (!primaryBefore) return motifFallback();
 
-    const after = new Chess(fen);
-    after.move({ from: uciPlayed.slice(0,2), to: uciPlayed.slice(2,4), promotion: uciPlayed.slice(4) || 'q' });
+    const beforeScore = primaryBefore.scoreCp ?? 0; // centipawns from side-to-move POV
+    const bestPv = primaryBefore.pv || '';
+    const bestUci = bestPv.split(/\s+/)[0] || null;
+
+    // --- 2. Apply the played move ---
+    const from = uciPlayed.slice(0, 2);
+    const to = uciPlayed.slice(2, 4);
+    const promo = uciPlayed.slice(4) || 'q';
+
+    const gameBefore = new Chess(fen);
+    const moved = gameBefore.move({ from, to, promotion: promo });
+    if (!moved) return null;
+
+    const san = moved.san || '';
+    const afterFen = gameBefore.fen();
+
+    // Compute SAN for the engine best move (for “View Best Move” etc.)
+    let bestSan = null;
+    if (bestUci) {
+      try {
+        const tmp = new Chess(fen);
+        const bm = tmp.move({
+          from: bestUci.slice(0, 2),
+          to: bestUci.slice(2, 4),
+          promotion: bestUci.slice(4) || 'q',
+        });
+        bestSan = bm?.san || null;
+      } catch {
+        // ignore
+      }
+    }
+
+    // --- 3. Analyze AFTER the move ---
     const linesAfter = await withSFLock(() =>
-      sf.analyze({ fen: after.fen(), movetime: 160, depth: 10, multipv: 1, hardLimitMs: 500 })
+      sf.analyze({
+        fen: afterFen,
+        movetime: 200,
+        depth: 12,
+        multipv: 2,
+        hardLimitMs: 700,
+      })
     );
-    const afterScoreOpp = linesAfter?.[0]?.scoreCp ?? 0;
-    const delta = (-afterScoreOpp) - beforeScore;
-    const abs = Math.abs(delta);
 
-    let label = 'Alright';
-    if (abs <= 12) label = 'Best';
-    else if (delta <= -200) label = 'Brilliant';
-    else if (delta <= -90) label = 'Great';
-    else if (abs <= 90) label = 'Inaccuracy';
-    else if (abs <= 200) label = 'Mistake';
-    else label = 'Blunder';
+    const primaryAfter = linesAfter?.[0];
+    if (!primaryAfter) return motifFallback();
 
-    const san = new Chess(fen).move({ from: uciPlayed.slice(0,2), to: uciPlayed.slice(2,4), promotion: uciPlayed.slice(4) || 'q' })?.san || '';
+    const afterScoreOpp = primaryAfter.scoreCp ?? 0; // now it's opponent to move
+    const afterScore = -afterScoreOpp;               // convert back to "our" POV
+    const delta = afterScore - beforeScore;
+    const absDelta = Math.abs(delta);
+
+    // --- 4. Context: opening / winning / tactical? ---
+    const fullmoveNumber = parseInt(fen.split(' ')[5] || '1', 10) || 1;
+    const inOpening = fullmoveNumber <= 10;
+
+    const pieceVals = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+    const capturedVal = moved.captured ? (pieceVals[moved.captured] || 100) : 0;
+
+    const checkNow =
+      (typeof gameBefore.inCheck === 'function' && gameBefore.inCheck()) ||
+      (typeof gameBefore.isCheck === 'function' && gameBefore.isCheck()) ||
+      (typeof gameBefore.in_check === 'function' && gameBefore.in_check()) ||
+      (typeof gameBefore.is_check === 'function' && gameBefore.is_check()) || false;
+
+    const isTactical = capturedVal >= 300 || checkNow;
+    const playedIsBest = !!bestUci && uciPlayed === bestUci;
+
+    const wasWinning = beforeScore >= 150; // ~1.5 pawns
+    const stillWinning = afterScore >= 80;
+    const drop = -delta; // positive if we made things worse
+
+    // Bucket evals *before* label selection so we can safely use them.
+    const evalBucket = (cp) => {
+      if (cp > 250) return 'clearly winning';
+      if (cp > 120) return 'better';
+      if (cp > 40)  return 'slightly better';
+      if (cp >= -40) return 'about equal';
+      if (cp >= -120) return 'slightly worse';
+      if (cp >= -250) return 'worse';
+      return 'losing';
+    };
+
+    const beforeState = evalBucket(beforeScore);
+    const afterState = evalBucket(afterScore);
+
+    // --- 5. Choose a label (brilliant / best / etc.) ---
+    let label;
+
+    const isBookish =
+      inOpening &&
+      Math.abs(beforeScore) <= 120 &&
+      absDelta <= 60 &&
+      !isTactical &&
+      playedIsBest; // removed nonexistent isBookishDevelopingMove
+
+    if (isBookish) {
+      // Opening, roughly equal, normal development → treat as book.
+      label = 'Book';
+    }
+    // “Brilliant”: big positive swing, usually tactical, improving a lot.
+    else if (
+      delta >= 220 &&
+      afterScore >= Math.max(120, beforeScore + 80) &&
+      (isTactical || !wasWinning)
+    ) {
+      label = 'Brilliant';
+    }
+    // If we actually matched SF’s top move, never punish it.
+    else if (playedIsBest) {
+      if (delta >= 140) {
+        label = 'Great';
+      } else if (delta >= 70) {
+        label = 'Excellent';
+      } else if (delta >= 25) {
+        label = 'Good';
+      } else {
+        label = 'Best';
+      }
+    }
+    // Non-best moves: positive deltas are rewarded.
+    else if (delta >= 140) {
+      label = 'Great';
+    } else if (delta >= 70) {
+      label = 'Excellent';
+    } else if (delta >= 25) {
+      label = 'Good';
+    }
+    // “Miss”: you were winning, still winning, but threw away a big chunk.
+    else if (wasWinning && stillWinning && drop >= 150) {
+      label = 'Miss';
+    }
+    // Big errors on the downside (only for non-best moves).
+    else if (drop >= 320) {
+      label = 'Blunder';
+    } else if (drop >= 180) {
+      label = 'Mistake';
+    } else if (drop >= 60) {
+      // Only call it an inaccuracy if the eval bucket actually worsens
+      // (e.g. clearly winning → better, not clearly winning → equal, etc).
+      if (beforeState !== afterState) {
+        label = 'Inaccuracy';
+      } else {
+        // Same bucket (e.g. clearly winning → clearly winning): still fine.
+        label = 'Good';
+      }
+    } else {
+      // Tiny eval changes get a soft verdict.
+      label = delta >= -15 ? 'Good' : 'Inaccuracy';
+    }
+
+    // --- 6. Build human-readable explanation text ---
+    const motif = describeMoveMotifs(fen, uciPlayed, afterScore);
+
+    const labelBlurbs = {
+      Brilliant: 'Finds a powerful tactical resource that sharply improves your position.',
+      Great: 'Very strong move that improves your position a lot.',
+      Best: 'Matches the engine’s top move in this position.',
+      Excellent: 'Accurate move that clearly improves or keeps your advantage.',
+      Good: 'Solid move that keeps your position healthy.',
+      Book: 'Standard opening move that keeps the position on track.',
+      Miss: 'You were winning and stayed winning, but you missed a much stronger continuation.',
+      Inaccuracy: 'Playable, but it lets some of your advantage slip.',
+      Mistake: 'A serious error that hands over a big chunk of your advantage.',
+      Blunder: 'A huge mistake: the evaluation swings heavily against you.',
+    };
+
     let text = `${label}: ${san}. `;
-    if (label === 'Brilliant') text += 'Creative idea that outperforms shallow engine lines.';
-    else if (label === 'Great' || label === 'Best') text += 'Strong, engine-approved continuation.';
-    else if (label === 'Inaccuracy') text += 'Playable, but a more precise move keeps a larger edge.';
-    else if (label === 'Mistake') text += 'This cedes the initiative or weakens your position.';
-    else if (label === 'Blunder') text += 'Drops material or allows a decisive tactic.';
-    return text;
+    if (labelBlurbs[label]) text += `${labelBlurbs[label]} `;
+
+    if (absDelta >= 30) {
+      text += `You were ${beforeState}, now you are ${afterState}. `;
+      const pawnSwing = (absDelta / 100).toFixed(1);
+      text += `That’s roughly a ${pawnSwing}-pawn swing in the evaluation. `;
+    } else {
+      text += `This keeps the position ${afterState}. `;
+    }
+
+    if (motif) {
+      text += `Idea: ${motif}.`;
+    }
+
+    return {
+      label,
+      text,
+      bestUci: bestUci && bestUci.length >= 4 ? bestUci : null,
+      bestSan,
+      beforeScore,
+      afterScore,
+      delta,
+      san,
+    };
   } catch {
-    return '';
+    return motifFallback();
   }
+}
+
+async function gradeWithStockfish(sfRef, readyRef, withSFLock, fen, uciPlayed) {
+  const res = await analyzeMoveWithStockfish(sfRef, readyRef, withSFLock, fen, uciPlayed);
+  if (!res) return '';
+  if (res.text && res.text.trim()) return res.text;
+  const prefix = res.label ? `${res.label}: ` : '';
+  const moveStr = res.san || '';
+  return `${prefix}${moveStr}`.trim();
 }
 
 /* Component */
@@ -708,6 +1195,9 @@ export default function ChessArena({ onExit }) {
   const [notice, setNotice] = useState('');
   const [roomId, setRoomId] = useState(null);
   const socketRef = useRef(null);
+  const [showTutorialSettings, setShowTutorialSettings] = useState(false); // NEW
+  const [tutorialElo, setTutorialElo] = useState(1000);                    // NEW
+  const [showTutorialLog, setShowTutorialLog] = useState(false);          // NEW
 
   const [showPicker, setShowPicker] = useState(false);
   const [botProfile, setBotProfile] = useState(null);
@@ -718,6 +1208,53 @@ export default function ChessArena({ onExit }) {
   const panelRef = useRef(null);
   const [boardSize, setBoardSize] = useState(720);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [hintBusy, setHintBusy] = useState(false);
+  const [hintLines, setHintLines] = useState(null); // array of { san, uci, comment }
+  const [hintSquares, setHintSquares] = useState({});
+  const [lastMoveGrade, setLastMoveGrade] = useState(null); // { who, san, label, text }
+  const [tutorialOverlay, setTutorialOverlay] = useState(null);
+  // Tutorial overlay drag state
+  const [tutorialOverlayPos, setTutorialOverlayPos] = useState(null);
+
+  const tutorialOverlayRef = useRef(null);
+  const tutorialDragRef = useRef(null);
+  const boardRef = useRef(null);
+  // Keep the floating tutorial bubble fully inside the board
+  const clampOverlayToBoard = React.useCallback(
+    (x, y) => {
+      if (!boardRef.current || !tutorialOverlayRef.current) return { x, y };
+
+      const boardRect = boardRef.current.getBoundingClientRect();
+      const overlayRect = tutorialOverlayRef.current.getBoundingClientRect();
+
+      const pad = 8; // small margin from the edges
+      const halfW = overlayRect.width / 2;
+      const halfH = overlayRect.height / 2;
+
+      const minX = pad + halfW;
+      const maxX = boardRect.width - pad - halfW;
+      const minY = pad + halfH;
+      const maxY = boardRect.height - pad - halfH;
+
+      return {
+        x: Math.max(minX, Math.min(x, maxX)),
+        y: Math.max(minY, Math.min(y, maxY)),
+      };
+    },
+    []
+  );
+
+  // After the overlay mounts / resizes, clamp one more time
+  useEffect(() => {
+    if (!tutorialOverlayPos || !boardRef.current || !tutorialOverlayRef.current) return;
+
+    setTutorialOverlayPos((prev) => {
+      if (!prev) return prev;
+      const { x, y } = clampOverlayToBoard(prev.x, prev.y);
+      if (x === prev.x && y === prev.y) return prev;
+      return { ...prev, x, y };
+    });
+  }, [tutorialOverlayPos, clampOverlayToBoard]);
 
   // define resultModal BEFORE using it
   const [resultModal, setResultModal] = useState(null); // { didWin, resultText, trophies, rank, place }
@@ -844,6 +1381,9 @@ export default function ChessArena({ onExit }) {
     setPremove(null);
     setDragFrom(null);
     recentFensRef.current = [chessRef.current.fen()];
+    setHintLines(null);
+    setHintSquares({});
+    setLastMoveGrade(null);
   }, [clearNotice]);
 
   const openBotPicker = () => {
@@ -853,6 +1393,14 @@ export default function ChessArena({ onExit }) {
     setStatus('Select a bot mode to begin. You are White.');
     setShowPicker(true);
   };
+  const startTutorialWithElo = useCallback(() => {
+    const profile = buildTutorialProfileFromElo(tutorialElo);
+    setBotProfile({ key: 'tutorial', ...profile });
+    setShowTutorialSettings(false);
+    setStatus(profile.status || `${profile.label}: You are White.`);
+    setOppName(profile.label || 'Tutorial');
+  }, [tutorialElo, setBotProfile, setStatus, setOppName]);
+
   const chooseBot = (key) => {
     const profile = BOT_PRESETS[key];
     setBotProfile({ key, ...profile });
@@ -861,43 +1409,68 @@ export default function ChessArena({ onExit }) {
     setOppName(profile.label || 'Bot');
   };
   const appendTip = useCallback((text) => {
-    setTips(prev => [text, ...prev].slice(0, 6));
+    // Keep the full history for the current game; the modal is scrollable.
+    setTips(prev => [text, ...prev]);
   }, [setTips]);
   const fmt = (m) => m ? `${m.from}→${m.to}` : '';
 
-  /* Try to execute premove if legal */
   const tryPremove = useCallback(async () => {
     if (!premove) return false;
     const chess = chessRef.current;
-    if (chess.isGameOver()) { setPremove(null); return false; }
+    if (chess.isGameOver()) {
+      setPremove(null);
+      setPremoveSquares({});
+      return false;
+    }
     if (chess.turn() !== myColor()) return false;
 
     const isPromotionNow = chess
       .moves({ verbose: true })
-      .some(m => m.from === premove.from && m.to === premove.to && m.flags && m.flags.includes('p'));
+      .some(
+        m =>
+          m.from === premove.from &&
+          m.to === premove.to &&
+          m.flags &&
+          m.flags.includes('p')
+      );
     const mv = isPromotionNow
-      ? { from: premove.from, to: premove.to, promotion: premove.promotion || 'q' }
+      ? {
+          from: premove.from,
+          to: premove.to,
+          promotion: premove.promotion || 'q',
+        }
       : { from: premove.from, to: premove.to };
 
+    const beforeFen = chess.fen();
     const moved = chess.move(mv);
     if (!moved) {
       setPremove(null);
       setPremoveSquares({});
       return false;
     }
+
     setFen(chess.fen());
     setPremove(null);
     setPremoveSquares({});
     clearNotice();
 
-    if (mode === 'bot' && botProfile?.explain && sfRef.current && readyRef.current) {
-      const beforeFen = moved.before || '';
+    if (mode === 'bot' && botProfile?.explain) {
       try {
-        const last = chess.history({ verbose:true }).slice(-1)[0];
-        const uci = last ? `${last.from}${last.to}${last.promotion || ''}` : '';
-        const msg = await gradeWithStockfish(sfRef, readyRef, withSFLock, beforeFen || '', uci);
+        const last = chess.history({ verbose: true }).slice(-1)[0];
+        const uci = last
+          ? `${last.from}${last.to}${last.promotion || ''}`
+          : '';
+        const msg = await gradeWithStockfish(
+          sfRef,
+          readyRef,
+          withSFLock,
+          beforeFen,
+          uci
+        );
         if (msg) appendTip(`Your move ${last?.san}. ${msg}`);
-      } catch {}
+      } catch {
+        // swallow engine errors; premove still stands
+      }
     }
 
     if (mode === 'bot' && !chess.isGameOver()) {
@@ -906,99 +1479,163 @@ export default function ChessArena({ onExit }) {
       socketRef.current.emit('chess:move', { roomId, ...mv });
     }
     return true;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [premove, mode, botProfile, roomId, sfRef, readyRef, withSFLock, myColor]);
 
   const fastBestMove = useCallback(async (fenStr, p) => {
-    // If SF not ready, fall back to JS search
-    if (!sfRef.current || !readyRef.current) {
+    const requiresSF = !!p.useSF; // true for elite / gm
+
+    // If GM/Elite *require* SF and it's not ready, still treat as an error.
+    if (requiresSF && (!sfRef.current || !readyRef.current)) {
+      throw new Error('Stockfish not ready for SF-backed bot');
+    }
+
+    // For non-SF bots (Easy/Medium/Hard/Tutorial) we can safely use the JS engine
+    // if SF isn't ready. (Right now fastBestMove is only used for SF bots, but
+    // this keeps things future-proof.)
+    if (!requiresSF && (!sfRef.current || !readyRef.current)) {
       const clone = new Chess(fenStr);
-      const { move } = searchBestMove(clone, { timeMs: 320, maxDepth: 3, randomness: p.randomness || 0 });
+      const { move } = searchBestMove(clone, {
+        timeMs: 320,
+        maxDepth: 3,
+        randomness: p.randomness || 0,
+      });
       return move ? `${move.from}${move.to}${move.promotion || ''}` : null;
     }
 
-    // Ask for multiple lines, then post-filter to avoid immediate repetition shuffles.
-    const depth = p.sf?.depth;
-    const movetime = p.sf?.movetime ?? 900;
-    const multipv = 4;
-    const safetyCp = p.safetyCp ?? 12;          // how far we can deviate from best
-    const allowInaccCp = p.inaccuracyCp ?? 0;
-    const hardLimitMs = Math.min(1600, movetime + 500);
+    // --- SF-backed path (elite / gm) ---
+
+    // Keep these fairly small so it feels "chess.com fast".
+    const movetime   = p.sf?.movetime ?? 700;          // ms to *aim* for
+    const depth      = p.sf?.depth ?? null;            // usually null now
+    const multipv    = p.sf?.multipv ?? 2;             // use preset, not hard-coded 4
+    const safetyCp   = p.safetyCp ?? 12;
+    const allowInacc = p.inaccuracyCp ?? 0;
+
+    // Give SF plenty of leeway vs movetime to avoid timeouts on slower machines.
+    // Example: movetime = 900ms → hardLimit ≈ 2600ms.
+    const hardLimitMs = movetime * 2 + 800;
 
     try {
+      const params = { fen: fenStr, movetime, multipv, hardLimitMs };
+      if (depth != null) params.depth = depth;
+
       const lines = await withSFLock(() =>
-        sfRef.current.analyze({ fen: fenStr, movetime, depth, multipv, hardLimitMs })
+        sfRef.current.analyze(params)
       );
-      
-    const candidates = (lines || [])
-      .map((l) => {
-        const uci  = (l.pv || '').split(/\s+/)[0] || null;
-        const mate = (l.scoreMate ?? l.mate ?? null);
-        const cp   = Number(l.scoreCp ?? 0);
 
-        // Convert mate to a very large centipawn-like scale so mates outrank evals
-        const norm = (mate != null)
-          ? (mate > 0 ? 100000 - Math.abs(mate) * 100 : -100000 + Math.abs(mate) * 100)
-          : cp;
+      const candidates = (lines || [])
+        .map(l => {
+          const uci  = (l.pv || '').split(/\s+/)[0] || null;
+          const mate = (l.scoreMate ?? l.mate ?? null);
+          const cp   = Number(l.scoreCp ?? 0);
 
-        return { uci, cp, norm, mate };
-      })
-      .filter(x => x.uci && x.uci.length >= 4)
-      .sort((a,b) => b.norm - a.norm);
+          const norm = (mate != null)
+            ? (mate > 0
+                ? 100000 - Math.abs(mate) * 100
+                : -100000 + Math.abs(mate) * 100)
+            : cp;
 
-      if (candidates.length === 0) {
-        // Fallback to direct bestMove (will return null on (none))
-        return await withSFLock(() => sfRef.current.bestMove({ fen: fenStr, movetime, depth, hardLimitMs }));
+          return { uci, cp, norm, mate };
+        })
+        .filter(x => x.uci && x.uci.length >= 4)
+        .sort((a, b) => b.norm - a.norm);
+
+      if (!candidates.length) {
+        // If SF gave us nothing at all, just bail out to JS engine below.
+        throw new Error('Stockfish returned no candidate lines');
       }
 
-      const chessNow = chessRef.current;
-      const last = chessNow.history({ verbose:true }).slice(-1)[0];
-      const lastFrom = last?.from, lastTo = last?.to;
-      const recent = new Set(recentFensRef.current);
+      const chessNow  = chessRef.current;
+      const last      = chessNow.history({ verbose:true }).slice(-1)[0];
+      const lastFrom  = last?.from, lastTo = last?.to;
+      const recentSet = new Set(recentFensRef.current);
 
-      // choose the strongest non-repeating line within a safety window (use normalized score)
       const bestScore = candidates[0].norm;
-      const maxDrop   = Math.max(0, allowInaccCp || safetyCp); // GM=0, Elite≈8–12
+      const maxDrop   = Math.max(0, allowInacc || safetyCp);
 
-      // Prefer non-repeating/backtrack moves within the allowed drop
       const pool = [];
-      for (let i = 0; i < candidates.length; i++) {
-        const cand = candidates[i];
-        const mv = { from: cand.uci.slice(0,2), to: cand.uci.slice(2,4), promotion: cand.uci.slice(4) || 'q' };
+      for (const cand of candidates) {
+        const mv = {
+          from: cand.uci.slice(0, 2),
+          to:   cand.uci.slice(2, 4),
+          promotion: cand.uci.slice(4) || 'q',
+        };
 
         const probe = new Chess(fenStr);
         const moved = probe.move(mv);
         if (!moved) continue;
 
-        const repeats     = recent.has(probe.fen());
-        const isBacktrack = (!!lastFrom && !!lastTo && lastFrom === mv.to && lastTo === mv.from && !moved.flags?.includes('c'));
+        // Avoid instant repetition / trivial backtracks
+        const repeats     = recentSet.has(probe.fen());
+        const isBacktrack =
+          !!lastFrom && !!lastTo &&
+          lastFrom === mv.to && lastTo === mv.from &&
+          !moved.flags?.includes('c');
+
         if (repeats || isBacktrack) continue;
 
         const drop = Math.abs(bestScore - cand.norm);
         if (drop <= maxDrop) pool.push(cand);
       }
 
-      // If everything filtered out, fall back to pure best PV
       if (pool.length === 0) {
+        // No filtered pool? Just take pure best.
         return candidates[0].uci || null;
       }
 
-      // Elite may add tiny variety; GM picks the true best
-      const pick = (p.key === 'elite' && pool.length > 1)
-        ? pool[Math.floor(Math.random() * Math.min(pool.length, 2))]
-        : pool[0];
+    let pick;
 
-      return pick.uci;
+    if (p.key === 'elite' && pool.length > 1) {
+      // keep existing Elite behavior exactly
+      pick = pool[Math.floor(Math.random() * Math.min(pool.length, 2))];
+    } else if ((p.randomness ?? 0) > 0 && pool.length > 1) {
+      // generic SF randomness for Easy/Medium/Hard (and others if desired)
+      const r = Math.max(
+        1,
+        Math.round(1 + p.randomness * (pool.length - 1))
+      );
+      const k = Math.min(pool.length, r);
+      pick = pool[Math.floor(Math.random() * k)];
+    } else {
+      // GM or any mode with randomness = 0 → always best move in pool
+      pick = pool[0];
+    }
 
-    } catch {
-      // Fallback path
+    return pick.uci;
+
+    } catch (err) {
+      console.error('Stockfish analyze/bestMove failed for bot', p.key, err);
+
+      // 1) Try a direct bestMove with a shorter thinking time.
       try {
-        const uci = await withSFLock(() => sfRef.current.bestMove({ fen: fenStr, movetime, depth, hardLimitMs }));
-        return (uci && uci !== '(none)') ? uci : null;
-      } catch {
+        const bmParams = {
+          fen: fenStr,
+          movetime: Math.min(500, movetime),
+          hardLimitMs,
+        };
+        if (depth != null) bmParams.depth = Math.min(16, depth);
+
+        const uci = await withSFLock(() =>
+          sfRef.current.bestMove(bmParams)
+        );
+        if (uci && uci !== '(none)') return uci;
+      } catch (e2) {
+        console.error('Stockfish bestMove fallback failed for bot', p.key, e2);
+      }
+
+      // 2) Final emergency fallback: JS engine so the bot still moves.
+      try {
         const clone = new Chess(fenStr);
-        const { move } = searchBestMove(clone, { timeMs: 320, maxDepth: 3, randomness: p.randomness || 0 });
+        const { move } = searchBestMove(clone, {
+          timeMs: 260,
+          maxDepth: 3,
+          randomness: p.randomness || 0,
+        });
         return move ? `${move.from}${move.to}${move.promotion || ''}` : null;
+      } catch (e3) {
+        console.error('JS fallback search failed for bot', p.key, e3);
+        return null;
       }
     }
   }, [sfRef, readyRef, withSFLock]);
@@ -1072,18 +1709,12 @@ export default function ChessArena({ onExit }) {
         try {
           uciMove = await fastBestMove(beforeFen, p);
         } catch (e) {
-          // Harden: do not let engine errors bubble to React
-          console.warn('Stockfish error; falling back to JS', e);
-          // fast, safe fallback
-          const probe = new Chess(beforeFen);
-          const { move } = searchBestMove(probe, { timeMs: 320, maxDepth: 3, randomness: p.randomness || 0 });
-          if (move) {
-            chess.move(move);
-            setFen(chess.fen());
-            flashNotice('Engine hiccup — used backup move.', 1400);
-          }
-          return; // bail early; finally{} will clear the busy flag
+          console.error('Stockfish error for bot', p.key, e);
+          setStatus('Engine error for this bot. Please refresh or pick a different bot.');
+          setBusy(false);
+          return; // do NOT play a garbage fallback move as GM
         }
+
         if (!uciMove) {
           // Terminal position — no move; declare result without throwing UI errors
           const txt = endMessage(chess);
@@ -1091,19 +1722,71 @@ export default function ChessArena({ onExit }) {
           openResultModal(txt);
           return;
         }
-        chess.move({ from: uciMove.slice(0,2), to: uciMove.slice(2,4), promotion: uciMove.slice(4) || 'q' });
+
+        chess.move({
+          from: uciMove.slice(0, 2),
+          to: uciMove.slice(2, 4),
+          promotion: uciMove.slice(4) || 'q',
+        });
         setFen(chess.fen());
 
         if (p.explain) {
-          const msg = await gradeWithStockfish(sfRef, readyRef, withSFLock, beforeFen, uciMove);
           const san = chess.history().slice(-1)[0];
-          if (msg) appendTip(`Bot move ${san}. ${msg}`);
+
+          if (p.key === 'tutorial') {
+            const detail = await analyzeMoveWithStockfish(
+              sfRef,
+              readyRef,
+              withSFLock,
+              beforeFen,
+              uciMove
+            );
+            if (detail) {
+              appendTip(`Bot move ${san}. ${detail.text}`);
+              setLastMoveGrade({
+                who: 'bot',
+                san,
+                label: detail.label,
+                text: detail.text,
+              });
+              setTutorialOverlay({
+                who: 'bot',
+                san,
+                label: detail.label,
+                text: detail.text,
+                from: uciMove.slice(0, 2),
+                to: uciMove.slice(2, 4),
+                beforeFen,
+                bestUci: detail.bestUci,
+                bestSan: detail.san,
+              });
+            }
+          } else {
+            const msg = await gradeWithStockfish(
+              sfRef,
+              readyRef,
+              withSFLock,
+              beforeFen,
+              uciMove
+            );
+            if (msg) {
+              appendTip(`Bot move ${san}. ${msg}`);
+              const label = msg.split(':')[0] || '';
+              setLastMoveGrade({
+                who: 'bot',
+                san,
+                label,
+                text: msg,
+              });
+            }
+          }
         }
-        if (chess.isGameOver()) { 
+
+        if (chess.isGameOver()) {
           const txt = endMessage(chess);
           setStatus(txt);
           openResultModal(txt);
-          return; 
+          return;
         }
       } else {
         const res = searchBestMove(chess, {
@@ -1115,26 +1798,87 @@ export default function ChessArena({ onExit }) {
           inaccuracyCp: p.inaccuracyCp ?? 0,
           blunder: p.blunder ?? 0,
         });
-        const m = res.move;
+
+        let m = res.move;
         if (!m) {
-          const moves = chess.moves({ verbose:true });
+          const moves = chess.moves({ verbose: true });
           if (moves.length === 0) {
             const txt = endMessage(chess);
             setStatus(txt);
             openResultModal(txt);
             return;
           }
-          chess.move(moves[0]);
-        } else {
-          chess.move(m);
+          m = moves[0];
         }
+
+        chess.move(m);
         setFen(chess.fen());
-        if (p.explain && m?.san) appendTip(`Bot move ${m.san}. Strong practical choice.`);
-        if (chess.isGameOver()) { 
+
+        if (p.explain && m) {
+          const uci = `${m.from}${m.to}${m.promotion || ''}`;
+          if (p.key === 'tutorial') {
+            try {
+              const detail = await analyzeMoveWithStockfish(
+                sfRef,
+                readyRef,
+                withSFLock,
+                beforeFen,
+                uci
+              );
+              if (detail) {
+                appendTip(`Bot move ${m.san}. ${detail.text}`);
+                setLastMoveGrade({
+                  who: 'bot',
+                  san: m.san,
+                  label: detail.label,
+                  text: detail.text,
+                });
+                setTutorialOverlay({
+                  who: 'bot',
+                  san: m.san,
+                  label: detail.label,
+                  text: detail.text,
+                  from: m.from,
+                  to: m.to,
+                  beforeFen,
+                  bestUci: detail.bestUci,
+                  bestSan: detail.bestSan || detail.san,
+                });
+                setTutorialOverlayPos(null);
+              }
+            } catch {
+              appendTip(`Bot move ${m.san}.`);
+            }
+          } else {
+            try {
+              const msg = await gradeWithStockfish(
+                sfRef,
+                readyRef,
+                withSFLock,
+                beforeFen,
+                uci
+              );
+              if (msg) {
+                appendTip(`Bot move ${m.san}. ${msg}`);
+                const label = msg.split(':')[0] || '';
+                setLastMoveGrade({
+                  who: 'bot',
+                  san: m.san,
+                  label,
+                  text: msg,
+                });
+              }
+            } catch {
+              appendTip(`Bot move ${m.san}.`);
+            }
+          }
+        }
+
+        if (chess.isGameOver()) {
           const txt = endMessage(chess);
           setStatus(txt);
           openResultModal(txt);
-          return; 
+          return;
         }
       }
     } finally {
@@ -1142,7 +1886,228 @@ export default function ChessArena({ onExit }) {
     }
 
     await tryPremove();
-  }, [botProfile, fastBestMove, tryPremove, appendTip, sfRef, readyRef, withSFLock, openResultModal, flashNotice]);
+  }, [
+    botProfile,
+    fastBestMove,
+    tryPremove,
+    appendTip,
+    sfRef,
+    readyRef,
+    withSFLock,
+    openResultModal,
+  ]);
+
+  const explainLastMove = useCallback(async () => {
+    try {
+      const sf = sfRef.current;
+      if (!sf || !readyRef.current) {
+        flashNotice('Engine is still starting up. Try again in a moment.');
+        return;
+      }
+
+      const chess = chessRef.current;
+      const histVerbose = chess.history({ verbose: true });
+      if (!histVerbose.length) {
+        flashNotice('No moves have been played yet.');
+        return;
+      }
+
+      const last = histVerbose[histVerbose.length - 1];
+      const sans = chess.history(); // SAN strings
+
+      // Rebuild position just before the last move
+      const before = new Chess();
+      for (let i = 0; i < sans.length - 1; i++) before.move(sans[i]);
+      const beforeFen = before.fen();
+      const uci = `${last.from}${last.to}${last.promotion || ''}`;
+
+      let msg = '';
+      if (sfRef.current && readyRef.current) {
+        msg = await gradeWithStockfish(sfRef, readyRef, withSFLock, beforeFen, uci);
+      }
+      if (!msg) {
+        // motif-only backup
+        const motif = describeMoveMotifs(beforeFen, uci, null);
+        if (motif) msg = `Idea: ${motif}.`;
+      }
+      if (!msg) {
+        flashNotice('Could not get an explanation for that move.');
+        return;
+      }
+
+      const mine = myColor(); // 'w' | 'b'
+      const who =
+        last.color === mine
+          ? 'you'
+          : mode === 'bot'
+          ? 'bot'
+          : 'opponent';
+
+      appendTip(`${who === 'you' ? 'Your' : 'Their'} move ${last.san}. ${msg}`);
+      const label = msg.split(':')[0] || '';
+      setLastMoveGrade({
+        who,
+        san: last.san,
+        label,
+        text: msg,
+      });
+    } catch {
+      flashNotice('Engine error while explaining that move.');
+    }
+  }, [sfRef, readyRef, withSFLock, flashNotice, myColor, mode, appendTip]);
+
+  const jsHintFallback = useCallback(
+    (fenNow) => {
+      const clone = new Chess(fenNow);
+      const { move } = searchBestMove(clone, {
+        timeMs: 260,
+        maxDepth: 3,
+        randomness: 0,
+        pruneAggressive: false,
+        safeDropCp: 9999,
+        inaccuracyCp: 0,
+        blunder: 0,
+      });
+      if (!move) return false;
+
+      const temp = new Chess(fenNow);
+      const played = temp.move(move);
+      if (!played) return false;
+
+      const uci = `${move.from}${move.to}${move.promotion || ''}`;
+      const comment = describeMoveMotifs(fenNow, uci, null);
+
+      const hints = [
+        {
+          san: played.san,
+          uci,
+          cp: null,
+          mate: null,
+          comment,
+        },
+      ];
+
+      setHintLines(hints);
+
+      const fromSq = uci.slice(0, 2);
+      const toSq = uci.slice(2, 4);
+      setHintSquares({
+        [fromSq]: {
+          boxShadow: 'inset 0 0 0 3px rgba(96,165,250,.95)',
+        },
+        [toSq]: {
+          boxShadow: 'inset 0 0 0 3px rgba(96,165,250,.95)',
+          background: 'rgba(96,165,250,.35)',
+        },
+      });
+
+      const extra = comment ? ` — ${comment}` : '';
+      appendTip(`Hint: ${played.san}.${extra}`);
+      return true;
+    },
+    [appendTip]
+  );
+
+const requestHint = useCallback(async () => {
+  const chess = chessRef.current;
+  if (chess.isGameOver()) {
+    flashNotice('Game is already over.');
+    return;
+  }
+  if (chess.turn() !== myColor()) {
+    flashNotice("It's not your move.");
+    return;
+  }
+
+  const fenNow = chess.fen();
+  setHintBusy(true);
+  setHintLines(null);
+  setHintSquares({});
+
+  // If engine is not ready, immediately fall back to JS search.
+  if (!sfRef.current || !readyRef.current) {
+    const ok = jsHintFallback(fenNow);
+    if (!ok) flashNotice('No hint available in this position.');
+    setHintBusy(false);
+    return;
+  }
+
+  try {
+    const movetime = botProfile?.useSF ? (botProfile.sf?.movetime ?? 1200) : 700;
+    const depth = botProfile?.useSF ? (botProfile.sf?.depth ?? 18) : 14;
+    const multipv = 3;
+    const hardLimitMs = movetime + 500;
+
+    const lines = await withSFLock(() =>
+      sfRef.current.analyze({ fen: fenNow, movetime, depth, multipv, hardLimitMs })
+    );
+
+    if (!lines || !lines.length) {
+      if (!jsHintFallback(fenNow)) flashNotice('No hint available in this position.');
+      return;
+    }
+
+    const hints = [];
+
+    for (const line of lines.slice(0, 3)) {
+      const uci = (line.pv || '').split(/\s+/)[0] || null;
+      if (!uci || uci.length < 4) continue;
+
+      const cp = Number(line.scoreCp ?? line.cp ?? 0);
+      const mate = line.scoreMate ?? line.mate ?? null;
+
+      const before = new Chess(fenNow);
+      const move = before.move({
+        from: uci.slice(0, 2),
+        to: uci.slice(2, 4),
+        promotion: uci.slice(4) || 'q',
+      });
+      if (!move) continue;
+
+      const comment = describeMoveMotifs(fenNow, uci, cp);
+
+      hints.push({
+        san: move.san,
+        uci,
+        cp,
+        mate,
+        comment,
+      });
+    }
+
+    if (!hints.length) {
+      if (!jsHintFallback(fenNow)) flashNotice('No hint available in this position.');
+      return;
+    }
+
+    setHintLines(hints);
+
+    // Highlight best line on the board
+    const best = hints[0];
+    const fromSq = best.uci.slice(0, 2);
+    const toSq = best.uci.slice(2, 4);
+    setHintSquares({
+      [fromSq]: {
+        boxShadow: 'inset 0 0 0 3px rgba(96,165,250,.95)',
+      },
+      [toSq]: {
+        boxShadow: 'inset 0 0 0 3px rgba(96,165,250,.95)',
+        background: 'rgba(96,165,250,.35)',
+      },
+    });
+
+    const listStr = hints.map((h) => h.san).join(', ');
+    const extra = hints[0].comment ? ` — ${hints[0].comment}` : '';
+    appendTip(`Hint: ${listStr}.${extra}`);
+  } catch {
+    // Hard failure: still try JS fallback before giving up.
+    if (!jsHintFallback(fenNow)) {
+      flashNotice('Engine error while computing a hint.');
+    }
+  } finally {
+    setHintBusy(false);
+  }
+}, [sfRef, readyRef, withSFLock, flashNotice, myColor, botProfile, appendTip, jsHintFallback]);
 
   /* Online mode */
 
@@ -1190,10 +2155,6 @@ export default function ChessArena({ onExit }) {
   const connectSocket = useCallback(() => {
     if (socketRef.current) return socketRef.current;
 
-    // 1) Prefer your API/tunnel origin when provided.
-    // 2) If nothing provided and we're on localhost (3000/3001),
-    //    force the WS base to http(s)://localhost:5000
-    // 3) Otherwise, fall back to the current page origin.
     const envBase = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE)
       ? String(process.env.REACT_APP_API_BASE)
       : '';
@@ -1207,7 +2168,7 @@ export default function ChessArena({ onExit }) {
       const { protocol, hostname, host } = window.location;
       const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
       if (isLocal) {
-        const srvPort = '5000'; // your Node/Socket.IO dev server
+        const srvPort = '5000';
         WS_BASE = `${protocol}//${hostname}:${srvPort}`;
       } else {
         WS_BASE = `${protocol}//${host}`;
@@ -1393,8 +2354,13 @@ export default function ChessArena({ onExit }) {
   };
 
   // Honor selected piece on promotion + keep premove choice
+  // Honor selected piece on promotion + keep premove choice
   const onPieceDrop = async (source, target, piece) => {
     const chess = chessRef.current;
+
+    // Track whether a tutorial popup was successfully shown for this move
+    let tutorialOverlayShown = false;
+
     // Is this move a promotion from the current position?
     const isPromotion = chess
       .moves({ verbose: true })
@@ -1414,16 +2380,82 @@ export default function ChessArena({ onExit }) {
     try {
       const beforeFen = chess.fen();
       const move = chess.move(mv);
-      if (!move) { flashNotice('Illegal move. Try again.'); return false; }
+      if (!move) { 
+        flashNotice('Illegal move. Try again.'); 
+        return false; 
+      }
       setFen(chess.fen());
       clearNotice();
       setPremove(null);
+      setHintLines(null);
+      setHintSquares({});
 
       if (mode === 'bot' && botProfile?.explain) {
-        const last = chess.history({ verbose:true }).slice(-1)[0];
+        const last = chess.history({ verbose: true }).slice(-1)[0];
         const uci = last ? `${last.from}${last.to}${last.promotion || ''}` : '';
-        const msg = await gradeWithStockfish(sfRef, readyRef, withSFLock, beforeFen, uci);
-        if (msg) appendTip(`Your move ${last?.san}. ${msg}`);
+
+        if (botProfile?.key === 'tutorial') {
+          // Tutorial mode: try to get a detailed explanation + popup
+          let detail = null;
+          try {
+            detail = await analyzeMoveWithStockfish(
+              sfRef,
+              readyRef,
+              withSFLock,
+              beforeFen,
+              uci
+            );
+          } catch (e) {
+            console.error('Tutorial analyze failed', e);
+          }
+
+          if (detail) {
+            tutorialOverlayShown = true; // ✅ we really showed the popup
+
+            appendTip(`Your move ${last?.san}. ${detail.text}`);
+            setLastMoveGrade({
+              who: 'you',
+              san: last?.san,
+              label: detail.label,
+              text: detail.text,
+            });
+
+            setTutorialOverlay({
+              who: 'you',
+              san: last?.san,
+              label: detail.label,
+              text: detail.text,
+              from: last.from,
+              to: last.to,
+              beforeFen,
+              bestUci: detail.bestUci,
+              bestSan: detail.bestSan || detail.san,
+            });
+            setTutorialOverlayPos(null);
+          } else {
+            console.warn('Tutorial: no analysis detail, skipping popup.');
+            // No popup → we’ll fall back to immediate botMove below
+          }
+        } else {
+          // non-Tutorial bots keep the old behavior
+          const msg = await gradeWithStockfish(
+            sfRef,
+            readyRef,
+            withSFLock,
+            beforeFen,
+            uci
+          );
+          if (msg) {
+            appendTip(`Your move ${last?.san}. ${msg}`);
+            const label = msg.split(':')[0] || '';
+            setLastMoveGrade({
+              who: 'you',
+              san: last?.san,
+              label,
+              text: msg,
+            });
+          }
+        }
       }
     } catch {
       flashNotice('Illegal move. Try again.');
@@ -1431,8 +2463,25 @@ export default function ChessArena({ onExit }) {
     }
 
     if (mode === 'bot') {
-      if (!chess.isGameOver()) botMove();
-      else { const txt = endMessage(chess); setStatus(txt); openResultModal(txt); }
+      if (botProfile?.key === 'tutorial') {
+        // In Tutorial mode, we normally wait until the user closes the tooltip.
+        // But if we *didn't* manage to show one, just let the bot move immediately.
+        if (chess.isGameOver()) {
+          const txt = endMessage(chess);
+          setStatus(txt);
+          openResultModal(txt);
+        } else if (!tutorialOverlayShown) {
+          // ⬅️ fallback: no popup → don't stall the game
+          botMove();
+        }
+      } else {
+        if (!chess.isGameOver()) botMove();
+        else {
+          const txt = endMessage(chess);
+          setStatus(txt);
+          openResultModal(txt);
+        }
+      }
     } else if (mode === 'online' && socketRef.current && roomId) {
       /* Before we emit our move, locally debit our running clock so the UI
          continues smoothly without waiting for the server push. */
@@ -1491,31 +2540,116 @@ export default function ChessArena({ onExit }) {
     }
   }, [wLeft, bLeft, mode, roomId, openResultModal]);
 
-  const CaptRow = ({ name, caps, up, timeMs, running }) => (
-    <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:13, padding:'6px 8px'}}>
+  useEffect(() => {
+    if (!tutorialOverlay || !boardSize) return;
+
+    setTutorialOverlayPos(prev => {
+      if (prev?.userPlaced) return prev;
+
+      const anchor = squareAnchor(tutorialOverlay.to, boardSize, orientation);
+      if (!anchor) return prev;
+
+      const pad = 18;
+      let x = anchor.cx + (anchor.horizontal === "left" ? pad : -pad);
+      let y = anchor.cy + (anchor.vertical === "top" ? pad : -pad);
+
+      return { x, y, userPlaced: false };
+    });
+  }, [tutorialOverlay, boardSize, orientation]);
+
+  const CaptRow = ({ name, caps, up, timeMs, running, trailing = null }) => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontSize: 13,
+        padding: '6px 8px',
+      }}
+    >
       <strong>{name}</strong>
-      <div style={{display:'flex', alignItems:'center', gap:8}}>
-        {typeof timeMs === 'number' && mode==='online' && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {typeof timeMs === 'number' && mode === 'online' && (
           <span
             style={{
-              fontVariantNumeric:'tabular-nums',
-              fontWeight:700,
-              /* Ensure timers are legible on dark UI */
-              color: running ? '#ffffff' : 'rgba(230,233,255,0.65)'
+              fontVariantNumeric: 'tabular-nums',
+              fontWeight: 700,
+              color: running ? '#ffffff' : 'rgba(230,233,255,0.65)',
             }}
           >
             {fmtClock(timeMs)}
           </span>
         )}
-        <span>{caps.map((t,i)=><span key={i}>{pieceGlyph(t, 'w')}</span>)}</span>
-        {up>0 && <span style={{fontWeight:700}}>+{Math.round(up/100)}</span>}
+        <span>
+          {caps.map((t, i) => (
+            <span key={i}>{pieceGlyph(t, 'w')}</span>
+          ))}
+        </span>
+        {up > 0 && <span style={{ fontWeight: 700 }}>+{Math.round(up / 100)}</span>}
+        {trailing}
       </div>
     </div>
   );
+// Quality → square color (tutorial mode)
+const QUALITY_COLORS = {
+  brilliant: 'rgba(168, 85, 247, 0.55)',    // purple
+  great:     'rgba(34, 197, 94, 0.55)',     // green
+  best:      'rgba(45, 212, 191, 0.55)',    // teal
+  excellent: 'rgba(74, 222, 128, 0.55)',    // light green
+  good:      'rgba(132, 204, 22, 0.55)',    // lime
+  book:      'rgba(56, 189, 248, 0.55)',    // sky
+  inaccuracy:'rgba(250, 204, 21, 0.55)',    // yellow
+  mistake:   'rgba(249, 115, 22, 0.55)',    // orange
+  miss:      'rgba(251, 146, 60, 0.55)',    // softer orange
+  blunder:   'rgba(248, 113, 113, 0.60)',   // red
+};
+
+// Convert "e4" → pixel center + quadrant for tooltip placement
+function squareAnchor(square, boardSize, orientation = 'white') {
+  if (!square || square.length < 2) return null;
+  const files = 'abcdefgh';
+  const file = square[0];
+  const rank = parseInt(square[1], 10);
+  if (!files.includes(file) || Number.isNaN(rank)) return null;
+
+  let fx = files.indexOf(file);      // 0–7 from a→h
+  let ry = rank - 1;                 // 0–7 from 1→8
+
+  // Board coordinates: (0,0) is top-left of board pixels
+  // react-chessboard uses orientation to flip visual squares, so we must match that.
+  if (orientation === 'white') {
+    // a1 bottom-left visually
+    const yFromTop = 7 - ry;
+    const xFromLeft = fx;
+    fx = xFromLeft;
+    ry = yFromTop;
+  } else {
+    // black at bottom: a1 is top-right
+    const xFromLeft = 7 - fx;
+    const yFromTop = ry;
+    fx = xFromLeft;
+    ry = yFromTop;
+  }
+
+  const sq = boardSize / 8;
+  const cx = fx * sq + sq / 2;
+  const cy = ry * sq + sq / 2;
+
+  const horizontal = cx < boardSize / 2 ? 'left' : 'right';
+  const vertical = cy < boardSize / 2 ? 'top' : 'bottom';
+
+  return { cx, cy, horizontal, vertical };
+}
 
 /* Square style builder: premove, drag origin, legal targets, last move, in-check */
-function buildSquareStyles(chess, { premoveSquares, dragFrom }) {
-  const styles = { ...premoveSquares };
+function buildSquareStyles(
+  chess,
+  { premoveSquares, dragFrom, hintSquares, tutorialOverlay }
+) {
+  const styles = {
+    ...premoveSquares,
+    ...hintSquares, // hint-from / hint-to highlight
+  };
 
   // Highlight the origin square being dragged
   if (dragFrom) {
@@ -1545,9 +2679,26 @@ function buildSquareStyles(chess, { premoveSquares, dragFrom }) {
   // Highlight the last move (from & to squares)
   const last = chess.history({ verbose: true }).slice(-1)[0];
   if (last) {
-    const hl = 'rgba(251,191,36,.40)'; // amber-300-ish
-    styles[last.from] = { ...(styles[last.from] || {}), background: hl };
-    styles[last.to]   = { ...(styles[last.to]   || {}), background: hl };
+    const base = 'rgba(251,191,36,.40)'; // default amber
+
+    // If we have a tutorial overlay for THIS move, color-code it by quality
+    let bgFrom = base;
+    let bgTo = base;
+    if (tutorialOverlay &&
+        tutorialOverlay.from === last.from &&
+        tutorialOverlay.to === last.to &&
+        tutorialOverlay.label
+    ) {
+      const key = tutorialOverlay.label.toLowerCase();
+      const col = QUALITY_COLORS[key];
+      if (col) {
+        bgFrom = col;
+        bgTo = col;
+      }
+    }
+
+    styles[last.from] = { ...(styles[last.from] || {}), background: bgFrom };
+    styles[last.to]   = { ...(styles[last.to]   || {}), background: bgTo };
   }
 
   // If the side to move is in check, mark their king square
@@ -1585,7 +2736,80 @@ function buildSquareStyles(chess, { premoveSquares, dragFrom }) {
 }
 
 // Use the builder to produce the object the board expects
-const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares, dragFrom });
+const customSquareStyles = buildSquareStyles(chessRef.current, {
+  premoveSquares,
+  dragFrom,
+  hintSquares,
+  tutorialOverlay,
+});
+  const handleDismissTutorialOverlay = React.useCallback(() => {
+    setTutorialOverlay(null);
+    setHintLines(null);
+    setHintSquares({});
+
+    if (
+      mode === 'bot' &&
+      botProfile?.key === 'tutorial' &&
+      !chessRef.current.isGameOver() &&
+      chessRef.current.turn?.() === (myColor() === 'w' ? 'b' : 'w')
+    ) {
+      // After your move, dismissing the bubble lets the bot continue
+      botMove();
+    }
+  }, [mode, botProfile, botMove, myColor]);
+
+  const beginDragTutorialOverlay = useCallback((e) => {
+    if (!tutorialOverlayPos || !boardRef.current || !tutorialOverlayRef.current) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const boardRect = boardRef.current.getBoundingClientRect();
+    const point = "touches" in e ? e.touches[0] : e;
+
+    tutorialDragRef.current = {
+      offsetX: point.clientX - (boardRect.left + tutorialOverlayPos.x),
+      offsetY: point.clientY - (boardRect.top + tutorialOverlayPos.y)
+    };
+
+    const onMove = (ev) => {
+      const pt = "touches" in ev ? ev.touches[0] : ev;
+      const rect = boardRef.current.getBoundingClientRect();
+      const overlayRect = tutorialOverlayRef.current.getBoundingClientRect();
+
+    let x = pt.clientX - rect.left - tutorialDragRef.current.offsetX;
+    let y = pt.clientY - rect.top  - tutorialDragRef.current.offsetY;
+
+    const w = overlayRect.width;
+    const h = overlayRect.height;
+    const pad = 8;
+
+    // Because we render with transform: translate(-50%, -50%),
+    // (x, y) is the *center* of the bubble, so clamp using half W/H.
+    const minX = pad + w / 2;
+    const maxX = rect.width - pad - w / 2;
+    const minY = pad + h / 2;
+    const maxY = rect.height - pad - h / 2;
+
+    x = Math.max(minX, Math.min(x, maxX));
+    y = Math.max(minY, Math.min(y, maxY));
+ 
+    setTutorialOverlayPos({ x, y, userPlaced: true });
+    };
+
+    const end = () => {
+      tutorialDragRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", end);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", end);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", end);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", end);
+  }, [tutorialOverlayPos]);
 
   return (
     <>
@@ -1617,7 +2841,10 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
       <Wrap>
         <BoardPanel ref={panelRef}>
           <BoardViewport>
-            <div style={{ position:'relative', width: boardSize, maxWidth: '100%', margin:'0 auto' }}>
+            <div
+              ref={boardRef}
+              style={{ position:'relative', width: boardSize, maxWidth:'100%', margin:'0 auto' }}
+            >
               {/* Start overlay CTA on phones */}
               {showStartCTA && (
                 <BoardOverlayCTA>
@@ -1639,9 +2866,260 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
                 customBoardStyle={{ borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)' }}
                 customSquareStyles={customSquareStyles}
                 isDraggablePiece={({ piece }) => piece && piece[0] === myColor()}
+                promotionDialogVariant="modal"
               />
+
+              {/* Tutorial floating move explanation (like chess.com analysis) */}
+              {mode === 'bot' &&
+                botProfile?.key === 'tutorial' &&
+                tutorialOverlay &&
+                tutorialOverlayPos && (
+                  <div
+                    ref={tutorialOverlayRef}
+                    style={{
+                      position: 'absolute',
+                      left: tutorialOverlayPos.x,
+                      top: tutorialOverlayPos.y,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 10,
+                      maxWidth: Math.min(260, boardSize - 24),
+                      background: 'rgba(15,23,42,0.96)',
+                      borderRadius: 10,
+                      border: '1px solid rgba(148,163,184,0.7)',
+                      padding: '8px 10px',
+                      fontSize: 12,
+                      color: 'rgba(226,232,240,0.96)',
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.55)',
+                    }}
+                  >
+                    {/* Drag handle row */}
+                    <div
+                      onMouseDown={beginDragTutorialOverlay}
+                      onTouchStart={beginDragTutorialOverlay}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 4,
+                        cursor: 'move',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          background:
+                            QUALITY_COLORS[tutorialOverlay.label?.toLowerCase?.()] ||
+                            'rgba(148,163,184,0.5)',
+                          color: '#020617',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.4,
+                        }}
+                      >
+                        {tutorialOverlay.label}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={handleDismissTutorialOverlay}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          color: 'rgba(148,163,184,0.9)',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          lineHeight: 1,
+                        }}
+                        aria-label="Close explanation"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    {/* Body text */}
+                    <div style={{ marginBottom: 6, lineHeight: 1.3 }}>
+                      {tutorialOverlay.text}
+                    </div>
+
+                    {/* Buttons row */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'flex-start',
+                        gap: 6,
+                        marginTop: 4,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {tutorialOverlay.bestUci &&
+                        tutorialOverlay.label?.toLowerCase?.() !== 'book' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const uci = tutorialOverlay.bestUci;
+                              const fromSq = uci.slice(0, 2);
+                              const toSq = uci.slice(2, 4);
+
+                              setHintSquares({
+                                [fromSq]: {
+                                  boxShadow: 'inset 0 0 0 3px rgba(96,165,250,.95)',
+                                },
+                                [toSq]: {
+                                  boxShadow: 'inset 0 0 0 3px rgba(96,165,250,.95)',
+                                  background: 'rgba(96,165,250,.35)',
+                                },
+                              });
+
+                              setHintLines([
+                                {
+                                  san: tutorialOverlay.bestSan || 'Best move',
+                                  uci: tutorialOverlay.bestUci,
+                                  cp: null,
+                                  mate: null,
+                                  comment: 'Engine best move in this position.',
+                                },
+                              ]);
+                            }}
+                            style={{
+                              borderRadius: 999,
+                              padding: '3px 8px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              border: '1px solid rgba(148,163,184,0.7)',
+                              background: 'rgba(15,23,42,0.8)',
+                              color: 'rgba(226,232,240,0.95)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            View Best Move
+                          </button>
+                        )}
+
+                      <button
+                        type="button"
+                        onClick={handleDismissTutorialOverlay}
+                        style={{
+                          borderRadius: 999,
+                          padding: '3px 10px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          border: '1px solid rgba(148,163,184,0.9)',
+                          background: 'rgba(30,64,175,0.9)',
+                          color: 'rgba(239,246,255,0.98)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Continue
+                      </button>
+
+                      {tutorialOverlay.who === 'you' &&
+                        !chessRef.current.isGameOver() &&
+                        tutorialOverlay.beforeFen && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              try {
+                                chessRef.current = new Chess(tutorialOverlay.beforeFen);
+                                setFen(tutorialOverlay.beforeFen);
+                              } catch {}
+                              setTutorialOverlay(null);
+                              setTutorialOverlayPos(null);
+                              setHintLines(null);
+                              setHintSquares({});
+                            }}
+                            style={{
+                              borderRadius: 999,
+                              padding: '3px 8px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              border: '1px solid rgba(248,113,113,0.8)',
+                              background: 'rgba(127,29,29,0.85)',
+                              color: '#fee2e2',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Retry Move
+                          </button>
+                        )}
+                    </div>
+                  </div>
+                )}
+
             </div>
           </BoardViewport>
+
+          {/* Desktop-only tutor controls under the board */}
+          <DesktopBotControls>
+            {mode === 'bot' && botProfile?.key !== 'tutorial' && (
+              <>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <Button
+                    onClick={requestHint}
+                    style={{ padding: '8px 10px', opacity: hintBusy ? 0.7 : 1 }}
+                    disabled={hintBusy}
+                  >
+                    {hintBusy ? 'Calculating Hint…' : 'Show Hint'}
+                  </Button>
+                  <Button
+                    onClick={explainLastMove}
+                    style={{ padding: '8px 10px' }}
+                  >
+                    Explain This Move
+                  </Button>
+                </div>
+
+                {lastMoveGrade && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      padding: '6px 8px',
+                      borderRadius: 8,
+                      border: '1px solid var(--border-color)',
+                      background: 'rgba(255,255,255,0.04)',
+                      color: 'rgba(230,233,255,0.85)',
+                    }}
+                  >
+                    <strong>Last move rating:</strong>{' '}
+                    <span style={{ fontWeight: 700 }}>
+                      {lastMoveGrade.label || '—'}
+                    </span>{' '}
+                    ({lastMoveGrade.who === 'you'
+                      ? 'you'
+                      : lastMoveGrade.who === 'bot'
+                      ? (botProfile?.label || 'bot')
+                      : 'opponent'}
+                    , {lastMoveGrade.san})
+                  </div>
+                )}
+
+                {hintLines && hintLines.length > 0 && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      padding: '6px 8px',
+                      borderRadius: 8,
+                      border: '1px solid var(--border-color)',
+                      background: 'rgba(15,23,42,0.85)',
+                      color: 'rgba(226,232,240,0.9)',
+                    }}
+                  >
+                    <strong>Top engine moves:</strong>
+                    <ol style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                      {hintLines.map((h, i) => (
+                        <li key={i} style={{ margin: '2px 0' }}>
+                          <span style={{ fontWeight: 600 }}>{h.san}</span>
+                          {h.comment && <span> — {h.comment}</span>}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </>
+            )}
+          </DesktopBotControls>
 
           <MobileStack>
             {/* your own username row, snug under the board */}
@@ -1655,16 +3133,28 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
               />
             </MobileStatsRow>
 
-            {/* mobile controls: only in-game actions + rules + return */}
             <div style={{ display: 'grid', gap: 10 }}>
-              {mode && (
-                <>
                   {mode === 'online' && (
                     <Button onClick={leaveOnline}>Leave Online</Button>
                   )}
+                  {mode === 'bot' && botProfile?.key !== 'tutorial' && (
+                    <>
+                      <Button
+                        onClick={requestHint}
+                        style={{ padding: '8px 10px', opacity: hintBusy ? 0.7 : 1 }}
+                        disabled={hintBusy}
+                      >
+                        {hintBusy ? 'Hint…' : 'Show Hint'}
+                      </Button>
+                      <Button
+                        onClick={explainLastMove}
+                        style={{ padding: '8px 10px' }}
+                      >
+                        Explain This Move
+                      </Button>
+                    </>
+                  )}
                   <Button onClick={resign}>Resign</Button>
-                </>
-              )}
 
               <GameRules
                 title="How to Play Chess"
@@ -1760,17 +3250,43 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
               background: 'rgba(255,255,255,0.06)',
               padding: '8px 10px',
               display: 'grid',
-              gap: 6
+              gap: 6,
             }}
           >
             <div style={{ fontWeight: 800 }}>Game</div>
+
+            {/* Opponent row; show Tutorial Logs button when using tutorial bot */}
             <CaptRow
               name={oppName || (mode === 'bot' ? (botProfile?.label || 'Bot') : 'Opponent')}
               caps={oppCap}
               up={Math.max(0, oppUpCp)}
               timeMs={oppTime}
               running={oppRunning}
+              trailing={
+                mode === 'bot' &&
+                botProfile?.key === 'tutorial' &&
+                tips.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTutorialLog(true)}
+                    style={{
+                      borderRadius: 999,
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      border: '1px solid rgba(129,140,248,0.9)',
+                      background: 'rgba(15,23,42,0.9)',
+                      color: 'rgba(191,219,254,0.98)',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Tutorial Logs
+                  </button>
+                )
+              }
             />
+
             <CaptRow
               name={user?.username || 'You'}
               caps={meCap}
@@ -1784,19 +3300,6 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-color)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>⏭️ Premove queued: <b>{fmt(premove)}</b></span>
               <Button onClick={() => setPremove(null)} style={{ padding: '4px 8px', borderRadius: 8, fontSize: 12 }}>Clear</Button>
-            </div>
-          )}
-
-          {botProfile?.explain && tips.length > 0 && (
-            <div style={{ marginTop: 10, padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: 10, background: 'rgba(255,255,255,0.06)' }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Tutorial</div>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {tips.map((t, i) => (
-                  <li key={i} style={{ fontSize: 13, color: 'rgba(230,233,255,0.80)', margin: '4px 0' }}>
-                    {t}
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
 
@@ -1850,7 +3353,7 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
         <div style={{display:'flex', justifyContent:'flex-end', marginBottom:8}}>
           <button
             type="button"
-            onClick={() => setDrawerOpen(false)}
+            onClick={handleDismissTutorialOverlay}
             aria-label="Close sidebar"
             style={{
               border: '1px solid var(--border-color)',
@@ -1878,13 +3381,139 @@ const customSquareStyles = buildSquareStyles(chessRef.current, { premoveSquares,
               Tutorial explains moves; other modes approximate player ratings.
             </div>
             <ModalGrid>
-              <Button onClick={() => chooseBot('tutorial')}>Tutorial</Button>
+              <Button
+                onClick={() => {
+                  setShowPicker(false);
+                  setShowTutorialSettings(true);
+                }}
+              >
+                Tutorial
+              </Button>
               <Button onClick={() => chooseBot('easy')}>Easy</Button>
               <Button onClick={() => chooseBot('medium')}>Medium</Button>
               <Button onClick={() => chooseBot('hard')}>Hard</Button>
               <Button onClick={() => chooseBot('elite')}>Elite</Button>
               <Button onClick={() => chooseBot('gm')}>Grandmaster</Button>
             </ModalGrid>
+          </Modal>
+        </Overlay>
+      )}
+      {/* Tutorial difficulty settings (shown after clicking Tutorial in picker) */}
+      {showTutorialSettings && (
+        <Overlay
+          onClick={() => {
+            setShowTutorialSettings(false);
+            setShowPicker(true);
+          }}
+        >
+          <Modal onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>Tutorial difficulty</div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
+              Adjust the tutorial bot’s approximate rating. Higher rating = stronger play,
+              but the bot will still explain your moves clearly.
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  marginBottom: 4,
+                  color: 'rgba(148,163,184,0.95)',
+                }}
+              >
+                <span>Bot rating</span>
+                <span style={{ fontWeight: 700 }}>{tutorialElo}</span>
+              </label>
+              <input
+                type="range"
+                min={100}
+                max={2000}
+                step={100}
+                value={tutorialElo}
+                onChange={(e) => setTutorialElo(Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 11,
+                  marginTop: 4,
+                  color: 'rgba(148,163,184,0.9)',
+                }}
+              >
+                <span>Beginner</span>
+                <span>Intermediate</span>
+                <span>Advanced</span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 14,
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+              }}
+            >
+              <Button
+                onClick={() => {
+                  setShowTutorialSettings(false);
+                  setShowPicker(true);
+                }}
+              >
+                Back
+              </Button>
+              <Button $primary onClick={startTutorialWithElo}>
+                Start Tutorial Game
+              </Button>
+            </div>
+          </Modal>
+        </Overlay>
+      )}
+
+      {/* Tutorial log modal (center screen) */}
+      {showTutorialLog && (
+        <Overlay onClick={() => setShowTutorialLog(false)}>
+          <Modal onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>
+              Tutorial Logs
+            </div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>
+              Move-by-move explanations for this tutorial game.
+            </div>
+            <div
+              style={{
+                maxHeight: 360,
+                overflowY: 'auto',
+                paddingRight: 4,
+                marginTop: 4,
+                border: '1px solid var(--border-color)',
+                borderRadius: 10,
+                background: 'rgba(15,23,42,0.9)',
+              }}
+            >
+              <ul style={{ margin: 0, padding: '8px 12px 10px 22px' }}>
+                {[...tips].reverse().map((t, i) => (
+                  <li
+                    key={i}
+                    style={{
+                      fontSize: 13,
+                      color: 'rgba(226,232,240,0.9)',
+                      margin: '4px 0',
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Button onClick={() => setShowTutorialLog(false)}>Close</Button>
+            </div>
           </Modal>
         </Overlay>
       )}
