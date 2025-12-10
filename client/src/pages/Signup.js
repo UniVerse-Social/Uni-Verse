@@ -43,19 +43,26 @@ const passwordIssues = (pw) => {
   return issues;
 };
 const isStrongPassword = (pw) => passwordIssues(pw).length === 0;
-// Robust availability check (supports multiple API shapes)
 const fieldAvailable = async (field, value) => {
+  const params = { [field]: value };
+
   try {
-    const res = await axios.post('/api/auth/check-availability', { [field]: value });
+    // Use GET with query params instead of POST body
+    const res = await axios.get('/api/auth/check-availability', { params });
     const d = res?.data || {};
+
     if (typeof d.available === 'boolean') return d.available;
     if (typeof d[`${field}Available`] === 'boolean') return d[`${field}Available`];
     if (typeof d.taken === 'boolean') return !d.taken;
     if (typeof d[`${field}Taken`] === 'boolean') return !d[`${field}Taken`];
     if (typeof d.exists === 'boolean') return !d.exists;
-    return true; // default optimistic, but we'll re-check at submit boundary too
-  } catch {
-    return false; // on error, treat as not available
+
+    // If server returns something unexpected, assume ok and rely on DB uniqueness at signup.
+    return true;
+  } catch (err) {
+    console.error('Error during hard availability check', err);
+    // Return true so we don't block signups just because the check endpoint is flaky.
+    return true;
   }
 };
 
@@ -233,33 +240,46 @@ const Signup = () => {
     return () => clearInterval(t);
   }, [sendCooldown]);
   // Debounced availability check
-  const checkAvailability = useMemo(
-    () => debounce(async (field, valueRaw) => {
+const checkAvailability = useMemo(
+  () =>
+    debounce(async (field, valueRaw) => {
       const value =
         field === 'email'
           ? String(valueRaw || '').trim().toLowerCase()
           : String(valueRaw || '').trim();
+
       if (!value) {
-        // clear message when field is empty
         setValidation((prev) => ({ ...prev, [field]: '' }));
         return;
       }
+
       setIsChecking(true);
       try {
-        const res = await axios.post('/api/auth/check-availability', { [field]: value });
+        const res = await axios.get('/api/auth/check-availability', {
+          params: { [field]: value },
+        });
+
         // tolerate different server response shapes
         const availDirect = res?.data?.available;
         const altEmail = res?.data?.emailAvailable ?? res?.data?.availableEmail;
-        const altUser  = res?.data?.usernameAvailable ?? res?.data?.availableUsername;
+        const altUser = res?.data?.usernameAvailable ?? res?.data?.availableUsername;
+
         const available =
           typeof availDirect === 'boolean'
             ? availDirect
             : field === 'email'
-              ? (typeof altEmail === 'boolean' ? altEmail : true)
-              : (typeof altUser  === 'boolean' ? altUser  : true);
-        setValidation(prev => ({
+            ? typeof altEmail === 'boolean'
+              ? altEmail
+              : true
+            : typeof altUser === 'boolean'
+            ? altUser
+            : true;
+
+        setValidation((prev) => ({
           ...prev,
-          [field]: available ? '' : `${field === 'email' ? 'Email' : 'Username'} is already taken`
+          [field]: available
+            ? ''
+            : `${field === 'email' ? 'Email' : 'Username'} is already taken`,
         }));
 
         // Extra: school email domain enforcement
@@ -268,19 +288,23 @@ const Signup = () => {
           const ok = ensureSchoolEmail(value, school);
           if (!ok) {
             const hint = school?.domains?.length
-              ? `Use your ${school.name} email (${school.domains.map(d => '@' + d).join(', ')})`
+              ? `Use your ${school.name} email (${school.domains
+                  .map((d) => '@' + d)
+                  .join(', ')})`
               : 'Select your university first';
-            setValidation(prev => ({ ...prev, email: hint }));
+            setValidation((prev) => ({ ...prev, email: hint }));
           }
         }
       } catch (err) {
         console.error('Error checking availability', err);
+        // On error, don't label as taken — just keep current validation text.
       } finally {
         setIsChecking(false);
       }
     }, 400),
-    []
-  );
+  []
+);
+
 async function startEmailVerification() {
   setErrMsg('');
   const school = safeParse(localStorage.getItem('educonnect_school'));

@@ -367,8 +367,7 @@ const BOT_PRESETS = {
     explain: false,
   },
 
-  // Elite & GM stay EXACTLY like the “fast” chess.com-style SF presets
-  // you already had before.
+  // Elite & GM
 
   elite: {
     label: 'Elite (2000)',
@@ -377,7 +376,7 @@ const BOT_PRESETS = {
     sf: { movetime: 600, multipv: 2 },
     safetyCp: 8,
     inaccuracyCp: 15,
-    randomness: 0, // still a tiny bit of variation via pool logic in fastBestMove
+    randomness: 0, // tiny bit of variation via pool logic in fastBestMove
     thinkMs: 240,
   },
 
