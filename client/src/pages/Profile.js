@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AuthContext } from '../App';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, toMediaUrl } from '../config';
 import Post from '../components/Post';
 import EditProfileModal from '../components/EditProfileModal';
 import ImageCropModal from '../components/ImageCropModal';
@@ -930,7 +930,7 @@ const Profile = () => {
       reader.onloadend = async () => {
         const base64data = reader.result;
         const res = await axios.put(
-          `/api/users/${currentUser._id}`,
+          `${API_BASE_URL}/api/users/${currentUser._id}`,
           { userId: currentUser._id, [imageType]: base64data }
         );
         login(res.data);
@@ -958,7 +958,7 @@ const Profile = () => {
     try {
       const safeList = Array.isArray(nextHobbies) ? nextHobbies.slice(0, HOBBY_LIMIT) : [];
       const res = await axios.put(
-        `/api/users/${currentUser._id}`,
+        `${API_BASE_URL}/api/users/${currentUser._id}`,
         { userId: currentUser._id, hobbies: safeList }
       );
       login(res.data);
@@ -1044,7 +1044,9 @@ const Profile = () => {
     if (!currentUser) return;
     if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') { alert('Please type DELETE to confirm.'); return; }
     try {
-      await axios.delete(`/api/users/${currentUser._id}`, { data: { userId: currentUser._id } });
+      await axios.delete(`${API_BASE_URL}/api/users/${currentUser._id}`, {
+        data: { userId: currentUser._id },
+      });
     } catch (err) { console.error('Failed to delete account', err); alert('Failed to delete account.'); return; }
     handleLogout();
   };
@@ -1068,7 +1070,7 @@ const Profile = () => {
   const fetchBadges = useCallback(async () => {
     if (!userOnPage?._id) return;
     try {
-      const res = await axios.get(`/api/users/${userOnPage._id}/badges`);
+      const res = await axios.get(`${API_BASE_URL}/api/users/${userOnPage._id}/badges`);
       const { catalog = [], unlocked = [], equipped = [] } = res.data || {};
       setBadges({
         catalog,
@@ -1103,7 +1105,7 @@ const Profile = () => {
   const equipToSlot = async (slotIndex, badgeName) => {
     if (!isOwnProfile) return;
     try {
-      const res = await axios.post(`/api/users/${currentUser._id}/badges/equip`, {
+      const res = await axios.post(`${API_BASE_URL}/api/users/${currentUser._id}/badges/equip`, {
         userId: currentUser._id,
         slot: slotIndex,
         badgeName: badgeName ?? null,
@@ -1330,7 +1332,10 @@ const Profile = () => {
       {/* Main page */}
       <Page>
         <BannerWrap>
-          <BannerImage src={userOnPage.bannerPicture || DEFAULT_BANNER_DATA} alt="Banner" />
+          <BannerImage
+            src={toMediaUrl(userOnPage.bannerPicture) || DEFAULT_BANNER_DATA}
+            alt="Banner"
+          />
           <BannerScrim /> {/* ← keeps white text readable on any banner */}
           {isOwnProfile && (
             <>
@@ -1346,7 +1351,7 @@ const Profile = () => {
               <AvatarFrame>
                 {userOnPage.profilePicture && !pfpBroken ? (
                   <AvatarImg
-                    src={userOnPage.profilePicture}
+                    src={toMediaUrl(userOnPage.profilePicture)}
                     alt="Profile"
                     onError={() => setPfpBroken(true)}
                   />
