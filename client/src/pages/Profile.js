@@ -790,7 +790,15 @@ const Profile = () => {
       const viewerParam = currentUser?._id ? `?viewerId=${currentUser._id}` : '';
       const postsRes = await axios.get(`/api/posts/profile/${username}${viewerParam}`);
       setUserOnPage(userRes.data);
-      setPosts(postsRes.data);
+      // Normalize posts into an array no matter what the API shape is
+      const rawPosts = postsRes.data;
+      const normalizedPosts = Array.isArray(rawPosts)
+        ? rawPosts
+        : Array.isArray(rawPosts?.posts)
+          ? rawPosts.posts
+          : [];
+
+      setPosts(normalizedPosts);
     } catch (err) {
       console.error('Error fetching profile data:', err);
     }
@@ -1494,9 +1502,16 @@ const Profile = () => {
           )}
 
           <PostsGrid>
-            {posts.map((p) => (
-              <Post key={p._id} post={p} onPostUpdated={handlePostUpdated} onPostDeleted={handlePostDeleted} />
-            ))}
+            {Array.isArray(posts) &&
+              posts.map((post) => (
+                <Post
+                  key={post._id}
+                  post={post}
+                  viewer={currentUser}
+                  onPostUpdated={handlePostUpdated}
+                  onPostDeleted={handlePostDeleted}
+                />
+              ))}
           </PostsGrid>
 
           {/* Only allow viewing these lists on your own profile */}

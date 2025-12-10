@@ -3025,8 +3025,8 @@ const TitanTap = () => {
   const deckRef = useRef(null);
   const [liveCardHeight, setLiveCardHeight] = useState(null);
   const controlsRef = useRef(null);
-  const [controlsVisible, setControlsVisible] = useState(true);
-  const [isShortViewport, setIsShortViewport] = useState(false);
+  const [, setControlsVisible] = useState(true);
+  const [, setIsShortViewport] = useState(false);
   const profileCardCacheRef = useRef(new Map());
   const inflightProfileCardsRef = useRef(new Set());
   const [, setProfileCardVersion] = useState(0);
@@ -4312,7 +4312,7 @@ const TitanTap = () => {
     } finally {
       setSavingPreset(false);
     }
-  }, [draftPreset, userId, profileCardConfig]);
+  }, [draftPreset, userId, profileCardConfig, previewUser]);
 
   const filteredSearchResults = useMemo(() => {
     const base = !activeTags.length
