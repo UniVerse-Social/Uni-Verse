@@ -3,37 +3,59 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Fullerton Connect — Privacy Policy</title>
+  <title>UniVerse — Privacy Policy</title>
   <meta name="robots" content="noindex" />
   <style>
     :root{
-      --fg:#111827;
-      --muted:#4b5563;
-      --bg:#ffffff;
-      --card:#f9fafb;
-      --link:#0ea5e9;
-      --border:#e5e7eb;
-      --pill-bg:#eef2ff;
-      --pill-fg:#111827;
+      --fg:#E6E9FF;
+      --muted:#A3A8C6;
+      --bg:#050510;
+      --card:#0F1329;
+      --link:#8B7BFF;
+      --border:#1a2147;
+      --pill-bg:#2E1E57;
+      --pill-fg:#FFFFFF;
     }
+
     html,body{
-      margin:0;padding:0;background:var(--bg);color:var(--fg);
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial,'Noto Sans',sans-serif;
+      margin:0;padding:0;
+      background:radial-gradient(1000px 600px at 10% 10%, rgba(123, 92, 255, 0.12) 0%, rgba(123,92,255,0) 60%),
+                 radial-gradient(900px 520px at 85% 80%, rgba(89, 208, 255, 0.10) 0%, rgba(89,208,255,0) 60%),
+                 radial-gradient(700px 400px at 20% 85%, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0) 60%),
+                 linear-gradient(180deg, #050510 0%, #0B1D3A 60%, #2E1E57 100%);
+      color:var(--fg);
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Roboto',system-ui,sans-serif;
       line-height:1.6;
     }
+
     .container{max-width:980px;margin:0 auto;padding:48px 20px;}
-    /* Headings always readable */
-    header h1, h1, h2, h3, h4, h5, h6{ color:var(--fg) !important; }
-    header h1 *, h1 *, h2 *, h3 *, h4 *, h5 *, h6 *{ color:inherit !important; }
+
+    header h1, h1, h2, h3, h4, h5, h6{
+      color:#FFFFFF !important;
+    }
+    header h1 *, h1 *, h2 *, h3 *, h4 *, h5 *, h6 *{
+      color:inherit !important;
+    }
 
     header h1{font-size:2rem;margin:0 0 4px 0;}
     header p{margin:0;color:var(--muted);}
     .notice{font-size:.95rem;color:var(--muted);margin-top:12px;}
 
-    nav.toc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin:28px 0;}
-    nav.toc h2{font-size:1rem;margin:0 0 8px 0;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+    nav.toc{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:16px 18px;
+      margin:28px 0;
+      box-shadow:0 18px 40px rgba(0,0,0,0.45);
+    }
+    nav.toc h2{
+      font-size:1rem;margin:0 0 8px 0;color:var(--muted);
+      text-transform:uppercase;letter-spacing:.06em;
+    }
     nav.toc ol, nav.toc ul{margin:0;padding-left:18px;}
     nav.toc a{color:var(--link);text-decoration:none;}
+    nav.toc a:hover{text-decoration:underline;}
 
     section{margin:26px 0;padding-top:6px;}
     h2{margin:22px 0 8px 0;font-size:1.25rem;}
@@ -44,41 +66,53 @@
 
     code,kbd{
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-      font-size:.95em;background:#f3f4f6;padding:.1em .3em;border-radius:6px;
+      font-size:.95em;background:rgba(16,24,40,0.8);
+      padding:.1em .3em;border-radius:6px;
     }
-    .foot{margin-top:48px;border-top:1px solid var(--border);padding-top:16px;color:var(--muted);font-size:.9rem;}
 
-    /* Pills/labels keep blue tint but dark text for contrast */
+    .foot{
+      margin-top:48px;border-top:1px solid var(--border);
+      padding-top:16px;color:var(--muted);font-size:.9rem;
+    }
+
     .tag, .pill, .badge, .label, mark{
       display:inline-block;font-size:.82rem;background:var(--pill-bg);
       color:var(--pill-fg) !important;border-radius:6px;padding:2px 8px;vertical-align:middle;font-weight:700;
     }
 
-    /* Print */
     @media print{
-      nav.toc{break-inside:avoid;}
+      body{background:#000;color:#fff;}
+      nav.toc{break-inside:avoid;box-shadow:none;}
       .container{padding:0;}
-      a{color:black;text-decoration:underline;}
+      a{color:#fff;text-decoration:underline;}
     }
   </style>
 </head>
 <body>
   <main id="privacy" class="container">
     <header>
-      <h1>Fullerton Connect — Privacy Policy</h1>
-      <p class="notice"><em>Effective date: October 6, 2025</em></p>
+      <h1>UniVerse — Privacy Policy</h1>
+      <p class="notice"><em>Effective date: 12/10/2025</em></p>
       <p class="notice">
-        This Privacy Policy explains how Fullerton Connect (an independent, student-run project, unaffiliated with CSUF)
-        collects, uses, shares, and protects information when you use our websites, mobile apps, and related services
-        (the “Services”). We are U.S.-only and operate for the Fullerton, California community.
+        This Privacy Policy explains how <strong>UniVerse Social (independent project operating at Uni-verse.social)</strong>
+        (“UniVerse”, “we”, “us”, or “our”) collects, uses, shares, and protects information when you use our websites,
+        mobile apps, and related services (the “Services”).
       </p>
-      <p class="notice"><strong>Not legal advice.</strong> This is a template for general informational purposes. Consult counsel to tailor for your use cases and jurisdictions.</p>
-      See also our
-      <a href="/terms" data-legal-doc="terms">Terms of Service</a>
-      and
-      <a href="/guidelines" data-legal-doc="guidelines">Community Guidelines</a>.
-
-      <p class="notice"><span class="tag">Independent website — not affiliated with CSUF</span></p>
+      <p class="notice">
+        UniVerse is an independent platform and is <strong>not affiliated with any college or university</strong>.
+        We may use school-associated email addresses to help verify that users are students, but your school does not
+        operate UniVerse and does not control how we handle data.
+      </p>
+      <p class="notice"><strong>Not legal advice.</strong> This Policy is a general template. You should consult your own legal counsel to tailor it to your use cases and jurisdictions.</p>
+      <p class="notice">
+        See also our
+        <a href="/terms" data-legal-doc="terms">Terms of Service</a>
+        and
+        <a href="/guidelines" data-legal-doc="guidelines">Community Guidelines</a>.
+      </p>
+      <p class="notice">
+        <span class="tag">U.S.-only service — independent from any school</span>
+      </p>
     </header>
 
     <nav class="toc" aria-label="Contents">
@@ -108,139 +142,182 @@
 
     <section id="scope">
       <h2>1) Scope &amp; Who We Are</h2>
-      <p>We provide a community platform for Fullerton students and locals featuring DMs, clubs, events, marketplace, swipe/match, and live games.</p>
-      <p>We are not affiliated with CSUF and are not an emergency service. Call 911 in an emergency.</p>
-      <p><strong>U.S. residents only.</strong> You affirm you reside in the United States and access the Services from the U.S.</p>
+      <p>We provide a social and community platform for students and nearby communities across the United States, featuring DMs, clubs, events, marketplace, matching, and live games.</p>
+      <p>We are not an emergency service. In an emergency, call 911 or your local emergency number.</p>
+      <p><strong>U.S. residents only.</strong> The Services are intended for individuals who reside in the United States and access UniVerse from the U.S.</p>
     </section>
 
     <section id="collection">
       <h2>2) Personal Information We Collect</h2>
-      <p>We collect information you provide, information collected automatically, and information from service providers. We aim to avoid collecting precise geolocation.</p>
+      <p>We collect information you provide, information collected automatically, and information from service providers and partners. We aim to avoid collecting precise geolocation data.</p>
 
-      <h3 id="you-provide">A. You Provide</h3>
+      <h3 id="you-provide">A. Information You Provide</h3>
       <ul>
-        <li><strong>Account:</strong> name/username, email, phone number (for SMS verification), password or auth tokens.</li>
-        <li><strong>Profile:</strong> photo(s) for swipe/match; bio; interests; club memberships.</li>
-        <li><strong>Content &amp; Activity:</strong> posts, comments, messages (DMs), event and club listings, marketplace listings, game stats.</li>
-        <li><strong>Purchases:</strong> when you buy coins; payment processing is handled by app stores or payment processors; we receive limited transactional metadata (e.g., token, amount, status), not your full card number.</li>
-        <li><strong>Reports &amp; Support:</strong> content you send when you report an issue or contact support.</li>
+        <li>
+          <strong>Account &amp; Verification:</strong> name/username, email address (which may be a student or school-associated email), phone number (for SMS verification), password or authentication tokens, and verification codes.
+        </li>
+        <li>
+          <strong>Profile:</strong> photos (for profile and matching features), bio, interests, school affiliation or campus information you choose to add, and other profile fields.
+        </li>
+        <li>
+          <strong>Content &amp; Activity:</strong> posts, comments, DMs, club and event listings, marketplace listings, reactions, game stats, and other in-app actions.
+        </li>
+        <li>
+          <strong>Purchases:</strong> when you buy coins or other virtual items, payment processing is handled by app stores or payment processors. We receive limited transactional metadata (e.g., transaction ID, amount, status), not your full card number.
+        </li>
+        <li>
+          <strong>Reports &amp; Support:</strong> content you send when you report users/content or contact support (e.g., screenshots, message IDs, explanations).
+        </li>
       </ul>
 
-      <h3 id="auto">B. Collected Automatically</h3>
+      <h3 id="auto">B. Information Collected Automatically</h3>
       <ul>
-        <li><strong>Device &amp; Log Data:</strong> device model, OS, app version, language, network, approximate location from IP, timestamps, referrers, crash logs.</li>
-        <li><strong>Cookies/SDKs:</strong> for authentication, security, analytics, and ads (Google Ads).</li>
+        <li>
+          <strong>Device &amp; Log Data:</strong> device identifier, device model, operating system, app version, language, network type, approximate location from IP address, timestamps, referrers, and crash logs.
+        </li>
+        <li>
+          <strong>Usage Data:</strong> in-app screens and features you interact with, basic engagement metrics, and approximate time spent in the app.
+        </li>
+        <li>
+          <strong>Cookies &amp; SDKs:</strong> we and our partners use cookies and similar technologies (such as SDKs) for authentication, security, analytics, and advertising measurement.
+        </li>
       </ul>
 
-      <h3 id="providers">C. From Service Providers/Partners</h3>
-      <p>Analytics, anti-abuse, and ads partners may provide aggregated or pseudonymous signals (e.g., ad measurement). We do not buy data brokers’ dossiers.</p>
+      <h3 id="providers">C. Information From Service Providers/Partners</h3>
+      <p>Analytics, anti-abuse, and advertising partners may provide aggregated or pseudonymous signals (e.g., crash analytics, spam scores, ad measurement). We do not purchase “data broker” dossiers about you.</p>
     </section>
 
     <section id="purposes">
       <h2>3) Why We Use Your Information (Purposes)</h2>
       <ul>
-        <li><strong>Provide the Services:</strong> account creation, login, verification (email/SMS), swipe/match, clubs, events, marketplace, games.</li>
-        <li><strong>Safety &amp; Integrity:</strong> moderation, spam/abuse prevention, security, enforcing our Terms/Guidelines.</li>
-        <li><strong>Personalization:</strong> feed ranking, content suggestions, limited ad personalization where allowed.</li>
-        <li><strong>Measurement &amp; Improvement:</strong> analytics, debugging, crash reporting, research (aggregated or de-identified).</li>
-        <li><strong>Payments:</strong> to deliver coins and manage entitlements.</li>
-        <li><strong>Legal:</strong> comply with law, enforce agreements, respond to legal requests.</li>
+        <li><strong>Provide the Services:</strong> account creation, login, email/SMS verification, profile and matching, DMs, clubs, events, marketplace, and games.</li>
+        <li><strong>Safety &amp; Integrity:</strong> detect and prevent spam, abuse, fraud, and security incidents; enforce our Terms and Community Guidelines; and protect UniVerse and other users.</li>
+        <li><strong>Personalization:</strong> personalize your experience, such as recommended content, profiles, and limited ad personalization where allowed.</li>
+        <li><strong>Measurement &amp; Improvement:</strong> analyze usage, fix bugs, and improve the Services using analytics and research (often in aggregated or de-identified form).</li>
+        <li><strong>Payments &amp; Purchases:</strong> deliver coins and other virtual items, manage your entitlements, and confirm payment status via app stores or payment processors.</li>
+        <li><strong>Communications:</strong> send you service messages (e.g., security alerts or policy updates), as well as optional notifications you can control in settings.</li>
+        <li><strong>Legal &amp; Compliance:</strong> comply with legal obligations, enforce agreements, and respond to lawful requests.</li>
       </ul>
     </section>
 
     <section id="sharing">
       <h2>4) How We Share Information</h2>
-      <p>We share information with:</p>
+      <p>We share information in the following ways:</p>
       <ul>
-        <li><strong>Service Providers/Contractors:</strong> hosting, analytics, security, customer support, payment processing (for coins), SMS/email verification.</li>
-        <li><strong>Advertising Partners:</strong> to show and measure Google Ads and similar placements. Where this constitutes “sharing” under California law for cross-context behavioral advertising, you may opt out (see §9).</li>
-        <li><strong>Other Users:</strong> content you post (e.g., profile photo in swipe, marketplace listings, club/event posts) is visible per your settings.</li>
-        <li><strong>Legal/Compliance:</strong> to comply with law or prevent harm.</li>
-        <li><strong>Business Changes:</strong> in the event of a reorganization or project transfer.</li>
+        <li>
+          <strong>Service Providers &amp; Contractors:</strong> vendors that help us operate UniVerse (e.g., hosting, analytics, security, customer support, email/SMS providers, and payment processors). They are contractually bound to use data only to provide services to us.
+        </li>
+        <li>
+          <strong>Advertising &amp; Measurement Partners:</strong> to show, measure, and improve ads. Where this is considered “sharing” under California law for cross-context behavioral advertising, you may have the right to opt out (see Section 9).
+        </li>
+        <li>
+          <strong>Other Users:</strong> information you choose to publish (e.g., profile, posts, event/club listings, marketplace listings, in-game name) is viewable by others according to your settings and our product design.
+        </li>
+        <li>
+          <strong>Legal, Safety, and Protection:</strong> we may disclose information to law enforcement, regulators, or other third parties if we believe in good faith that such disclosure is reasonably necessary to comply with law, respond to legal requests, protect the rights, safety, or property of UniVerse, our users, or others, or to enforce our Terms and policies.
+        </li>
+        <li>
+          <strong>Business Transfers:</strong> if we are involved in a transaction such as a merger, acquisition, or asset sale, information may be transferred as part of that transaction, subject to applicable law.
+        </li>
       </ul>
-      <p><strong>We do not sell personal information for money.</strong> We may “share” identifiers and usage data with advertising partners for ad personalization/measurement.</p>
+      <p><strong>We do not sell your personal information for money.</strong> However, we may “share” identifiers and usage data with advertising partners for ad personalization and measurement, which may be considered a “sale” or “sharing” under certain state privacy laws. See Section 9 for your rights.</p>
     </section>
 
     <section id="controls">
       <h2>5) Your Controls</h2>
       <ul>
-        <li><strong>Profile &amp; Content:</strong> edit or delete posts and your profile in settings.</li>
-        <li><strong>Communications:</strong> control some emails/notifications in settings (service messages may still be sent).</li>
-        <li><strong>Ads:</strong> use the “Do Not Sell or Share My Personal Information” link to opt out of cross-context advertising; also use platform ad settings (Apple/Google).</li>
-        <li><strong>Cookies/SDKs:</strong> manage via in-app settings and device controls.</li>
+        <li><strong>Profile &amp; Content:</strong> you can update or delete certain profile fields and content (like posts or listings) through in-app settings and controls.</li>
+        <li><strong>Communications:</strong> you may control certain notification types in settings. Some service or legal notices are required and cannot be turned off (e.g., security alerts, material changes to Terms).</li>
+        <li><strong>Ads &amp; Cookies:</strong> in addition to in-app controls (where available), you can use your device or platform settings (e.g., Apple/Google ad preferences) and browser cookie controls to manage personalization and tracking.</li>
+        <li><strong>Access, Deletion, and Other Privacy Requests:</strong> see Section 9 for California-specific rights, which we may choose to honor more broadly.</li>
       </ul>
     </section>
 
     <section id="retention">
       <h2>6) Data Retention</h2>
-      <p>We keep information as long as your account is active or as needed for the purposes in this Policy.</p>
+      <p>We retain information for as long as reasonably necessary for the purposes described in this Policy, or as required by law. Actual retention periods may vary depending on context.</p>
       <ul>
-        <li><strong>Account data:</strong> retained while active; delete within ~30–90 days after account deletion (subject to backups/legal).</li>
-        <li><strong>DMs &amp; posts:</strong> retained until you delete or your account is deleted; content shared with others may persist in their accounts.</li>
-        <li><strong>Security &amp; logs:</strong> ~24 months.</li>
-        <li><strong>Backups:</strong> typically ≤30 days rolling.</li>
-        <li><strong>Ad measurement/analytics:</strong> typically ≤13 months.</li>
+        <li><strong>Account data:</strong> generally retained while your account is active. If you delete your account, we typically delete or de-identify most associated personal data within a reasonable period (for example, 30–90 days), subject to technical and legal constraints.</li>
+        <li><strong>Content &amp; DMs:</strong> retained until you delete them or your account is deleted. Content shared with others may remain visible in their accounts or in group spaces where they have rights to access it.</li>
+        <li><strong>Security &amp; logs:</strong> may be retained for a period (for example, up to 24 months) to help us detect abuse, investigate incidents, and meet legal obligations.</li>
+        <li><strong>Backups:</strong> backups are typically maintained on a rolling basis (for example, ≤30 days) and are deleted or overwritten in the ordinary course of business.</li>
+        <li><strong>Ad measurement/analytics:</strong> may be retained for a period (for example, up to 13 months) in aggregated or pseudonymous form.</li>
       </ul>
-      <p>Actual periods may vary; we’ll update this Policy if they materially change.</p>
+      <p>We may update these example ranges over time and will modify this Policy if retention practices materially change.</p>
     </section>
 
     <section id="children">
       <h2>7) Children &amp; Students</h2>
-      <p>The Services are for users 13+ only. We do not knowingly collect personal information from children under 13.</p>
-      <p>If we learn a child under 13 has used the Services, we will delete the account and associated information.</p>
+      <p>The Services are intended for users ages 13 and older. We do not knowingly collect personal information from children under 13. If we learn that a child under 13 has created an account or provided personal information, we will take reasonable steps to delete the account and associated data.</p>
+      <p>We may use student or school-associated email addresses solely to help verify eligibility (for example, to confirm that you are a student). This does not give your school access to your UniVerse account or data.</p>
     </section>
 
     <section id="security">
       <h2>8) Security</h2>
-      <p>We use organizational and technical measures such as HTTPS, access controls, encryption at rest (where supported), and monitoring. No system is 100% secure. Report issues to <a href="mailto:security@fullertonconnect.com">security@fullertonconnect.com</a>.</p>
+      <p>We use organizational and technical measures designed to protect information, such as HTTPS, access controls, encryption at rest (where supported by our infrastructure), and monitoring for abuse.</p>
+      <p>No system is 100% secure. You can help protect your account by using a strong password, enabling any available security features, and not sharing your credentials or verification codes. If you discover a potential vulnerability, please email <a href="mailto:security@uni-verse.social">security@uni-verse.social</a>.</p>
     </section>
 
     <section id="california">
       <h2>9) California Privacy Rights (CPRA)</h2>
+      <p>If you are a California resident, you may have the following rights under the California Consumer Privacy Act (CCPA), as amended by the California Privacy Rights Act (CPRA):</p>
       <ul>
-        <li><strong>Right to Know/Access, Delete, and Correct.</strong> Request a copy of your data, deletion, or corrections.</li>
-        <li><strong>Right to Opt-Out of “Sale”/“Sharing.”</strong> If we engage in cross-context ad “sharing,” you may opt out via our “Do Not Sell or Share My Personal Information” link. We also honor global privacy control (GPC) signals where feasible.</li>
-        <li><strong>Right to Limit Use of Sensitive PI.</strong> We use phone number only for verification and security; we do not use sensitive PI for additional purposes.</li>
-        <li><strong>Non-Discrimination.</strong> We won’t discriminate for exercising your rights.</li>
+        <li><strong>Right to Know/Access:</strong> to request information about the categories and specific pieces of personal information we have collected about you.</li>
+        <li><strong>Right to Delete:</strong> to request deletion of personal information we collected from you, subject to certain exceptions.</li>
+        <li><strong>Right to Correct:</strong> to request correction of inaccurate personal information.</li>
+        <li><strong>Right to Opt Out of “Sale”/“Sharing”:</strong> if we “sell” or “share” personal information as defined by CPRA—for example, sharing identifiers and usage data with advertising partners for cross-context behavioral advertising—you may opt out via any “Do Not Sell or Share My Personal Information” link we provide.</li>
+        <li><strong>Right to Limit Use of Sensitive Personal Information:</strong> we use sensitive personal information (such as phone number) primarily for verification and security; we do not use it for additional purposes that would require a “limit use” control.</li>
+        <li><strong>Right to Non-Discrimination:</strong> we will not discriminate against you for exercising your rights.</li>
       </ul>
-      <h3>How to Exercise Rights</h3>
-      <p>Use in-app controls or email <a href="mailto:privacy@fullertonconnect.com">privacy@fullertonconnect.com</a> with “California Request” and verify your email/SMS code. Authorized agents must provide proof of authorization and we will verify the user.</p>
+
+      <h3>How to Exercise Your Rights</h3>
+      <p>You can submit privacy requests by emailing <a href="mailto:privacy@uni-verse.social">privacy@uni-verse.social</a> with “California Privacy Request” in the subject line. We may ask you to verify your identity (for example, via email or SMS code) to protect your account.</p>
+      <p>If you use an authorized agent, we may require documentation showing their authority and also verify your identity directly.</p>
 
       <h3>Notice at Collection (Summary)</h3>
       <p>
-        We collect: identifiers (email, phone, device IDs), internet activity (logs, cookies/SDKs), user content, and approximate location from IP.
-        Purposes: provide &amp; secure the Services, personalization, measurement, ads, and legal compliance.
-        Sharing: service providers; ads/measurement partners (opt-out available).
-        Retention: see §6.
+        We collect identifiers (e.g., email, phone, device IDs), internet or network activity (logs, cookies/SDKs),
+        user content, and approximate location (from IP). We use these for purposes such as providing and securing
+        the Services, personalization, analytics, and advertising. We share this data with service providers and,
+        where applicable, advertising/measurement partners. Retention practices are summarized in Section 6.
       </p>
     </section>
 
     <section id="cookies">
       <h2>10) Cookies &amp; Similar Technologies</h2>
-      <p>We use cookies/SDKs for login, fraud prevention, analytics, and ads. You can manage these in settings or via your device/platform.</p>
+      <p>We and our partners use cookies, SDKs, and similar technologies to:</p>
+      <ul>
+        <li>Keep you logged in and maintain your session;</li>
+        <li>Prevent fraud and abuse;</li>
+        <li>Measure usage and performance;</li>
+        <li>Support advertising and ad measurement.</li>
+      </ul>
+      <p>You can manage these through in-app settings (where offered), your browser settings, or your device’s privacy controls and platform-level ad preferences.</p>
     </section>
 
     <section id="intl">
       <h2>11) International Users</h2>
-      <p>We are U.S.-only and host data in the United States. Do not use the Services from outside the U.S.</p>
+      <p>UniVerse is intended only for users located in the United States, and we store data primarily in the U.S. If you are outside the U.S., you should not use the Services.</p>
     </section>
 
     <section id="changes">
       <h2>12) Changes to This Policy</h2>
-      <p>We may update this Policy. Material changes will be notified in-app or by email. Continued use after the effective date means you accept the updated Policy.</p>
+      <p>We may update this Privacy Policy from time to time. If changes are material, we will provide notice (e.g., in-app or by email), and we may ask you to review the updated Policy. Your continued use of the Services after the effective date of the updated Policy means that you accept the changes.</p>
     </section>
 
     <section id="contact">
       <h2>13) Contact Us</h2>
-      <p>Privacy: <a href="mailto:privacy@fullertonconnect.com">privacy@fullertonconnect.com</a></p>
-      <p>Support: <a href="mailto:support@fullertonconnect.com">support@fullertonconnect.com</a></p>
-      <p>Legal/DMCA: <a href="mailto:legal@fullertonconnect.com">legal@fullertonconnect.com</a> / <a href="mailto:dmca@fullertonconnect.com">dmca@fullertonconnect.com</a></p>
-      <p>Address: [Mailing address]</p>
+      <p><strong>Privacy:</strong> <a href="mailto:privacy@uni-verse.social">privacy@uni-verse.social</a></p>
+      <p><strong>Support:</strong> <a href="mailto:support@uni-verse.social">support@uni-verse.social</a></p>
+      <p><strong>Legal/DMCA:</strong> <a href="mailto:legal@uni-verse.social">legal@uni-verse.social</a> / <a href="mailto:dmca@uni-verse.social">dmca@uni-verse.social</a></p>
+      <p><strong>Security:</strong> <a href="mailto:security@uni-verse.social">security@uni-verse.social</a></p>
+      <p><strong>Address:</strong> [Mailing address]</p>
     </section>
 
     <p class="foot">
-      Incorporated by reference into the <a href="/terms" target="_blank" rel="noreferrer">Terms of Service</a>.
-      Use the “Do Not Sell or Share My Personal Information” link (where provided) to manage cross-context advertising choices.
+      This Privacy Policy is incorporated by reference into the
+      <a href="/terms" target="_blank" rel="noreferrer">Terms of Service</a>.
+      Use any “Do Not Sell or Share My Personal Information” link (where provided) to manage cross-context advertising choices.
     </p>
   </main>
 </body>

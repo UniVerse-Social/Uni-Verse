@@ -9,7 +9,7 @@ import Post from '../components/Post';
 import EditProfileModal from '../components/EditProfileModal';
 import ImageCropModal from '../components/ImageCropModal';
 import { FaCamera } from 'react-icons/fa';
-import { FiSettings, FiLogOut, FiTrash2, FiX } from 'react-icons/fi';
+import { FiSettings, FiLogOut, FiTrash2, FiX, FiFileText, FiShield, FiBookOpen } from 'react-icons/fi';
 import FollowersModal from '../components/FollowersModal';
 import HobbiesModal from '../components/HobbiesModal';
 import { getHobbyEmoji, HOBBY_LIMIT } from '../utils/hobbies';
@@ -729,6 +729,7 @@ const Profile = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
+  const [legalDoc, setLegalDoc] = useState(null);
   // Followers modal
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
@@ -1253,6 +1254,60 @@ const Profile = () => {
         </ModalBackdrop>
       )}
 
+      {/* Legal docs modal (Terms / Privacy / Guidelines) */}
+      {legalDoc && (
+        <ModalBackdrop
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLegalDoc(null)}
+        >
+          <ModalCard
+            style={{ width: 'min(920px, 96vw)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ModalHeader>
+              <h3>
+                {legalDoc === 'terms' && 'Terms of Service'}
+                {legalDoc === 'privacy' && 'Privacy Policy'}
+                {legalDoc === 'guidelines' && 'Community Guidelines'}
+              </h3>
+              <button
+                aria-label="Close"
+                onClick={() => setLegalDoc(null)}
+              >
+                <FiX />
+              </button>
+            </ModalHeader>
+
+            <ModalBody style={{ padding: 0, height: '70vh' }}>
+              <iframe
+                title={
+                  legalDoc === 'terms'
+                    ? 'Terms of Service'
+                    : legalDoc === 'privacy'
+                    ? 'Privacy Policy'
+                    : 'Community Guidelines'
+                }
+                src={
+                  legalDoc === 'terms'
+                    ? '/terms'
+                    : legalDoc === 'privacy'
+                    ? '/privacy'
+                    : '/guidelines'
+                }
+                style={{
+                  border: 'none',
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '10px',
+                  background: '#050510',
+                }}
+              />
+            </ModalBody>
+          </ModalCard>
+        </ModalBackdrop>
+      )}
+
       {/* Badges modal */}
       {showBadgesModal && (
         <ModalBackdrop role="dialog" aria-modal="true" onClick={() => setShowBadgesModal(false)}>
@@ -1436,12 +1491,50 @@ const Profile = () => {
 
                     {showSettings && (
                       <SettingsMenu>
-                        <SettingsItem onClick={() => { setIsEditModalOpen(true); setShowSettings(false); }}>
+                        <SettingsItem
+                          onClick={() => {
+                            setIsEditModalOpen(true);
+                            setShowSettings(false);
+                          }}
+                        >
                           <FiSettings /> Edit profile
                         </SettingsItem>
-                        <SettingsItem onClick={handleLogout}><FiLogOut /> Log out</SettingsItem>
+
+                        {/* Legal docs */}
+                        <SettingsItem
+                          onClick={() => {
+                            setLegalDoc('terms');
+                            setShowSettings(false);
+                          }}
+                        >
+                          <FiFileText /> Terms of Service
+                        </SettingsItem>
+                        <SettingsItem
+                          onClick={() => {
+                            setLegalDoc('privacy');
+                            setShowSettings(false);
+                          }}
+                        >
+                          <FiShield /> Privacy Policy
+                        </SettingsItem>
+                        <SettingsItem
+                          onClick={() => {
+                            setLegalDoc('guidelines');
+                            setShowSettings(false);
+                          }}
+                        >
+                          <FiBookOpen /> Community Guidelines
+                        </SettingsItem>
+
+                        <SettingsItem onClick={handleLogout}>
+                          <FiLogOut /> Log out
+                        </SettingsItem>
+
                         <MenuDivider />
-                        <SettingsItem className="danger" onClick={requestDeleteAccount}><FiTrash2 /> Delete account</SettingsItem>
+
+                        <SettingsItem className="danger" onClick={requestDeleteAccount}>
+                          <FiTrash2 /> Delete account
+                        </SettingsItem>
                       </SettingsMenu>
                     )}
                   </SettingsWrap>

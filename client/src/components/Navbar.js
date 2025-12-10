@@ -203,6 +203,10 @@ const Navbar = () => {
   const { open } = useDMDrawer();
   if (!user) return null;
 
+  // 🚀 Hide navbar completely when loaded inside iframe (terms/privacy/guidelines modals)
+  const isEmbedded = typeof window !== "undefined" && window.self !== window.top;
+  if (isEmbedded) return null;
+
   return (
     <>
       {/* Mobile-only top logo bar */}
@@ -224,7 +228,7 @@ const Navbar = () => {
       {/* Main nav – desktop top / mobile bottom */}
       <NavWrapper>
         <NavContainer>
-          {/* Desktop-only logo (hidden on mobile) */}
+          {/* Desktop-only logo */}
           <Logo to="/">
             <BrandWord>UniVerse</BrandWord>
           </Logo>
