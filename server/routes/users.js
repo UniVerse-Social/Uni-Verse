@@ -10,7 +10,7 @@ const {
   checkAndUnlock,
   recomputeAllBadges,
 } = require('../services/badges'); // badge engine + catalog + retroactive
-
+const { enforceTextLimits, BIO_CHAR_LIMIT } = require('../utils/textLimits');
 const BADGE_NAMES = new Set(BADGE_CATALOG.map(b => b.name));
 const HEX_COLOR_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 const DEFAULT_ACCENT = '#fbbf24';
