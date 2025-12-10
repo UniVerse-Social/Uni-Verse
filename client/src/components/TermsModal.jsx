@@ -6,34 +6,42 @@ import { useTermsHtml } from '../utils/useTermsHtml';
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.55);
+  background: rgba(3, 6, 26, 0.78);
   display: ${({ $open }) => ($open ? 'flex' : 'none')};
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 16px;
 `;
 
 const Content = styled.div`
-  background: #fff;
-  width: min(92vw, 800px);
-  max-height: 80vh;
-  border-radius: 12px;
+  width: min(960px, 100%);
+  max-height: min(90vh, 720px);
+  border-radius: 18px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  background: #050510;
+  border: 1px solid rgba(72, 85, 130, 0.7);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.85);
 `;
 
 const Header = styled.div`
-  padding: 14px 16px;
+  padding: 14px 18px;
   font-weight: 700;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid rgba(72, 85, 130, 0.7);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #111;
+  color: #e6e9ff;
+  background: radial-gradient(
+      800px 420px at 0% 0%,
+      rgba(139, 123, 255, 0.22) 0%,
+      transparent 60%
+    ),
+    #050510;
 `;
 
 const CloseX = styled.button`
@@ -42,6 +50,14 @@ const CloseX = styled.button`
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
+  color: #a3a8c6;
+  border-radius: 999px;
+  padding: 4px;
+
+  &:hover {
+    background: rgba(40, 48, 94, 0.9);
+    color: #ffffff;
+  }
 `;
 
 const Body = styled.div`
@@ -49,14 +65,49 @@ const Body = styled.div`
   overflow: auto;
   font-size: 14px;
   line-height: 1.5;
-  color: #111;
+  color: #e6e9ff;
+  background: radial-gradient(
+      900px 500px at 10% 0%,
+      rgba(139, 123, 255, 0.15),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at 90% 100%,
+      rgba(89, 208, 255, 0.12),
+      transparent 60%
+    ),
+    #050510;
 
-  /* keep injected content readable */
-  .terms-html h1, .terms-html h2, .terms-html h3,
-  .terms-html h4, .terms-html h5, .terms-html h6 { color:#111 !important; }
-  .terms-html h1 *, .terms-html h2 *, .terms-html h3 *,
-  .terms-html h4 *, .terms-html h5 *, .terms-html h6 * { color:inherit !important; }
-  .terms-html a { color: var(--primary-orange, #0a58ca); }
+  /* Make injected legal HTML match the dark theme */
+  .terms-html,
+  .terms-html body,
+  .terms-html main,
+  .terms-html .container {
+    background: transparent !important;
+    color: inherit !important;
+  }
+
+  .terms-html h1,
+  .terms-html h2,
+  .terms-html h3,
+  .terms-html h4,
+  .terms-html h5,
+  .terms-html h6 {
+    color: inherit !important;
+  }
+
+  .terms-html h1 *,
+  .terms-html h2 *,
+  .terms-html h3 *,
+  .terms-html h4 *,
+  .terms-html h5 *,
+  .terms-html h6 * {
+    color: inherit !important;
+  }
+
+  .terms-html a {
+    color: var(--primary-orange, #8b7bff);
+  }
 `;
 
 const DOC_MAP = {
@@ -70,18 +121,18 @@ export default function TermsModal({
   onClose,
   title = 'Terms and Conditions',
   docUrl = '/terms.html',
-  onNavigate,        // (url, title) => void
+  onNavigate, // (url, title) => void
 }) {
-  // Hooks must run unconditionally
+  // Load HTML for the selected doc
   const { html, loading, error } = useTermsHtml(docUrl);
   const bodyRef = useRef(null);
 
-  // scroll to top whenever doc changes
+  // Scroll to top when we swap docs
   useEffect(() => {
     bodyRef.current?.scrollTo?.({ top: 0, behavior: 'auto' });
   }, [docUrl, html]);
 
-  // Intercept clicks on links with data-legal-doc and swap docs
+  // Intercept clicks on links with data-legal-doc and swap docs instead of navigating
   const handleBodyClick = (e) => {
     const a = e.target.closest?.('a');
     if (!a) return;
@@ -96,7 +147,6 @@ export default function TermsModal({
     onNavigate?.(next.url, next.title);
   };
 
-  // Early return AFTER hooks to satisfy rules-of-hooks
   if (!open) return null;
 
   return (
@@ -109,12 +159,19 @@ export default function TermsModal({
       >
         <Header>
           <span id="terms-title">{title}</span>
-          <CloseX aria-label="Close" onClick={onClose}>×</CloseX>
+          <CloseX aria-label="Close" onClick={onClose}>
+            ×
+          </CloseX>
         </Header>
         <Body ref={bodyRef} onClick={handleBodyClick}>
           {loading && <p>Loading…</p>}
           {error && <p>{error}</p>}
-          {html && <div className="terms-html" dangerouslySetInnerHTML={{ __html: html }} />}
+          {html && (
+            <div
+              className="terms-html"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          )}
         </Body>
       </Content>
     </Overlay>

@@ -97,13 +97,41 @@ const Button = styled.button`
 `;
 
 const HobbyPanel = styled.div`
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 24px;
+  padding: 16px 14px;
   display: grid;
-  gap: 14px;
+  gap: 12px;
+
+  /* UniVerse dark-space theme */
+  background:
+    radial-gradient(900px 480px at 0% 0%, rgba(139, 123, 255, 0.20) 0%, transparent 55%),
+    radial-gradient(700px 400px at 100% 100%, rgba(89, 208, 255, 0.18) 0%, transparent 55%),
+    #050510;
+  border: 1px solid rgba(72, 85, 130, 0.7);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.65);
+
+  max-height: calc(100vh - 260px); 
+  overflow-y: auto;
+
+  /* Hide scrollbar for aesthetic (optional) */
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    max-height: calc(100vh - 220px);
+    gap: 10px;
+    padding: 14px 12px;
+  }
+
+  @media (max-width: 600px) {
+    max-height: calc(100vh - 200px);
+    gap: 8px;
+    padding: 12px 10px;
+  }
 `;
+
 
 const HobbyHeaderRow = styled.div`
   display: flex;
@@ -123,16 +151,22 @@ const HobbyHeaderLeft = styled.div`
 const ClearAllButton = styled.button`
   border: none;
   background: transparent;
-  color: #2563eb;
+  color: var(--primary-orange);
   font-weight: 600;
   cursor: pointer;
   padding: 0;
-  &:hover { text-decoration: underline; }
-`;
-const HobbyOption = styled(BaseHobbyOption)`
-  /* default (unselected) can keep the base styles; tweak hover a bit */
+  font-size: 13px;
+
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
+    text-decoration: underline;
+    filter: brightness(1.05);
+  }
+`;
+
+const HobbyOption = styled(BaseHobbyOption)`
+  /* default (unselected) hover */
+  &:hover {
+    background: rgba(139, 123, 255, 0.16);
   }
 
   /* selected state */
@@ -149,12 +183,12 @@ const HobbyOption = styled(BaseHobbyOption)`
       }
     `}
 
-  /* keyboard focus ring */
   &:focus-visible {
     outline: 2px solid var(--primary-orange);
     outline-offset: 2px;
   }
 `;
+
 const ValidationMessage = styled.p` color: red; font-size: 14px; margin: -10px 0 0 5px; `;
 
 const LoginLink = styled(Link)`
