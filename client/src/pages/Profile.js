@@ -789,8 +789,16 @@ const Profile = () => {
       const userRes = await axios.get(`/api/users/profile/${username}`);
       const viewerParam = currentUser?._id ? `?viewerId=${currentUser._id}` : '';
       const postsRes = await axios.get(`/api/posts/profile/${username}${viewerParam}`);
-      setUserOnPage(userRes.data);
-      // Normalize posts into an array no matter what the API shape is
+
+      const rawUser = userRes.data;
+      const profileUser =
+        rawUser && typeof rawUser === 'object' && rawUser.user
+          ? rawUser.user          // common pattern: { user: {...} }
+          : rawUser;              // or just the user itself
+
+      setUserOnPage(profileUser);
+
+      // Normalise posts into an array
       const rawPosts = postsRes.data;
       const normalizedPosts = Array.isArray(rawPosts)
         ? rawPosts
@@ -1405,7 +1413,10 @@ const Profile = () => {
                   })}
                 </BadgesRow>
 
-                <Bio>{userOnPage.bio || `Welcome to ${userOnPage.username}'s page!`}</Bio>
+                <Bio>
+                  {userOnPage.bio ||
+                    `Welcome to ${(userOnPage.username || username || 'this user')}'s page!`}
+                </Bio>
               </Info>
 
               <Actions ref={settingsRef}>
