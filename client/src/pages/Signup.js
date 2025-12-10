@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
-import axios from 'axios';
 import { api } from '../api';
 
 import { debounce } from 'lodash';
@@ -44,23 +43,29 @@ const passwordIssues = (pw) => {
 };
 const isStrongPassword = (pw) => passwordIssues(pw).length === 0;
 const fieldAvailable = async (field, value) => {
-  const params = { [field]: value };
-
   try {
-    // Use GET with query params instead of POST body
-    const res = await api.get('/auth/check-availability', { params });
+    const body =
+      field === 'email'
+        ? { email: String(value || '').trim().toLowerCase() }
+        : { username: String(value || '').trim() };
+
+    const res = await api.post('/auth/check-availability', body);
     const d = res?.data || {};
 
+    if (field === 'email') {
+      if (typeof d.isEmailTaken === 'boolean') return !d.isEmailTaken;
+    } else if (field === 'username') {
+      if (typeof d.isUsernameTaken === 'boolean') return !d.isUsernameTaken;
+    }
+
+    // fallback if server shape changes
     if (typeof d.available === 'boolean') return d.available;
-    if (typeof d[`${field}Available`] === 'boolean') return d[`${field}Available`];
     if (typeof d.taken === 'boolean') return !d.taken;
-    if (typeof d[`${field}Taken`] === 'boolean') return !d[`${field}Taken`];
-    if (typeof d.exists === 'boolean') return !d.exists;
 
     return true;
   } catch (err) {
     console.error('Error during hard availability check', err);
-    return true;
+    return true; // don't hard-block signup on network error
   }
 };
 
@@ -253,31 +258,23 @@ const checkAvailability = useMemo(
 
       setIsChecking(true);
       try {
-        const res = await api.get('/auth/check-availability', {
-          params: { [field]: value },
-        });
+        const body =
+          field === 'email'
+            ? { email: value }
+            : { username: value };
 
-        // tolerate different server response shapes
-        const availDirect = res?.data?.available;
-        const altEmail = res?.data?.emailAvailable ?? res?.data?.availableEmail;
-        const altUser = res?.data?.usernameAvailable ?? res?.data?.availableUsername;
+        const res = await api.post('/auth/check-availability', body);
 
-        const available =
-          typeof availDirect === 'boolean'
-            ? availDirect
-            : field === 'email'
-            ? typeof altEmail === 'boolean'
-              ? altEmail
-              : true
-            : typeof altUser === 'boolean'
-            ? altUser
-            : true;
+        const taken =
+          field === 'email'
+            ? !!res?.data?.isEmailTaken
+            : !!res?.data?.isUsernameTaken;
 
         setValidation((prev) => ({
           ...prev,
-          [field]: available
-            ? ''
-            : `${field === 'email' ? 'Email' : 'Username'} is already taken`,
+          [field]: taken
+            ? `${field === 'email' ? 'Email' : 'Username'} is already taken`
+            : '',
         }));
 
         // Extra: school email domain enforcement
@@ -295,7 +292,7 @@ const checkAvailability = useMemo(
         }
       } catch (err) {
         console.error('Error checking availability', err);
-        // On error, don't label as taken — just keep current validation text.
+        // on error keep current validation
       } finally {
         setIsChecking(false);
       }
@@ -338,11 +335,12 @@ async function startEmailVerification() {
     setErrMsg('Please resolve the availability checks before continuing.');
     return;
   }
+  // startEmailVerification
   try {
     setSendingCode(true);
-    await axios.post('/api/verification/send', { email, schoolSlug: school.slug });
+    await api.post('/verification/send', { email, schoolSlug: school.slug });
     setSendCooldown(60);
-    setStep(2); // to the code entry screen
+    setStep(2);
   } catch (err) {
     const msg = err?.response?.data?.message || 'Failed to send verification email.';
     setErrMsg(msg);
@@ -357,7 +355,7 @@ async function confirmEmailCode() {
   const email = String(formData.email || '').trim().toLowerCase();
   try {
     setConfirming(true);
-    const { data } = await axios.post('/api/verification/confirm', {
+    const { data } = await api.post('/verification/confirm', {
       email,
       schoolSlug: school?.slug,
       code: String(verifyCode || '').trim(),
