@@ -29,12 +29,16 @@ const allowLocalhost = (o) =>
 const allowCF = (o) =>
   /^https?:\/\/([a-z0-9-]+\.)?trycloudflare\.com$/i.test(o);
 
+const allowVercel = (o) =>
+  /^https?:\/\/([a-z0-9-]+\.)?vercel\.app$/i.test(o);
+
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin) return callback(null, true);           // SSR / same-origin
+    if (!origin) return callback(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-    if (allowLocalhost(origin)) return callback(null, true);  // ANY localhost port
-    if (allowCF(origin)) return callback(null, true);         // Cloudflare tunnels
+    if (allowLocalhost(origin)) return callback(null, true);
+    if (allowCF(origin)) return callback(null, true);
+    if (allowVercel(origin)) return callback(null, true);   // <--- ADD THIS
     return callback(null, false);
   },
   credentials: true,
@@ -112,8 +116,9 @@ const io = new Server(server, {
     origin(origin, cb) {
       if (!origin) return cb(null, true);
       if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-      if (allowLocalhost(origin)) return cb(null, true);          // any localhost:* in dev
-      if (allowCF(origin)) return cb(null, true);                 // *.trycloudflare.com
+      if (allowLocalhost(origin)) return cb(null, true);
+      if (allowCF(origin)) return cb(null, true);
+      if (allowVercel(origin)) return cb(null, true);       // <--- ADD THIS
       return cb(null, false);
     },
     credentials: true,
@@ -168,7 +173,7 @@ try {
   console.warn('Realtime: jump module failed to load:', e?.message || e);
 }
 
-// NEW: Meteor realtime
+// Meteor realtime
 try {
   require('./realtime/meteor')(io);
   console.log('Realtime: meteor namespace initialized');
@@ -176,7 +181,7 @@ try {
   console.warn('Realtime: meteor module failed to load:', e?.message || e);
 }
 
-// NEW: Tetris realtime
+// Tetris realtime
 try {
   require('./realtime/tetris')(io);
   console.log('Realtime: tetris namespace initialized');
