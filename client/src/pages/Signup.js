@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import axios from 'axios';
+import { api } from '../api';
 
 import { debounce } from 'lodash';
 import { AuthContext } from '../App';
@@ -47,7 +48,7 @@ const fieldAvailable = async (field, value) => {
 
   try {
     // Use GET with query params instead of POST body
-    const res = await axios.get('/api/auth/check-availability', { params });
+    const res = await api.get('/auth/check-availability', { params });
     const d = res?.data || {};
 
     if (typeof d.available === 'boolean') return d.available;
@@ -56,11 +57,9 @@ const fieldAvailable = async (field, value) => {
     if (typeof d[`${field}Taken`] === 'boolean') return !d[`${field}Taken`];
     if (typeof d.exists === 'boolean') return !d.exists;
 
-    // If server returns something unexpected, assume ok and rely on DB uniqueness at signup.
     return true;
   } catch (err) {
     console.error('Error during hard availability check', err);
-    // Return true so we don't block signups just because the check endpoint is flaky.
     return true;
   }
 };
@@ -222,7 +221,7 @@ const Signup = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await axios.get('/api/auth/signup-data');
+        const res = await api.get('/auth/signup-data');
         setSignupData(res.data);
         if (res.data.departments?.length) {
           setFormData(prev => ({ ...prev, department: res.data.departments[0] }));
@@ -254,7 +253,7 @@ const checkAvailability = useMemo(
 
       setIsChecking(true);
       try {
-        const res = await axios.get('/api/auth/check-availability', {
+        const res = await api.get('/auth/check-availability', {
           params: { [field]: value },
         });
 
@@ -456,7 +455,7 @@ async function confirmEmailCode() {
       termsAcceptedAt: new Date().toISOString(),
     };
 
-      const signupRes = await axios.post('/api/auth/signup', payload);
+      const signupRes = await api.post('/auth/signup', payload);
 
       const serverUser = signupRes?.data;
       if (serverUser && (serverUser._id || serverUser.username)) {
@@ -465,7 +464,7 @@ async function confirmEmailCode() {
         return;
       }
 
-      const loginRes = await axios.post('/api/auth/login', {
+      const loginRes = await api.post('/auth/login', {
         loginIdentifier: email,
         password,
       });
