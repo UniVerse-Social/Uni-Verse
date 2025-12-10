@@ -786,19 +786,22 @@ const Profile = () => {
   // Fetch profile and posts
   const fetchUserAndPosts = useCallback(async () => {
     try {
-      const userRes = await axios.get(`/api/users/profile/${username}`);
+      const userRes = await axios.get(`${API_BASE_URL}/api/users/profile/${username}`);
+
       const viewerParam = currentUser?._id ? `?viewerId=${currentUser._id}` : '';
-      const postsRes = await axios.get(`/api/posts/profile/${username}${viewerParam}`);
+      const postsRes = await axios.get(
+        `${API_BASE_URL}/api/posts/profile/${username}${viewerParam}`
+      );
 
       const rawUser = userRes.data;
       const profileUser =
         rawUser && typeof rawUser === 'object' && rawUser.user
-          ? rawUser.user          // common pattern: { user: {...} }
-          : rawUser;              // or just the user itself
+          ? rawUser.user
+          : rawUser;
 
       setUserOnPage(profileUser);
 
-      // Normalise posts into an array
+      // Normalize posts into an array no matter what the API shape is (your existing logic)
       const rawPosts = postsRes.data;
       const normalizedPosts = Array.isArray(rawPosts)
         ? rawPosts
