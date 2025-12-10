@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import axios from 'axios';
-import { api } from '../api';
 
 import { debounce } from 'lodash';
 import { AuthContext } from '../App';
@@ -342,7 +341,7 @@ async function startEmailVerification() {
   }
   try {
     setSendingCode(true);
-    await api.post('/verification/send', { email, schoolSlug: school.slug });
+    await axios.post('/api/verification/send', { email, schoolSlug: school.slug });
     setSendCooldown(60);
     setStep(2); // to the code entry screen
   } catch (err) {
@@ -359,8 +358,10 @@ async function confirmEmailCode() {
   const email = String(formData.email || '').trim().toLowerCase();
   try {
     setConfirming(true);
-    const { data } = await api.post('/verification/confirm', {
-      email, schoolSlug: school?.slug, code: String(verifyCode || '').trim(),
+    const { data } = await axios.post('/api/verification/confirm', {
+      email,
+      schoolSlug: school?.slug,
+      code: String(verifyCode || '').trim(),
     });
     if (data?.ok || data?.verifiedUntil) {
       // also store locally so returning users skip in future
