@@ -385,7 +385,7 @@ const ComposerBox = styled.div`
 `;
 
 const TA = styled.textarea`
-  width: 100%;
+  width: 90%;
   min-height: 70px;
   border: none;
   outline: none;
