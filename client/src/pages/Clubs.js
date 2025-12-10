@@ -118,7 +118,7 @@ const Col = styled.div`
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  height: 70%;
+  height: 100%;
   overflow: hidden;
   @media (max-width: 900px) {
     height: 100%;
