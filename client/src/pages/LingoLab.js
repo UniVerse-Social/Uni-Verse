@@ -1049,7 +1049,7 @@ export default function LingoLab() {
       <Main>
         <H1>LingoLab</H1>
         <Sub>
-          A gentle, Duolingo-style lab for building real study streaks in
+          A gentle, Language lab for building real study streaks in
           French, Spanish, and Japanese.
         </Sub>
 
