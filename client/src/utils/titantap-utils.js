@@ -3,6 +3,7 @@ import {
   MAX_TEXTAREA_NEWLINES,
 } from '../constants/profileLimits';
 import { applyTextLimits } from './textLimits';
+import { API_BASE_URL as CONFIG_API_BASE_URL } from '../config';
 
 export const GAME_KEYS = ['chess', 'checkers', 'fishing', 'poker', 'reversi', 'jump', 'oddeven'];
 export const MAX_CANVAS_MODULES = 12;
@@ -40,17 +41,38 @@ export function getCurrentUserProfile() {
   return null;
 }
 
-const API_BASE_URL = window.API_BASE_URL || '';
+// Base URL for TitanTap/UniConnect API calls:
+// - In prod, CONFIG_API_BASE_URL comes from REACT_APP_API_BASE (Render backend).
+// - In dev, it falls back to the current origin (localhost:3000).
+const pageOrigin =
+  (typeof window !== 'undefined' && window.location && window.location.origin) || '';
+const REST_BASE =
+  (CONFIG_API_BASE_URL && CONFIG_API_BASE_URL.trim()) || pageOrigin;
+const API_ROOT = REST_BASE.replace(/\/+$/, ''); // no trailing slash
 
 export async function api(path, { method = 'GET', body } = {}) {
-  const url = path.startsWith('http')
-    ? path
-    : `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  let url;
+
+  if (path.startsWith('http')) {
+    // Absolute URL passed in — use as-is.
+    url = path;
+  } else {
+    // Normalise to always have `/api/...`
+    const cleanedPath = path.startsWith('/api/')
+      ? path
+      : `/api${path.startsWith('/') ? path : `/${path}`}`;
+
+    url = `${API_ROOT}${cleanedPath}`;
+  }
+
   const res = await fetch(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
+    // Match axios `{ withCredentials: true }` so cookies work cross-origin
+    credentials: 'include',
   });
+
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
     const text = await res.text();
@@ -58,11 +80,14 @@ export async function api(path, { method = 'GET', body } = {}) {
       `API returned non-JSON. Check API base URL/proxy. First bytes: ${text.slice(0, 60)}...`
     );
   }
+
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const j = await res.json().catch(() => ({}));
-    throw new Error(j?.message || 'Request failed');
+    throw new Error(data?.message || 'Request failed');
   }
-  return res.json();
+
+  return data;
 }
 
 export const PROFILE_LAYOUTS = [
