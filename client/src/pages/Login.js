@@ -3,7 +3,7 @@
 import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import axios from 'axios';
+import { api } from '../api';
 import { AuthContext } from '../App';
 
 const LoginContainer = styled.div`
@@ -74,9 +74,9 @@ const Login = () => {
         const raw = (loginIdentifier || '').trim();
         const normalized = raw.includes('@') ? raw.toLowerCase() : raw;
 
-        const res = await axios.post('/api/auth/login', {
+        const res = await api.post('/auth/login', {
         loginIdentifier: normalized,
-        password
+        password,
         });
         login(res.data);
         navigate('/');
